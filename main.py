@@ -1,81 +1,97 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
+from lib.downloader import download_all
+from lib.graph import render_charts
 
-import argparse
-from datetime import datetime
 
-from lib.helpers import DATE_FORMAT
-from lib.helpers import configure_logging
-from lib.downloader import downloader
-from lib.graphs import graphs_builder
+def parse_ticker_spec(spec: str):
+    parts = spec.split("|")
+    if len(parts) != 3:
+        raise ValueError(
+            f"Invalid ticker format '{spec}'. Expected: TICKER|ENGINE|MARKET"
+        )
+    return {"ticker": parts[0], "engine": parts[1], "market": parts[2]}
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='MOEX quotes downloader and graphs')
-    subparsers = parser.add_subparsers(title='subcommands', dest='sub')
+    import argparse
+    from datetime import datetime
 
-    download_parser = subparsers.add_parser('download', help='download quotes')
-    download_parser.add_argument(
-        '--engine',
-        default='stock',
-        choices=['stock', 'currency', 'nasdaq'],
-        help='Доступные торговые системы: "stock, currency, nasdaq" https://iss.moex.com/iss/engines.xml',
-    )
-    download_parser.add_argument(
-        '--market',
-        required=True,
-        # choices=['shares', 'bonds', 'index', 'selt'],
-        help='Доступные рынки MOEX: "index, shares, bonds, selt" https://iss.moex.com/iss/engines/stock/markets.xml',
-    )
-    download_parser.add_argument(
-        '--date',
-        required=True,
-        type=lambda d: datetime.strptime(d, DATE_FORMAT),
-        help='Дата, за которую скачивать котировки в формате YYYY-MM-DD',
-    )
-    download_parser.add_argument(
-        '--dateend',
-        type=lambda d: datetime.strptime(d, DATE_FORMAT),
-        help='Дата окончания диапазона дат [date, dateend] в формате YYYY-MM-DD',
-    )
-    download_parser.add_argument(
-        '--save-raw-xml',
-        action='store_true',
-        help='Сохранять ли исходные XML файлы',
-    )
-    download_parser.set_defaults(fn=downloader)
+    parser = argparse.ArgumentParser(description="Universal downloader + chart builder")
 
-    graphs_parser = subparsers.add_parser('graphs', help='build graphs')
-    graphs_parser.add_argument(
-        '--date',
+    parser.add_argument(
+        "--tickers",
+        nargs="*",
         required=True,
-        type=lambda d: datetime.strptime(d, DATE_FORMAT),
-        help='Дата, за которую строить графики в формате YYYY-MM-DD',
+        help="Ticker specifications: TICKER|ENGINE|MARKET",
     )
-    graphs_parser.add_argument(
-        '-g',
-        '--graphs',
-        '--graph',
-        nargs='*',
-        help='Названия графиков, которые пересчитать (английские названия папок). По-умолчанию — все.',
+    parser.add_argument(
+        "--ticker_file", help="File containing ticker specifications (one per line)"
     )
-    graphs_parser.add_argument(
-        '-c',
-        '--clear',
-        action='store_true',
-        help='Очищать ли предыдущие данные',
+
+    parser.add_argument(
+        "--start_date",
+        required=True,
+        type=lambda d: datetime.strptime(d, "%Y-%m-%d"),
     )
-    graphs_parser.add_argument(
-        '--dateend',
-        type=lambda d: datetime.strptime(d, DATE_FORMAT),
-        help='Дата окончания диапазона дат [date, dateend] в формате YYYY-MM-DD',
+    parser.add_argument(
+        "--end_date",
+        required=True,
+        type=lambda d: datetime.strptime(d, "%Y-%m-%d"),
     )
-    graphs_parser.set_defaults(fn=graphs_builder)
+
+    parser.add_argument("--with_investments", action="store_true")
+    parser.add_argument("--use_gradient", action="store_true")
+    parser.add_argument(
+        "--initial_investment",
+        type=int,
+        default=10000,
+        help="Initial investment amount",
+    )
+    parser.add_argument(
+        "--monthly_investment", type=int, default=0, help="Monthly investment amount"
+    )
+    parser.add_argument(
+        "--yearly_investment", type=int, default=0, help="Yearly investment amount"
+    )
+
+    parser.add_argument("--value_col", default="CAPITAL_REINVEST")
+    parser.add_argument("--duration", type=int, default=30)
+    parser.add_argument("--fps", type=int, default=20)
+    parser.add_argument("--no_legend", action="store_true")
+    parser.add_argument("--currency", default="$")
+    parser.add_argument("--title", default="")
+    parser.add_argument("--under_title", default="")
 
     return parser.parse_args()
 
 
-if __name__ == "__main__":
-    configure_logging()
+def main():
+    import logging
+    import pandas as pd
+
     args = parse_args()
-    args.fn(args)
+    specs = []
+
+    if args.tickers:
+        for t in args.tickers:
+            specs.append(parse_ticker_spec(t))
+    if args.ticker_file:
+        with open(args.ticker_file, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    specs.append(parse_ticker_spec(line.strip()))
+    if not specs:
+        raise ValueError("No tickers provided")
+    start_date = pd.Timestamp(args.start_date).normalize()
+    end_date = pd.Timestamp(args.end_date).normalize()
+    logging.info(f"Processing {len(specs)} instruments")
+    logging.info(f"Date range: {start_date.date()} -> {end_date.date()}")
+    download_all(specs, start_date, end_date, args.currency)
+    render_charts(args, specs, start_date, end_date)
+    logging.info("DONE.")
+
+
+if __name__ == "__main__":
+    from lib.helpers import configure_logging
+
+    configure_logging()
+    main()
