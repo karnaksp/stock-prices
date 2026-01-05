@@ -1,0 +1,19 @@
+# Changes here will be overwritten by Copier.
+_commit: 1.11.2
+_src_path: gh:pawamoy/copier-uv
+author_email: d.irinyakov@ddxfitness.ru
+author_fullname: Denis Irinyakov
+author_username: karnaksp
+copyright_date: '2026'
+copyright_holder: Denis Irinyakov
+copyright_holder_email: irinyakov2016@yandex.ru
+copyright_license: Apache-2.0
+project_description: Animated plots
+project_name: Stock Price
+python_package_command_line_name: stock-prices
+python_package_distribution_name: stock-prices
+python_package_import_name: stock_prices
+repository_name: stock-prices
+repository_namespace: karnaksp
+repository_provider: github.com
+

@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-Test script for the overlay functionality
+Тестовый скрипт для функциональности наложения
 """
 
 from lib.overlay import add_overlay_video
 
 
 def main():
-    # Test with one of the existing animations
-    print("Testing overlay function...")
+    """
+    Основная функция теста
+    """
+    # Тест с одним из существующих анимаций
+    print("Тестирование функции наложения...")
     
     try:
         add_overlay_video(
@@ -21,9 +24,9 @@ def main():
             color_to_remove=(0, 255, 0),
             threshold=60,
         )
-        print("Test completed successfully!")
+        print("Тест завершен успешно!")
     except Exception as e:
-        print(f"Test failed with error: {e}")
+        print(f"Тест завершился с ошибкой: {e}")
 
 
 if __name__ == "__main__":

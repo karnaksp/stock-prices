@@ -1,7 +1,8 @@
+"""
+Модуль для наложения видео
+"""
+
 from moviepy.video.io.VideoFileClip import VideoFileClip
-from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
-from moviepy.video.VideoClip import VideoClip
-from moviepy.video.fx import Loop
 import numpy as np
 
 
@@ -15,58 +16,69 @@ def add_overlay_video(
     color_to_remove=(0, 255, 0),
     threshold: float = 60,
 ):
-    # Основной фон
+    """
+    Добавляет оверлей к видео графика
+
+    Args:
+        graph_path: Путь к видео с графиком
+        green_path: Путь к видео с зеленым фоном
+        output_path: Путь для сохранения результата
+        pos: Позиция оверлея
+        scale: Масштаб оверлея
+        opacity: Прозрачность оверлея
+        color_to_remove: Цвет для удаления (зеленый фон)
+        threshold: Порог чувствительности для удаления цвета
+    """
     graph_clip = VideoFileClip(graph_path)
+    green_clip = VideoFileClip(green_path).resize(scale)
 
-    # Видео с зеленым фоном
-    green_clip = VideoFileClip(green_path).resized(scale)
-    green_clip = Loop(duration=graph_clip.duration).apply(green_clip)
-
-    # Создаем маску (1 = видим, 0 = прозрачный)
-    def mask_fn(t):
-        frame = green_clip.get_frame(t).astype(float)
+    def mask_fn(gf, t):
+        frame = gf(t).astype(float)
         dist = np.sqrt(np.sum((frame - color_to_remove) ** 2, axis=2))
-        mask = np.clip(dist / threshold, 0, 1)  # растягиваем 0..1
-        mask = mask * opacity  # делаем полупрозрачным
+        mask = np.clip(dist / threshold, 0, 1)
+        mask = mask * opacity
         return mask
 
-    # Оборачиваем видео в VideoClip с маской
-    masked_green = VideoClip(
-        frame_function=lambda t: green_clip.get_frame(t), duration=green_clip.duration
+    from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
+
+    mask_clip = (
+        VideoFileClip(green_path)
+        .resize(scale)
+        .to_mask(lambda frame: np.ones((frame.shape[0], frame.shape[1])))
     )
 
-    mask_clip = VideoClip(
-        frame_function=lambda t: mask_fn(t),
-        is_mask=True,
-        duration=green_clip.duration,
+    masked_green = green_clip.set_mask(mask_clip)
+
+    masked_green = masked_green.set_position(pos)
+
+    final = CompositeVideoClip(
+        [graph_clip, masked_green.set_duration(graph_clip.duration)]
     )
-    masked_green = masked_green.with_mask(mask_clip)
 
-    # Позиция и продолжительность
-    masked_green = masked_green.with_position(pos).with_duration(graph_clip.duration)
-
-    # Композит
-    final = CompositeVideoClip([graph_clip, masked_green])
-
-    # Сохраняем
     final.write_videofile(
         output_path, codec="libx264", fps=graph_clip.fps, preset="medium", threads=4
     )
 
 
 def moving_pos(t):
-    # x: двигается слева направо, y: всегда
+    """
+    Возвращает движущуюся позицию
+    Args:
+        t: Время
+    Returns:
+        Позиция (x, y)
+    """
     return (50 + 10 * t, 1480)
 
 
 # Пример использования
-add_overlay_video(
-    "animations/IMOEX_000001_SS.mp4",
-    "cat_green.mp4",
-    "graph_with_green.mp4",
-    pos=moving_pos(13),
-    scale=0.3,
-    opacity=0.6,
-    color_to_remove=(0, 255, 1),
-    threshold=60,
-)
+# add_overlay_video(
+#     "animations/IMOEX_000001_SS.mp4",
+#     "cat_green.mp4",
+#     "graph_with_green.mp4",
+#     pos=moving_pos(13),
+#     scale=0.3,
+#     opacity=0.6,
+#     color_to_remove=(0, 255, 1),
+#     threshold=60,
+# )
