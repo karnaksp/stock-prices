@@ -147,7 +147,7 @@ print(path)
 ```bash
 $env:PYTHONPATH = "src"
 python -m pytest -q
-python -m ruff check .
+python -m mkdocs build --strict
 python -m compileall -q src tests
 ```
 

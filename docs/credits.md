@@ -17,7 +17,7 @@ hide:
 - `yfinance` для глобальных инструментов.
 - `requests` для Telegram Bot API и HTTP-запросов.
 - `pyarrow` для parquet-кэша.
-- `pytest`, `ruff` и `compileall` для проверок качества.
+- `pytest`, `MkDocs` и `compileall` для проверок качества.
 
 ## Авторы
 

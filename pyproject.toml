@@ -47,8 +47,6 @@ Changelog = "https://karnaksp.github.io/stock-prices/changelog"
 Repository = "https://github.com/karnaksp/stock-prices"
 Issues = "https://github.com/karnaksp/stock-prices/issues"
 Discussions = "https://github.com/karnaksp/stock-prices/discussions"
-Gitter = "https://gitter.im/stock-prices/community"
-Funding = "https://github.com/sponsors/karnaksp"
 
 [project.scripts]
 stock-prices = "stock_prices:main"
@@ -58,45 +56,19 @@ source = "call"
 getter = "scripts.get_version:get_version"
 
 [tool.pdm.build]
-# Include as much as possible in the source distribution, to help redistributors.
 excludes = ["**/.pytest_cache", "**/.mypy_cache"]
 source-includes = [
-    "config",
     "docs",
     "scripts",
-    "share",
     "tests",
-    "duties.py",
     "mkdocs.yml",
     "*.md",
     "LICENSE",
 ]
 
-[tool.pdm.build.wheel-data]
-# Manual pages can be included in the wheel.
-# Depending on the installation tool, they will be accessible to users.
-# pipx supports it, uv does not yet, see https://github.com/astral-sh/uv/issues/4731.
-data = [
-    {path = "share/**/*", relative-to = "."},
-]
-
 [dependency-groups]
-maintain = [
-    "build>=1.2",
-    "git-changelog>=2.5",
-    "twine>=5.1",
-    "yore>=0.3.3",
-]
-ci = [
-    "duty>=1.6",
-    "ruff>=0.4",
+test = [
     "pytest>=8.2",
-    "pytest-cov>=5.0",
-    "pytest-randomly>=3.15",
-    "pytest-xdist>=3.6",
-    "mypy>=1.10",
-    "types-markdown>=3.6",
-    "types-pyyaml>=6.0",
 ]
 docs = [
     "mkdocs>=1.6",
@@ -107,4 +79,4 @@ docs = [
 ]
 
 [tool.uv]
-default-groups = ["maintain", "ci", "docs"]
+default-groups = ["test", "docs"]

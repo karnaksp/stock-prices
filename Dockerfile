@@ -11,7 +11,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md LICENSE CHANGELOG.md ./
+COPY pyproject.toml README.md LICENSE ./
 COPY scripts ./scripts
 COPY src ./src
 

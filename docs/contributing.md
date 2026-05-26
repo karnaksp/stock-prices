@@ -29,7 +29,7 @@ python -m stock_prices bot -h
 
 ```powershell
 python -m pytest -q
-python -m ruff check .
+python -m mkdocs build --strict
 python -m compileall -q src tests
 ```
 

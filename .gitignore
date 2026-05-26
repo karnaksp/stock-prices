@@ -1,5 +1,12 @@
 .ipynb_checkpoints
 __pycache__
+.venv/
+.venvs/
+.pdm-build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
 .alphavantage_key
 .env
 animations/
@@ -10,3 +17,5 @@ global/
 currency/
 futures/
 *.pyc
+*.mp4
+*.parquet
