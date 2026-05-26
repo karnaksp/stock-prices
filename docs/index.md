@@ -118,11 +118,16 @@ USD000UTSTOM selt 2024 close
 ## Как устроено
 
 ```mermaid
-flowchart LR
-  Telegram["Telegram / CLI / Python API"] --> Request["VideoRequest"]
-  Request --> Data["Загрузка данных"]
-  Data --> Dataset["Подготовка датасета"]
-  Dataset --> Render["Рендер Matplotlib"]
+flowchart TD
+  User["Telegram / CLI / Python API"] --> Request["VideoRequest"]
+  Request --> Sources{"Источник данных"}
+  Sources --> Moex["MOEX: акции, фьючерсы, валюта"]
+  Sources --> Global["Глобальные акции и ETF"]
+  Sources --> Crypto["Криптовалюты, металлы, FX"]
+  Moex --> Dataset["Единый датасет"]
+  Global --> Dataset
+  Crypto --> Dataset
+  Dataset --> Render["Стильный график Matplotlib"]
   Render --> Video["MP4 через ffmpeg"]
   Video --> Output["Файл или ответ Telegram"]
 ```

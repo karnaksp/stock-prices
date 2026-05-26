@@ -73,6 +73,8 @@ extra_css:
 - css/mkdocstrings.css
 
 extra_javascript:
+- https://unpkg.com/mermaid@11/dist/mermaid.min.js
+- js/mermaid.js
 - js/feedback.js
 
 markdown_extensions:
@@ -86,7 +88,11 @@ markdown_extensions:
 - pymdownx.snippets:
     base_path: [!relative $config_dir]
     check_paths: true
-- pymdownx.superfences
+- pymdownx.superfences:
+    custom_fences:
+    - name: mermaid
+      class: mermaid-source
+      format: !!python/name:pymdownx.superfences.fence_code_format
 - pymdownx.tabbed:
     alternate_style: true
     slugify: !!python/object/apply:pymdownx.slugs.slugify

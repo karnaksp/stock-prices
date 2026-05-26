@@ -171,6 +171,29 @@
   text-align: center;
 }
 
+.md-typeset .mermaid-diagram {
+  margin: 1.6rem 0;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+}
+
+.md-typeset .mermaid-diagram svg {
+  display: block;
+  height: auto;
+  margin: 0 auto;
+  max-width: 100%;
+}
+
+.md-typeset .mermaid-diagram--error {
+  border: 1px solid var(--md-code-hl-color);
+  border-radius: 0.4rem;
+  color: var(--md-code-fg-color);
+  font-family: var(--md-code-font-family);
+  overflow-x: auto;
+  padding: 1rem;
+  white-space: pre;
+}
+
 .sp-grid--small {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
