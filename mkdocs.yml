@@ -1,10 +1,10 @@
-site_name: "Stock Price"
-site_description: "Animated plots"
+site_name: "Stock Prices"
+site_description: "Анимированные рыночные графики для CLI и Telegram"
 site_url: "https://karnaksp.github.io/stock-prices"
 repo_url: "https://github.com/karnaksp/stock-prices"
 repo_name: "karnaksp/stock-prices"
 site_dir: "site"
-watch: [mkdocs.yml, README.md, CONTRIBUTING.md, CHANGELOG.md, src/stock_prices]
+watch: [mkdocs.yml, README.md, docs, src/stock_prices]
 copyright: Copyright &copy; 2026 Denis Irinyakov
 edit_uri: edit/main/docs/
 
@@ -14,19 +14,22 @@ validation:
   unrecognized_links: warn
 
 nav:
-- Home:
-  - Overview: index.md
-  - Changelog: changelog.md
-  - Credits: credits.md
-  - License: license.md
-- API reference: reference/api.md
-- Development:
-  - Contributing: contributing.md
-  - Code of Conduct: code_of_conduct.md
-  - Coverage report: coverage.md
+- Документация:
+  - Главная: index.md
+  - Демонстрация: demo.md
+  - Запуск и проверка: runbook.md
+  - Docker: docker.md
+- API: reference/api.md
+- Проект:
+  - История изменений: changelog.md
+  - Разработка: contributing.md
+  - Правила участия: code_of_conduct.md
+  - Благодарности: credits.md
+  - Лицензия: license.md
 
 theme:
   name: material
+  language: ru
   custom_dir: docs/.overrides
   features:
   - announce.dismiss
@@ -49,21 +52,21 @@ theme:
   - media: "(prefers-color-scheme)"
     toggle:
       icon: material/brightness-auto
-      name: Switch to light mode
+      name: Переключить на светлую тему
   - media: "(prefers-color-scheme: light)"
     scheme: default
     primary: teal
     accent: purple
     toggle:
       icon: material/weather-sunny
-      name: Switch to dark mode
+      name: Переключить на темную тему
   - media: "(prefers-color-scheme: dark)"
     scheme: slate
     primary: black
     accent: lime
     toggle:
       icon: material/weather-night
-      name: Switch to system preference
+      name: Использовать системную тему
 
 extra_css:
 - css/material.css
@@ -75,7 +78,6 @@ extra_javascript:
 markdown_extensions:
 - attr_list
 - admonition
-- callouts
 - footnotes
 - pymdownx.emoji:
     emoji_index: !!python/name:material.extensions.emoji.twemoji
@@ -98,9 +100,6 @@ markdown_extensions:
 plugins:
 - search
 - autorefs
-- markdown-exec
-- section-index
-- coverage
 - mkdocstrings:
     handlers:
       python:
@@ -125,20 +124,6 @@ plugins:
           show_symbol_type_toc: true
           signature_crossrefs: true
           summary: true
-- llmstxt:
-    full_output: llms-full.txt
-    sections:
-      Usage:
-      - index.md
-      API:
-      - reference/api.md
-- git-revision-date-localized:
-    enabled: !ENV [DEPLOY, false]
-    enable_creation_date: true
-    type: timeago
-- minify:
-    minify_html: !ENV [DEPLOY, false]
-- typeset
 
 extra:
   social:
@@ -150,13 +135,13 @@ extra:
     link: https://pypi.org/project/stock-prices/
   analytics:
     feedback:
-      title: Was this page helpful?
+      title: Эта страница была полезной?
       ratings:
         - icon: material/emoticon-happy-outline
-          name: This page was helpful
+          name: Страница помогла
           data: 1
-          note: Thanks for your feedback!
+          note: Спасибо за обратную связь!
         - icon: material/emoticon-sad-outline
-          name: This page could be improved
+          name: Страницу можно улучшить
           data: 0
-          note: Let us know how we can improve this page.
+          note: Сообщите, что стоит доработать.

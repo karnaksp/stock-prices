@@ -1,42 +1,40 @@
-"""
-Модуль для работы с событиями
-"""
+from __future__ import annotations
+
+from importlib import resources
+from pathlib import Path
 
 import pandas as pd
 
 
-def load_events(json_path: str = "events.json") -> pd.DataFrame:
-    """
-    Загрузка данных о событиях из JSON файла
+def _default_events_path() -> Path:
+    return Path(str(resources.files("stock_prices._internal").joinpath("events.json")))
 
-    Args:
-        json_path: Путь к файлу с событиями
 
-    Returns:
-        DataFrame с событиями и датами
-    """
-    events = pd.read_json(json_path)
+def load_events(json_path: str | Path | None = None) -> pd.DataFrame:
+    path = Path(json_path) if json_path else Path("events.json")
+    if not path.exists():
+        path = _default_events_path()
+    if not path.exists():
+        return pd.DataFrame(columns=["start", "end", "event", "type", "impact"])
+
+    events = pd.read_json(path)
+    if events.empty:
+        return pd.DataFrame(columns=["start", "end", "event", "type", "impact"])
     events["start"] = pd.to_datetime(events["start"])
     events["end"] = pd.to_datetime(events["end"])
     return events
 
 
 def add_events(data_frame: pd.DataFrame, events_df: pd.DataFrame) -> None:
-    """
-    Добавление столбцов событий к существующему DataFrame
-
-    Args:
-        data_frame: Существующий DataFrame, к которому нужно добавить столбцы
-        events_df: DataFrame с событиями
-    """
     data_frame["EVENT_NAME"] = None
     data_frame["EVENT_TYPE"] = None
     data_frame["EVENT_IMPACT"] = 0
+    if events_df.empty:
+        return
 
+    trade_dates = pd.to_datetime(data_frame["TRADEDATE"])
     for _, event in events_df.iterrows():
-        mask = (data_frame["TRADEDATE"] >= event["start"]) & (
-            data_frame["TRADEDATE"] <= event["end"]
-        )
+        mask = (trade_dates >= event["start"]) & (trade_dates <= event["end"])
         data_frame.loc[mask, "EVENT_NAME"] = event["event"]
         data_frame.loc[mask, "EVENT_TYPE"] = event["type"]
         data_frame.loc[mask, "EVENT_IMPACT"] = event["impact"]

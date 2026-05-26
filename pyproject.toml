@@ -28,7 +28,17 @@ classifiers = [
     "Topic :: Utilities",
     "Typing :: Typed",
 ]
-dependencies = []
+dependencies = [
+    "apimoex>=1.4",
+    "currencyconverter>=0.18",
+    "imageio-ffmpeg>=0.5",
+    "matplotlib>=3.8",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "pyarrow>=15",
+    "requests>=2.31",
+    "yfinance>=0.2",
+]
 
 [project.urls]
 Homepage = "https://karnaksp.github.io/stock-prices"
@@ -41,7 +51,7 @@ Gitter = "https://gitter.im/stock-prices/community"
 Funding = "https://github.com/sponsors/karnaksp"
 
 [project.scripts]
-stock-prices = "stock_prices.cli:main"
+stock-prices = "stock_prices:main"
 
 [tool.pdm.version]
 source = "call"
@@ -88,16 +98,9 @@ ci = [
     "types-markdown>=3.6",
     "types-pyyaml>=6.0",
 ]
- docs = [
-    "markdown-callouts>=0.4",
-    "markdown-exec>=1.8",
+docs = [
     "mkdocs>=1.6",
-    "mkdocs-coverage>=1.0",
-    "mkdocs-git-revision-date-localized-plugin>=1.2",
-    "mkdocs-llmstxt>=0.2",
     "mkdocs-material>=9.5",
-    "mkdocs-minify-plugin>=0.8",
-    "mkdocs-section-index>=0.3",
     "mkdocstrings[python]>=0.29",
     # YORE: EOL 3.10: Remove line.
     "tomli>=2.0; python_version < '3.11'",

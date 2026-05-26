@@ -1,429 +1,425 @@
-"""
-Модуль для построения графиков цен на акции
-"""
+from __future__ import annotations
 
-import os
-import pandas as pd
-import matplotlib.animation as animation
-from matplotlib.colors import LinearSegmentedColormap
-import colorsys
-from dataclasses import dataclass
 import logging
-from .dataset_builder import build_data_list
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+
+import matplotlib.animation as animation
+import pandas as pd
+
+from stock_prices._internal.lib.dataset_builder import build_data_list
+from stock_prices._internal.models import TickerSpec, safe_video_stem
 
 
-def create_another_color(base_color, hue_shift=0.15, lightness_factor=0.9):
-    """
-    Создает другой цвет на основе базового цвета путем смещения оттенка.
+def event_color(impact: int) -> str:
+    if impact <= -3:
+        return "#d94848"
+    if impact == -2:
+        return "#e58b3a"
+    if impact == -1:
+        return "#d7b948"
+    if impact == 1:
+        return "#4d9fd7"
+    if impact >= 2:
+        return "#58b368"
+    return "#8f9aa8"
 
-    Args:
-        base_color: Базовый цвет
-        hue_shift: Сдвиг оттенка
-        lightness_factor: Множитель яркости
 
-    Returns:
-        Новый цвет в формате RGB
-    """
+def wrap_text(text: str, width: int) -> str:
+    import textwrap
+
+    return "\n".join(textwrap.wrap(text or "", width=width))
+
+
+def _compact_number(value: float) -> str:
+    abs_value = abs(value)
+    if abs_value >= 1_000_000_000:
+        return f"{value / 1_000_000_000:.1f}B"
+    if abs_value >= 1_000_000:
+        return f"{value / 1_000_000:.1f}M"
+    if abs_value >= 1_000:
+        return f"{value / 1_000:.1f}K"
+    return f"{value:.0f}"
+
+
+def _format_return(start: float, current: float) -> str:
+    if start == 0:
+        return "0.0%"
+    return f"{((current / start) - 1) * 100:+.1f}%"
+
+
+def _series_summary(name: str, values: pd.Series) -> str:
+    clean = pd.to_numeric(values, errors="coerce").dropna()
+    if clean.empty:
+        return f"{name}: n/a"
+
+    first_y = float(clean.iloc[0])
+    last_y = float(clean.iloc[-1])
+    return f"{name}: {_format_return(first_y, last_y)}"
+
+
+def create_another_color(base_color: str, hue_shift: float = 0.08, lightness_factor: float = 1.12) -> tuple[float, float, float]:
+    import colorsys
     import matplotlib.colors as mcolors
 
-    rgb = mcolors.to_rgb(base_color)
-    hls = colorsys.rgb_to_hls(rgb[0], rgb[1], rgb[2])
-    new_hue = (hls[0] + hue_shift) % 1.0
-    new_lightness = hls[1] * lightness_factor
-    new_hls = (new_hue, new_lightness, hls[2])
-    return colorsys.hls_to_rgb(*new_hls)
+    red, green, blue = mcolors.to_rgb(base_color)
+    hue, lightness, saturation = colorsys.rgb_to_hls(red, green, blue)
+    return colorsys.hls_to_rgb((hue + hue_shift) % 1.0, min(lightness * lightness_factor, 1), saturation)
 
 
-def draw_gradient_line(ax, x_data, y_data, start_color, name, n_segments=50):
-    """
-    Рисует линию с плавным градиентным переходом цвета, оптимизировано для скорости.
-
-    Args:
-        ax: Объект оси matplotlib
-        x_data: Данные по оси X
-        y_data: Данные по оси Y
-        start_color: Начальный цвет
-        name: Имя для цветовой карты
-        n_segments: Количество сегментов градиента
-
-    Returns:
-        Конечный цвет
-    """
-    end_color = create_another_color(start_color)
-    colors = [start_color, end_color]
-    color_map = LinearSegmentedColormap.from_list(name, colors, N=n_segments)
-    segment_size = max(1, len(x_data) // n_segments)
-    for j in range(0, len(x_data) - 1, segment_size):
-        end_idx = min(j + segment_size + 1, len(x_data))
-        segment_x = x_data.iloc[j:end_idx]
-        segment_y = y_data.iloc[j:end_idx]
-        progress = (j + segment_size / 2) / len(x_data)
-        segment_color = color_map(progress)
-        ax.plot(segment_x, segment_y, color=segment_color, linewidth=2.5, alpha=0.85)
-    return end_color
-
-
-def draw_event_zones_anim(ax, events_df, frame_date, used_positions_global):
-    """
-    Рисует зоны событий на анимации
-
-    Args:
-        ax: Объект оси matplotlib
-        events_df: DataFrame с событиями
-        frame_date: Текущая дата анимации
-        used_positions_global: Список используемых позиций для надписей
-    """
+def draw_gradient_line(ax, x_data, y_data, start_color: str, name: str, n_segments: int = 50):
+    from matplotlib.collections import LineCollection
+    from matplotlib.colors import LinearSegmentedColormap
     import matplotlib.dates as mdates
     import numpy as np
 
-    frame_num = mdates.date2num(frame_date)
-    grouped = events_df.groupby("EVENT_NAME")
+    if len(x_data) < 2:
+        return create_another_color(start_color)
+    end_color = create_another_color(start_color)
+    color_map = LinearSegmentedColormap.from_list(name, [start_color, end_color], N=n_segments)
+    x_num = mdates.date2num(pd.to_datetime(x_data))
+    points = np.array([x_num, pd.to_numeric(y_data, errors="coerce")]).T.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    collection = LineCollection(segments, cmap=color_map, linewidth=2.8, alpha=0.9)
+    collection.set_array(np.linspace(0, 1, len(segments)))
+    ax.add_collection(collection)
+    return end_color
 
-    min_y_gap = (ax.get_ylim()[1] - ax.get_ylim()[0]) * 0.05
 
-    for event_name, group in grouped:
-        start = mdates.date2num(group["TRADEDATE"].min())
-        end = mdates.date2num(group["TRADEDATE"].max())
-        impact = group["EVENT_IMPACT"].iloc[0]
-        event_duration = end - start
-        extended_duration = event_duration * 1.5
-        extended_end = start + extended_duration
+def _configure_ffmpeg() -> None:
+    import matplotlib as mpl
+    from imageio_ffmpeg import get_ffmpeg_exe
 
-        if frame_num < start:
+    mpl.rcParams["animation.ffmpeg_path"] = get_ffmpeg_exe()
+
+
+def _combine_data(data_list: list[dict[str, Any]], value_column: str) -> tuple[pd.DataFrame, list[str], dict[str, str]]:
+    combined_df: pd.DataFrame | None = None
+    value_columns = []
+    dividend_columns: dict[str, str] = {}
+
+    for item in data_list:
+        name = item["name"]
+        df_temp = item["data"].copy()
+        if value_column not in df_temp:
+            raise ValueError(f"{name} has no column {value_column}")
+        df_temp["TRADEDATE"] = pd.to_datetime(df_temp["TRADEDATE"])
+        df_temp[name] = pd.to_numeric(df_temp[value_column], errors="coerce")
+        dividend_col = f"DIVIDEND_{name}"
+        df_temp[dividend_col] = pd.to_numeric(df_temp.get("DIVIDEND", 0.0), errors="coerce").fillna(0.0)
+        columns = ["TRADEDATE", name, dividend_col]
+        combined_df = df_temp[columns].copy() if combined_df is None else combined_df.merge(df_temp[columns], on="TRADEDATE", how="outer")
+        value_columns.append(name)
+        dividend_columns[name] = dividend_col
+
+    if combined_df is None or combined_df.empty:
+        raise ValueError("No data to render.")
+
+    combined_df = combined_df.sort_values("TRADEDATE").reset_index(drop=True)
+    combined_df[value_columns] = combined_df[value_columns].ffill()
+    combined_df[list(dividend_columns.values())] = combined_df[list(dividend_columns.values())].fillna(0.0)
+    return combined_df, value_columns, dividend_columns
+
+
+def _frame_indexes(row_count: int, target_duration: int, fps: int, final_frame_duration: int) -> list[int]:
+    import numpy as np
+
+    final_index = row_count - 1
+    frame_count = max(1, int(target_duration * fps))
+    animated = np.unique(np.linspace(0, final_index, num=frame_count, dtype=int)).tolist()
+    return animated + [final_index] * max(0, int(final_frame_duration * fps))
+
+
+def _active_events(events_df: pd.DataFrame, frame_date: pd.Timestamp) -> list[tuple[pd.Timestamp, pd.Timestamp, str, int]]:
+    if events_df.empty or "EVENT_NAME" not in events_df:
+        return []
+    events = events_df.dropna(subset=["EVENT_NAME"]).copy()
+    if events.empty:
+        return []
+    events["TRADEDATE"] = pd.to_datetime(events["TRADEDATE"])
+
+    active = []
+    for event_name, group in events.groupby("EVENT_NAME"):
+        start = group["TRADEDATE"].min()
+        end = group["TRADEDATE"].max()
+        if frame_date < start:
             continue
-
-        visible_end = min(frame_num, end)
-        ax.axvspan(
-            start,
-            visible_end,
-            alpha=0.12,
-            color=event_color(impact),
-            linewidth=0,
-            zorder=1,
-        )
-
-        if start <= frame_num <= extended_end:
-            base_y_pos = ax.get_ylim()[1] * 0.95
-            y_pos = base_y_pos
-            attempt = 0
-            max_attempts = 20
-
-            while attempt < max_attempts:
-                conflict = any(
-                    abs(y_pos - used) < min_y_gap for used in used_positions_global
-                )
-                if not conflict:
-                    break
-                offset = min_y_gap * (attempt + 1) * 0.8
-                if attempt % 2 == 0:
-                    y_pos = base_y_pos - offset
-                else:
-                    y_pos = base_y_pos + offset
-
-                ylim_bottom, ylim_top = ax.get_ylim()
-                y_pos = np.clip(y_pos, ylim_bottom * 1.05, ylim_top * 0.98)
-
-                attempt += 1
-
-            used_positions_global.append(y_pos)
-
-            ax.text(
-                start,
-                y_pos,
-                event_name.replace("_", " "),
-                fontsize=11,
-                color="white",
-                va="top",
-                ha="left",
-                alpha=0.9,
-                zorder=100,
-                bbox=dict(facecolor="black", alpha=0.5, edgecolor="none", pad=2),
-            )
-
-
-def event_color(impact):
-    """
-    Возвращает цвет для события в зависимости от его воздействия
-
-    Args:
-        impact: Воздействие события
-
-    Returns:
-        Цвет в формате RGBA
-    """
-    if impact == -3:
-        return "#FF0000AA"
-    if impact == -2:
-        return "#FF8800AA"
-    if impact == -1:
-        return "#FFF000AA"
-    if impact == 1:
-        return "#00BFFF88"
-    if impact == 2:
-        return "#00FF0088"
-    return "#88888855"
-
-
-def wrap_text(text, width):
-    """
-    Обертывает текст по заданной ширине
-
-    Args:
-        text: Текст для оборачивания
-        width: Ширина строки
-
-    Returns:
-        Обернутый текст
-    """
-    import textwrap
-
-    return "\n".join(textwrap.wrap(text, width=width))
+        visible_end = min(frame_date, end)
+        impact = int(group["EVENT_IMPACT"].iloc[0])
+        active.append((start, visible_end, str(event_name).replace("_", " "), impact))
+    return active
 
 
 def create_multi_line_animation(
-    data_list,
-    value_column="CLOSE",
-    y_label="Цена",
-    target_duration=20,
-    fps=20,
-    use_gradient=True,
-    final_frame_duration=3,
-    use_legend=True,
-    title="",
-    under_title="",
+    data_list: list[dict[str, Any]],
+    value_column: str = "CLOSE",
+    y_label: str = "Price",
+    target_duration: int = 20,
+    fps: int = 20,
+    use_gradient: bool = False,
+    final_frame_duration: int = 3,
+    use_legend: bool = True,
+    title: str = "",
+    under_title: str = "",
 ):
-    """
-    Создает анимацию с несколькими линиями и стоп-кадром в конце.
-
-    Parameters:
-    data_list: список словарей с данными, именами и цветами
-               [{"data": df, "name": "GAZP", "color": "#f3cd2c"}]
-    value_column: название столбца для визуализации
-    y_label: подпись оси Y
-    target_duration: длительность основной анимации в секундах
-    fps: частота кадров
-    use_gradient: включать градиентное изменение цвета линий
-    final_frame_duration: длительность стоп-кадра в секундах
-    """
-    import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from matplotlib.ticker import FuncFormatter
 
-    combined_df = None
-    for item in data_list:
-        df_temp = item["data"].copy()
-        df_temp[item["name"]] = df_temp[value_column]
-        df_temp[f"DIVIDEND_{item['name']}"] = df_temp.get("DIVIDEND", 0.0)
-        cols_to_merge = ["TRADEDATE", item["name"], f"DIVIDEND_{item['name']}"]
-        if combined_df is None:
-            combined_df = df_temp[cols_to_merge].copy()
-        else:
-            combined_df = combined_df.merge(
-                df_temp[cols_to_merge], on="TRADEDATE", how="outer"
-            )
-    combined_df = combined_df.sort_values("TRADEDATE").reset_index(drop=True)
-    combined_df = combined_df.ffill().fillna(
-        {col: 0 for col in combined_df if col.startswith("DIVIDEND")}
-    )
-    total_frames = target_duration * fps
-    sampling_step = max(1, len(combined_df) // total_frames)
-    animation_frames = list(range(0, len(combined_df), sampling_step))
-    final_frames_count = final_frame_duration * fps
-    final_frame_index = len(combined_df) - 1
-    all_frames = animation_frames + [final_frame_index] * final_frames_count
-    plt.rcParams["figure.facecolor"] = "#0d0d0e"
-    plt.rcParams["axes.facecolor"] = "#171b26"
-    fig, ax = plt.subplots(figsize=(9, 16))
-    ax.set_position((0.125, 0.25, 0.75, 0.5))
-    global used_positions_global
-    used_positions_global = []
+    combined_df, value_columns, dividend_columns = _combine_data(data_list, value_column)
+    all_frames = _frame_indexes(len(combined_df), target_duration, fps, final_frame_duration)
 
-    def animate(i):
-        frame_index = final_frame_index if i >= len(animation_frames) else all_frames[i]
-        current_data = (
-            combined_df.iloc[: frame_index + 1]
-            if combined_df is not None
-            else pd.DataFrame()
-        )
+    plt.rcParams["figure.facecolor"] = "#0D0E11"
+    plt.rcParams["axes.facecolor"] = "#15171C"
+    fig, ax = plt.subplots(figsize=(9, 16), dpi=120)
+    fig.subplots_adjust(left=0.12, right=0.86, top=0.76, bottom=0.24)
+    x_start = combined_df["TRADEDATE"].min()
+    x_end = combined_df["TRADEDATE"].max()
+    x_span_days = max(1, (x_end - x_start).days)
+    ax.set_xlim(x_start, x_end + pd.Timedelta(days=x_span_days * 0.12))
+    ax.grid(True, alpha=0.2, color="#B6BCC6", linewidth=0.8)
+    ax.set_ylabel(y_label, color="#B6BCC6", fontsize=14)
+    ax.tick_params(axis="both", labelcolor="#B6BCC6", labelsize=11, colors="#B6BCC6")
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _pos: _compact_number(value)))
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=4, maxticks=7))
+    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+    for spine in ax.spines.values():
+        spine.set_color("#343942")
 
-        ax.clear()
-        ax.text(
-            0.5,
-            1.15,
-            wrap_text(title, width=30),
-            transform=ax.transAxes,
-            ha="center",
-            va="bottom",
-            fontsize=35,
-            color="#fde164",
-        )
+    by_name = {item["name"]: item for item in data_list}
+    summary_columns = min(max(len(value_columns), 1), 3)
+    summary_x_positions = [0.08, 0.36, 0.64][:summary_columns]
+    summary_font_size = 16 if len(value_columns) <= 3 else 11
+    summary_wrap_width = 24
+    summary_row_gap = 0.031
 
-        ax.text(
-            0.5,
-            -0.15,
-            wrap_text(under_title, width=30),
-            transform=ax.transAxes,
-            ha="center",
+    fig.text(0.08, 0.955, "MARKET MOTION", ha="left", va="top", fontsize=10, color="#858B96", weight="bold")
+    title_artist = fig.text(0.08, 0.925, wrap_text(title, 24), ha="left", va="top", fontsize=34, color="#f8fafc", weight="bold")
+    subtitle_artist = fig.text(0.08, 0.165, wrap_text(under_title, 40), ha="left", va="bottom", fontsize=16, color="#A2A9B3")
+    summary_artists = {
+        name: fig.text(
+            summary_x_positions[index % summary_columns],
+            0.135 - (index // summary_columns) * summary_row_gap,
+            "",
+            ha="left",
             va="top",
-            fontsize=25,
-            color="#887937",
+            fontsize=summary_font_size,
+            color=by_name[name]["color"],
+            weight="bold",
+            linespacing=1.2,
         )
-        ax.grid(True, alpha=0.2, color="#848892")
-        ax.set_ylabel(y_label, color="#848892", fontsize=15)
-        ax.tick_params(
-            axis="both", labelcolor="#848892", labelsize=12, colors="#848892"
+        for index, name in enumerate(value_columns)
+    }
+    fig.text(0.92, 0.055, "stock-prices", ha="right", va="bottom", fontsize=10, color="#595F6B")
+    date_artist = ax.text(
+        0.98,
+        0.97,
+        "",
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=18,
+        color="#f8fafc",
+        weight="bold",
+        bbox={"boxstyle": "round,pad=0.35", "facecolor": "#0D0E11", "edgecolor": "#343942", "alpha": 0.92},
+    )
+
+    lines = {}
+    labels = {}
+    dividend_markers = {}
+    gradient_collections = []
+    fill_artists = []
+    for name in value_columns:
+        color = by_name[name]["color"]
+        (line,) = ax.plot([], [], color=color, linewidth=3.0, alpha=0.92, label=name, solid_capstyle="round")
+        lines[name] = line
+        labels[name] = ax.text(
+            combined_df["TRADEDATE"].iloc[0],
+            0,
+            "",
+            fontsize=13,
+            color=color,
+            va="center",
+            ha="right",
+            bbox={"boxstyle": "round,pad=0.35", "facecolor": "#10131a", "edgecolor": color, "alpha": 0.92},
         )
-        if len(current_data) > 0 and len(data_list) > 0:
-            frame_date = current_data["TRADEDATE"].iloc[-1]
-            draw_event_zones_anim(
-                ax, data_list[0]["data"], frame_date, used_positions_global
-            )
-        for item in data_list:
-            name = item["name"]
-            dividend_col = f"DIVIDEND_{name}"
+        dividend_markers[name] = ax.scatter([], [], s=55, color=color, alpha=0.7, zorder=5)
+    if use_legend:
+        legend = ax.legend(loc="upper left", frameon=False, fontsize=12)
+        for text in legend.get_texts():
+            text.set_color("#d6dce6")
 
-            if name not in current_data.columns:
-                continue
+    event_artists = []
 
+    def clear_transient_artists() -> None:
+        while event_artists:
+            event_artists.pop().remove()
+        while gradient_collections:
+            gradient_collections.pop().remove()
+        while fill_artists:
+            fill_artists.pop().remove()
+
+    def animate(frame_number: int):
+        clear_transient_artists()
+        frame_index = all_frames[frame_number]
+        current_data = combined_df.iloc[: frame_index + 1]
+        frame_date = pd.Timestamp(current_data["TRADEDATE"].iloc[-1])
+        date_artist.set_text(frame_date.strftime("%d.%m.%Y"))
+
+        values = current_data[value_columns].stack().dropna()
+        if not values.empty:
+            y_min = float(values.min())
+            y_max = float(values.max())
+            margin = max((y_max - y_min) * 0.12, abs(y_max) * 0.02, 1.0)
+            ax.set_ylim(y_min - margin, y_max + margin)
+
+        label_targets: list[tuple[str, pd.Timestamp, float, str]] = []
+        for name in value_columns:
             x_data = current_data["TRADEDATE"]
             y_data = current_data[name]
-            clean_y = y_data.dropna()
-            if clean_y.empty:
+            clean = y_data.dropna()
+            if clean.empty:
+                labels[name].set_text("")
+                summary_artists[name].set_text("")
                 continue
-            line = ax.plot(
-                x_data,
-                y_data,
-                color=item["color"],
-                linewidth=2.5,
-                label=name,
-                alpha=0.85,
-            )
-            end_color = None
             if use_gradient:
-                end_color = draw_gradient_line(ax, x_data, y_data, item["color"], name)
-            if dividend_col in current_data.columns:
-                dividend_data = current_data[current_data[dividend_col] > 0]
-                for _, row_div in dividend_data.iterrows():
-                    y_val = row_div[name]
-                    ax.scatter(
-                        row_div["TRADEDATE"],
-                        y_val,
-                        s=100,
-                        color=item["color"],
-                        zorder=5,
-                        alpha=0.6,
-                    )
-                    ax.text(
-                        row_div["TRADEDATE"],
-                        y_val,
-                        "D",
-                        color="white",
-                        fontsize=10,
-                        fontweight="bold",
-                        ha="center",
-                        va="center",
-                        zorder=6,
-                        alpha=0.2,
-                    )
-            last_y = y_data.dropna().iloc[-1]
-            last_x = x_data[y_data.dropna().index[-1]]
-            rounded_price = round(last_y / 10) * 10
-            rounded_price = f"{name}: {rounded_price:,.0f}".replace(",", " ")
-            last_x_num = mdates.date2num(last_x)
-            xlim = ax.get_xlim()
-
-            if last_x_num > xlim[1] - (xlim[1] - xlim[0]) * 0.05:
-                ha = "right"
-                x_pos = last_x - pd.Timedelta(days=(xlim[1] - xlim[0]) * 0.01)
+                lines[name].set_data([], [])
+                before = len(ax.collections)
+                draw_gradient_line(ax, x_data.loc[clean.index], clean, by_name[name]["color"], name)
+                gradient_collections.extend(ax.collections[before:])
             else:
-                ha = "left"
-                x_pos = last_x
-            ax.text(
-                x_pos,
-                last_y,
-                rounded_price,
-                fontsize=15,
-                color=end_color if end_color else item["color"],
-                verticalalignment="bottom",
-                horizontalalignment=ha,
-                bbox=dict(
-                    boxstyle="round,pad=0.4",
-                    facecolor="#131314FF",
-                    edgecolor=end_color if end_color else item["color"],
-                ),
-            )
-        if combined_df is not None:
-            price_cols = [col for col in current_data.columns if col != "TRADEDATE"]
-            valid_prices = current_data[price_cols].stack().dropna()
-            if not valid_prices.empty:
-                price_min, price_max = valid_prices.min(), valid_prices.max()
-                margin = max(
-                    (price_max - price_min) * 0.05, 0.001 * (price_max - price_min)
+                lines[name].set_data(x_data.loc[clean.index], clean)
+            if len(clean) > 1:
+                fill_artists.append(
+                    ax.fill_between(
+                        x_data.loc[clean.index],
+                        clean,
+                        ax.get_ylim()[0],
+                        color=by_name[name]["color"],
+                        alpha=0.045,
+                        linewidth=0,
+                    )
                 )
-                ax.set_ylim(price_min - margin, price_max + margin)
-        return ax.get_lines() + ax.texts + ax.patches
 
-    return animation.FuncAnimation(
-        fig, animate, frames=len(all_frames), interval=1000 / fps, repeat=False
-    )
+            last_idx = clean.index[-1]
+            last_x = x_data.loc[last_idx]
+            last_y = float(clean.iloc[-1])
+            first_y = float(clean.iloc[0])
+            label_text = f"{name}: {_format_return(first_y, last_y)}"
+            labels[name].set_text(label_text)
+            label_targets.append((name, last_x, last_y, label_text))
+            summary_artists[name].set_text(wrap_text(_series_summary(name, clean), summary_wrap_width))
+
+            dividend_data = current_data[current_data[dividend_columns[name]] > 0]
+            if dividend_data.empty:
+                dividend_markers[name].set_offsets(np.empty((0, 2)))
+            else:
+                offsets = np.column_stack([mdates.date2num(dividend_data["TRADEDATE"]), dividend_data[name]])
+                dividend_markers[name].set_offsets(offsets)
+
+        y_bottom, y_top = ax.get_ylim()
+        min_gap = (y_top - y_bottom) * 0.065
+        used_y: list[float] = []
+        label_x = combined_df["TRADEDATE"].iloc[-1] + pd.Timedelta(days=x_span_days * 0.105)
+        for name, _last_x, last_y, _label_text in sorted(label_targets, key=lambda item: item[2]):
+            adjusted_y = min(max(last_y, y_bottom + min_gap), y_top - min_gap)
+            while any(abs(adjusted_y - used) < min_gap for used in used_y):
+                adjusted_y += min_gap
+                if adjusted_y > y_top - min_gap:
+                    adjusted_y = max(y_bottom + min_gap, last_y - min_gap)
+                    break
+            used_y.append(adjusted_y)
+            labels[name].set_position((label_x, adjusted_y))
+        source_events = data_list[0]["data"] if data_list else pd.DataFrame()
+        for event_index, (start, visible_end, event_name, impact) in enumerate(_active_events(source_events, frame_date)):
+            color = event_color(impact)
+            patch = ax.axvspan(start, visible_end, alpha=0.12, color=color, linewidth=0, zorder=0)
+            label_x = start + (visible_end - start) / 2
+            label_padding = pd.Timedelta(days=x_span_days * 0.045)
+            label_x = max(x_start + label_padding, min(label_x, x_end - label_padding))
+            label = ax.text(
+                label_x,
+                0.035 + (event_index % 3) * 0.048,
+                wrap_text(event_name, 18),
+                transform=ax.get_xaxis_transform(),
+                ha="center",
+                va="bottom",
+                fontsize=9,
+                color="#eef2f6",
+                bbox={"boxstyle": "round,pad=0.28", "facecolor": "#0D0E11", "edgecolor": color, "alpha": 0.88},
+                clip_on=True,
+                zorder=6,
+            )
+            event_artists.extend([patch, label])
+
+        return [
+            *fill_artists,
+            *lines.values(),
+            *labels.values(),
+            *dividend_markers.values(),
+            date_artist,
+            title_artist,
+            subtitle_artist,
+            *summary_artists.values(),
+            *event_artists,
+        ]
+
+    return animation.FuncAnimation(fig, animate, frames=len(all_frames), interval=1000 / fps, repeat=False, blit=False)
 
 
 @dataclass
 class BuildArgs:
-    """
-    Класс для хранения аргументов построения графиков
-    """
-
-    ticker: list
-    engine: list
-    market: list
-    with_investments: bool
+    ticker: list[str]
+    engine: list[str]
+    market: list[str]
+    with_investments: bool = False
 
 
-def render_charts(args, specs, start_date, end_date):
-    """
-    Основная функция отрисовки графиков
-
-    Args:
-        args: Аргументы командной строки
-        specs: Спецификации тикеров
-        start_date: Начальная дата
-        end_date: Конечная дата
-    """
-    logging.info("Подготовка данных для отрисовки графиков...")
-
+def render_charts(args: Any, specs: list[dict[str, str]], start_date: pd.Timestamp, end_date: pd.Timestamp) -> Path:
+    logging.info("Preparing chart datasets...")
     build_args = BuildArgs(
-        ticker=[x["ticker"] for x in specs],
-        engine=[x["engine"] for x in specs],
-        market=[x["market"] for x in specs],
-        with_investments=args.with_investments,
+        ticker=[item["ticker"] for item in specs],
+        engine=[item["engine"] for item in specs],
+        market=[item["market"] for item in specs],
+        with_investments=getattr(args, "with_investments", False),
     )
-
-    logging.info(f"Тикеры: {build_args.ticker}")
-    logging.info(f"Движки: {build_args.engine}")
-    logging.info(f"Рынки: {build_args.market}")
-
     data_list = build_data_list(args, build_args, start_date, end_date)
+    default_title = " / ".join(build_args.ticker)
+    default_subtitle = f"{start_date:%d.%m.%Y} - {end_date:%d.%m.%Y}"
 
-    logging.info("Построение анимации...")
     anim = create_multi_line_animation(
         data_list,
-        value_column=args.value_col,
-        y_label=args.currency,
-        target_duration=args.duration,
-        fps=args.fps,
-        use_gradient=args.use_gradient,
-        final_frame_duration=6,
-        use_legend=not args.no_legend,
-        title=args.title,
-        under_title=args.under_title,
+        value_column=getattr(args, "value_col", "CAPITAL_REINVEST"),
+        y_label=getattr(args, "currency", ""),
+        target_duration=getattr(args, "duration", 30),
+        fps=getattr(args, "fps", 20),
+        use_gradient=getattr(args, "use_gradient", False),
+        final_frame_duration=4,
+        use_legend=not getattr(args, "no_legend", False),
+        title=getattr(args, "title", "") or default_title,
+        under_title=getattr(args, "under_title", "") or default_subtitle,
     )
 
-    os.makedirs("animations", exist_ok=True)
-    safe_tickers = [ticker.replace(".", "_") for ticker in build_args.ticker]
-    filename = "_".join(safe_tickers) + ".mp4"
-    filepath = f"animations/{filename}"
+    output_dir = Path(getattr(args, "output_dir", "animations"))
+    output_dir.mkdir(parents=True, exist_ok=True)
+    ticker_specs = [TickerSpec(item["ticker"], item["engine"], item["market"]) for item in specs]
+    filename = f"{safe_video_stem(ticker_specs)}_{start_date:%Y%m%d}_{end_date:%Y%m%d}_{uuid4().hex[:8]}.mp4"
+    filepath = output_dir / filename
 
-    logging.info(f"Сохранение анимации в: {filepath}")
-    anim.save(filepath, writer="ffmpeg", fps=args.fps, dpi=150)
+    _configure_ffmpeg()
+    writer = animation.FFMpegWriter(
+        fps=getattr(args, "fps", 20),
+        codec="libx264",
+        bitrate=-1,
+        extra_args=["-pix_fmt", "yuv420p", "-movflags", "+faststart", "-preset", "veryfast", "-crf", "21"],
+    )
+    logging.info("Saving animation to %s", filepath)
+    anim.save(filepath, writer=writer)
+    import matplotlib.pyplot as plt
 
-    logging.info("Анимация успешно сохранена.")
+    plt.close(anim._fig)
+    logging.info("Animation saved.")
+    return filepath

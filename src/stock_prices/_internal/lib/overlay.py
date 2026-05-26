@@ -1,9 +1,23 @@
-"""
-Модуль для наложения видео
-"""
+from __future__ import annotations
 
-from moviepy.video.io.VideoFileClip import VideoFileClip
-import numpy as np
+import subprocess
+from pathlib import Path
+
+from imageio_ffmpeg import get_ffmpeg_exe
+
+
+def _position_expr(pos) -> tuple[str, str]:
+    if isinstance(pos, tuple) and len(pos) == 2 and all(isinstance(value, (int, float)) for value in pos):
+        return str(int(pos[0])), str(int(pos[1]))
+    if pos == ("center", "center"):
+        return "(W-w)/2", "(H-h)/2"
+    if pos == ("center", "bottom"):
+        return "(W-w)/2", "H-h"
+    if pos == ("center", "top"):
+        return "(W-w)/2", "0"
+    if pos == ("left", "bottom"):
+        return "0", "H-h"
+    return "(W-w)/2", "(H-h)/2"
 
 
 def add_overlay_video(
@@ -11,74 +25,51 @@ def add_overlay_video(
     green_path: str,
     output_path: str,
     pos=("center", "center"),
-    scale: float = 2.0,
+    scale: float = 1.0,
     opacity: float = 0.6,
     color_to_remove=(0, 255, 0),
     threshold: float = 60,
-):
-    """
-    Добавляет оверлей к видео графика
-
-    Args:
-        graph_path: Путь к видео с графиком
-        green_path: Путь к видео с зеленым фоном
-        output_path: Путь для сохранения результата
-        pos: Позиция оверлея
-        scale: Масштаб оверлея
-        opacity: Прозрачность оверлея
-        color_to_remove: Цвет для удаления (зеленый фон)
-        threshold: Порог чувствительности для удаления цвета
-    """
-    graph_clip = VideoFileClip(graph_path)
-    green_clip = VideoFileClip(green_path).resize(scale)
-
-    def mask_fn(gf, t):
-        frame = gf(t).astype(float)
-        dist = np.sqrt(np.sum((frame - color_to_remove) ** 2, axis=2))
-        mask = np.clip(dist / threshold, 0, 1)
-        mask = mask * opacity
-        return mask
-
-    from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
-
-    mask_clip = (
-        VideoFileClip(green_path)
-        .resize(scale)
-        .to_mask(lambda frame: np.ones((frame.shape[0], frame.shape[1])))
+) -> None:
+    graph = Path(graph_path)
+    overlay = Path(green_path)
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    x_expr, y_expr = _position_expr(pos)
+    color = "0x%02x%02x%02x" % tuple(color_to_remove)
+    similarity = max(0.01, min(float(threshold) / 255.0, 1.0))
+    alpha = max(0.0, min(opacity, 1.0))
+    filter_complex = (
+        f"[1:v]scale=iw*{scale}:ih*{scale},chromakey={color}:{similarity}:0.08,"
+        f"format=rgba,colorchannelmixer=aa={alpha}[ov];"
+        f"[0:v][ov]overlay={x_expr}:{y_expr}:shortest=1[v]"
     )
+    command = [
+        get_ffmpeg_exe(),
+        "-y",
+        "-i",
+        str(graph),
+        "-i",
+        str(overlay),
+        "-filter_complex",
+        filter_complex,
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "21",
+        str(output),
+    ]
+    subprocess.run(command, check=True, capture_output=True)
 
-    masked_green = green_clip.set_mask(mask_clip)
 
-    masked_green = masked_green.set_position(pos)
-
-    final = CompositeVideoClip(
-        [graph_clip, masked_green.set_duration(graph_clip.duration)]
-    )
-
-    final.write_videofile(
-        output_path, codec="libx264", fps=graph_clip.fps, preset="medium", threads=4
-    )
-
-
-def moving_pos(t):
-    """
-    Возвращает движущуюся позицию
-    Args:
-        t: Время
-    Returns:
-        Позиция (x, y)
-    """
-    return (50 + 10 * t, 1480)
-
-
-# Пример использования
-# add_overlay_video(
-#     "animations/IMOEX_000001_SS.mp4",
-#     "cat_green.mp4",
-#     "graph_with_green.mp4",
-#     pos=moving_pos(13),
-#     scale=0.3,
-#     opacity=0.6,
-#     color_to_remove=(0, 255, 1),
-#     threshold=60,
-# )
+def moving_pos(t: float) -> tuple[int, int]:
+    return (50 + int(10 * t), 1480)

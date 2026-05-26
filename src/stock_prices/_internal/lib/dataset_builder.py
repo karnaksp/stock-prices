@@ -1,40 +1,50 @@
-"""
-Модуль для подготовки датасетов с торговыми данными по заданным параметрам
-"""
+from __future__ import annotations
 
-import re
-import pandas as pd
 import logging
+import random
+import re
+from typing import Any
+
+import pandas as pd
 
 
 def calculate_capital_with_reinvest(
-    data_frame,
-    initial_investment=10000,
-    monthly_investment=0,
-    yearly_investment=0,
-    price_col="CLOSE",
-    dividend_col="DIVIDEND",
-    ticker=None,
-):
-    """
-    Рассчитывает капитал с реинвестированием дивидендов ежемесячным, ежегодным.
-
-    Args:
-        data_frame: DataFrame с торговыми данными
-        initial_investment: Начальная сумма инвестиций
-        monthly_investment: Ежемесячные инвестиции
-        yearly_investment: Ежегодные инвестиции
-        price_col: Колонка с ценами
-        dividend_col: Колонка с дивидендами (в денежных единцах на акцию)
-        ticker: Тикер (необязательно): если есть, ищет Сплит в данных об ивентах по этому тикеру и делит цену на коэффициент сплита.
-
-    Returns:
-        DataFrame с рассчитанным капиталом
-    """
+    data_frame: pd.DataFrame,
+    initial_investment: int = 10000,
+    monthly_investment: int = 0,
+    yearly_investment: int = 0,
+    price_col: str = "CLOSE",
+    dividend_col: str = "DIVIDEND",
+    ticker: str | None = None,
+) -> pd.DataFrame:
     data_frame = data_frame.copy()
+    if data_frame.empty:
+        raise ValueError("Cannot calculate capital for an empty dataset.")
+    if price_col not in data_frame:
+        raise ValueError(f"Missing price column: {price_col}")
+
     data_frame["TRADEDATE"] = pd.to_datetime(data_frame["TRADEDATE"])
     data_frame = data_frame.sort_values("TRADEDATE").reset_index(drop=True)
-    first_price = data_frame[price_col].iloc[0]
+    data_frame[price_col] = pd.to_numeric(data_frame[price_col], errors="coerce")
+    data_frame = data_frame.dropna(subset=[price_col])
+    if data_frame.empty or data_frame[price_col].iloc[0] <= 0:
+        raise ValueError("Dataset has no positive starting price.")
+
+    if ticker is not None and "EVENT_TYPE" in data_frame.columns:
+        split_rows = data_frame[
+            data_frame["EVENT_TYPE"].astype(str).str.contains(ticker, na=False)
+            & data_frame["EVENT_TYPE"].astype(str).str.contains("Split", case=False, na=False)
+        ]
+        for idx, row in split_rows.iterrows():
+            match = re.search(r"(\d+):(\d+)", str(row["EVENT_NAME"]))
+            if not match:
+                continue
+            old_shares = int(match.group(1))
+            new_shares = int(match.group(2))
+            if new_shares:
+                data_frame.loc[idx:, price_col] /= old_shares / new_shares
+
+    first_price = float(data_frame[price_col].iloc[0])
     shares = initial_investment / first_price
     cash_buffer = 0.0
     data_frame["shares"] = 0.0
@@ -43,146 +53,110 @@ def calculate_capital_with_reinvest(
     data_frame["CAPITAL_REINVEST"] = 0.0
     data_frame.at[0, "shares"] = shares
     data_frame.at[0, "savings"] = initial_investment
-    data_frame.at[0, "cash_buffer"] = 0.0
     current_month = data_frame.loc[0, "TRADEDATE"].month
     current_year = data_frame.loc[0, "TRADEDATE"].year
 
-    if ticker is not None and "EVENT_TYPE" in data_frame.columns:
-        split_rows = data_frame[
-            data_frame["EVENT_TYPE"].str.contains(ticker, na=False)
-            & data_frame["EVENT_TYPE"].str.contains("Split", case=False, na=False)
-        ]
-
-        for idx, row in split_rows.iterrows():
-            event_text = row["EVENT_NAME"]
-            match = re.search(r"(\d+):(\d+)", event_text)
-            if match:
-                old_shares = int(match.group(1))
-                new_shares = int(match.group(2))
-                if new_shares == 0:
-                    continue
-                ratio = old_shares / new_shares
-                data_frame.loc[idx:, price_col] /= ratio
-
-    for i in range(1, len(data_frame)):
-        row = data_frame.loc[i]
-        prev_row = data_frame.loc[i - 1]
+    for idx in range(1, len(data_frame)):
+        row = data_frame.loc[idx]
+        previous = data_frame.loc[idx - 1]
         date = row["TRADEDATE"]
-        price = row[price_col]
-        dividend = row.get(dividend_col, 0.0)
-        shares = prev_row["shares"]
-        cash_buffer = prev_row["cash_buffer"]
+        price = float(row[price_col])
+        dividend = float(row.get(dividend_col, 0.0) or 0.0)
+        shares = float(previous["shares"])
+        cash_buffer = float(previous["cash_buffer"])
+
         if cash_buffer > 0:
             shares += cash_buffer / price
             cash_buffer = 0.0
         if dividend > 0:
-            div_cash = dividend * shares
-            cash_buffer += div_cash
-        new_month = date.month != current_month
-        new_year = date.year != current_year
+            cash_buffer += dividend * shares
+
         savings_add = 0.0
-        if monthly_investment > 0 and new_month:
+        if monthly_investment > 0 and date.month != current_month:
             shares += monthly_investment / price
             savings_add += monthly_investment
             current_month = date.month
-        if yearly_investment > 0 and new_year:
+        if yearly_investment > 0 and date.year != current_year:
             shares += yearly_investment / price
             savings_add += yearly_investment
             current_year = date.year
-        data_frame.loc[i, "savings"] = prev_row["savings"] + savings_add
-        data_frame.loc[i, "shares"] = shares
-        data_frame.loc[i, "cash_buffer"] = cash_buffer
+
+        data_frame.loc[idx, "savings"] = previous["savings"] + savings_add
+        data_frame.loc[idx, "shares"] = shares
+        data_frame.loc[idx, "cash_buffer"] = cash_buffer
+
     data_frame["CAPITAL_REINVEST"] = data_frame["shares"] * data_frame[price_col]
     return data_frame
 
 
-def generate_unique_colors(n: int, palette_name="hsv"):
-    """
-    Генерирует уникальные цвета
+def generate_unique_colors(n: int, palette_name: str = "tab10") -> list[str]:
+    if n <= 0:
+        return []
+    palette = [
+        "#FFD166",
+        "#00D1B2",
+        "#5B8CFF",
+        "#EF476F",
+        "#B36BFF",
+        "#FF8A3D",
+        "#2EC4B6",
+        "#E9C46A",
+        "#4D96FF",
+        "#FF6B6B",
+        "#7BD88F",
+        "#C77DFF",
+        "#F4A261",
+        "#48CAE4",
+        "#F72585",
+        "#A3E635",
+    ]
+    colors = palette.copy()
 
-    Args:
-        n: Количество цветов
-        palette_name: Название цветовой палитры
+    if n > len(colors):
+        import matplotlib.pyplot as plt
 
-    Returns:
-        Список уникальных цветов в формате HEX
-    """
-    import matplotlib.pyplot as plt
+        cmap = plt.get_cmap(palette_name)
+        generated = ["#%02x%02x%02x" % tuple(int(channel * 255) for channel in cmap(i % cmap.N)[:3]) for i in range(n - len(colors))]
+        colors.extend(generated)
 
-    cmap = plt.get_cmap(palette_name)
-    colors = [cmap(i / n) for i in range(n)]
-    return ["#%02x%02x%02x" % tuple(int(c * 255) for c in rgba[:3]) for rgba in colors]
+    random.SystemRandom().shuffle(colors)
+    return colors[:n]
 
 
 def prepare_dataset(
-    ticker,
-    engine,
-    market,
+    ticker: str,
+    engine: str,
+    market: str,
     start_date,
     end_date,
-    initial_investment: int = 100,
-    monthly_investment: int = 100,
+    initial_investment: int = 10000,
+    monthly_investment: int = 0,
     yearly_investment: int = 0,
-):
-    """
-    Загружает и подготавливает датасет для тикера
-
-    Args:
-        ticker: Тикер
-        engine: Движок торгов
-        market: Рынок
-        start_date: Начальная дата
-        end_date: Конечная дата
-        initial_investment: Начальная сумма инвестиций
-        monthly_investment: Ежемесячные инвестиции
-        yearly_investment: Ежегодные инвестиции
-
-    Returns:
-        Подготовленный DataFrame
-    """
-    from .file_utils import load_latest_parquet, load_ticker_df
+) -> pd.DataFrame:
+    from stock_prices._internal.lib.file_utils import load_latest_parquet, load_ticker_df
 
     parquet_path = load_latest_parquet(engine, market, ticker)
     df_raw = load_ticker_df(parquet_path, start_date, end_date)
-    df_prepared = calculate_capital_with_reinvest(
+    return calculate_capital_with_reinvest(
         df_raw,
         initial_investment=initial_investment,
         monthly_investment=monthly_investment,
         yearly_investment=yearly_investment,
         ticker=ticker,
     )
-    return df_prepared
 
 
-def build_data_list(
-    args,
-    build_args,
-    start_date,
-    end_date,
-):
-    """
-    Загружает все тикеры, присваивает уникальные цвета,
-    возвращает список словарей для анимации.
-    Если with_investments=True, добавляет отдельный датасет с инвестициями
-    с параметрами reinvest.
-    """
-    tickers = getattr(build_args, "ticker", [])
-    engines = getattr(build_args, "engine", [])
-    markets = getattr(build_args, "market", [])
-    with_investments = getattr(args, "with_investments", False)
-    initial_investment = args.initial_investment
-    monthly_investment = args.monthly_investment
-    yearly_investment = args.yearly_investment
-
-    if not (tickers and engines and markets):
-        raise ValueError("Необходимо указать --ticker, --engine и --market")
-
-    if len(tickers) != len(engines) != len(markets):
-        raise ValueError("Каждый --ticker должен иметь --engine и --market")
+def build_data_list(args: Any, build_args: Any, start_date, end_date) -> list[dict[str, Any]]:
+    tickers = list(getattr(build_args, "ticker", []))
+    engines = list(getattr(build_args, "engine", []))
+    markets = list(getattr(build_args, "market", []))
+    if not tickers or not engines or not markets:
+        raise ValueError("Ticker, engine and market are required.")
+    if not (len(tickers) == len(engines) == len(markets)):
+        raise ValueError("Each ticker must have a matching engine and market.")
 
     colors = generate_unique_colors(len(tickers))
-
-    data_list = []
+    data_list: list[dict[str, Any]] = []
     investments_df = None
 
     for ticker, engine, market, color in zip(tickers, engines, markets, colors):
@@ -193,34 +167,21 @@ def build_data_list(
                 market,
                 start_date,
                 end_date,
-                initial_investment,
-                monthly_investment,
-                yearly_investment,
+                getattr(args, "initial_investment", 10000),
+                getattr(args, "monthly_investment", 0),
+                getattr(args, "yearly_investment", 0),
             )
-        except Exception as e:
-            logging.error(f"Ошибка при загрузке набора данных для {ticker}: {e}")
+        except Exception:
+            logging.exception("Failed to prepare dataset for %s", ticker)
             continue
 
         data_list.append({"data": df_raw, "name": ticker, "color": color})
-
-        if with_investments and investments_df is None:
-            try:
-                df_prepared = calculate_capital_with_reinvest(
-                    df_raw,
-                    initial_investment=initial_investment,
-                    monthly_investment=monthly_investment,
-                    yearly_investment=yearly_investment,
-                )
-            except Exception as e:
-                logging.error(f"Ошибка при расчете инвестиций для {ticker}: {e}")
-                continue
-
-            investments_df = df_prepared[["TRADEDATE", "savings"]].copy()
+        if getattr(args, "with_investments", False) and investments_df is None:
+            investments_df = df_raw[["TRADEDATE", "savings"]].copy()
             investments_df.rename(columns={"savings": "CAPITAL_REINVEST"}, inplace=True)
 
     if investments_df is not None:
-        inv_color = "#%06x" % (hash("Инвестиции") & 0xFFFFFF)
-        data_list.append(
-            {"data": investments_df, "name": "Инвестиции", "color": inv_color}
-        )
+        data_list.append({"data": investments_df, "name": "Invested", "color": "#8f9aa8"})
+    if not data_list:
+        raise ValueError("No datasets were prepared.")
     return data_list

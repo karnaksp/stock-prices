@@ -1,0 +1,27 @@
+services:
+  stock-prices-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stock-prices-bot
+    env_file:
+      - .env
+    environment:
+      MPLBACKEND: Agg
+      STOCK_PRICES_OUTPUT_DIR: /app/animations
+    command: ["python", "-m", "stock_prices", "bot"]
+    init: true
+    restart: unless-stopped
+    volumes:
+      - ./animations:/app/animations
+      - ./logs:/app/logs
+      - ./stock:/app/stock
+      - ./global:/app/global
+      - ./currency:/app/currency
+      - ./futures:/app/futures
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os, stock_prices; raise SystemExit(0 if os.getenv('TELEGRAM_BOT_TOKEN') else 1)\""]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 20s

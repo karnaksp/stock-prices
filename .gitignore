@@ -1,4 +1,12 @@
 .ipynb_checkpoints
 __pycache__
 .alphavantage_key
+.env
+animations/
+site/
+logs/
+stock/
+global/
+currency/
+futures/
 *.pyc
