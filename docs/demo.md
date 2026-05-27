@@ -161,8 +161,17 @@ futures                MOEX futures/forts
 selt                   MOEX currency/selt
 close / price          цена закрытия
 capital / reinvest     расчет капитала с реинвестированием
+initial=0              стартовая сумма
+monthly=30000          ежемесячное пополнение
+yearly=120000          ежегодное пополнение
 gradient               градиентная линия
 duration=12 fps=24     настройки видео
+```
+
+Пример для сравнения вложений в золото, серебро и палладий с ежемесячным пополнением 30 000 рублей:
+
+```text
+gold silver palladium 2018-2026 RUB capital invest initial=0 monthly=30000 gradient
 ```
 
 ## Запуск Telegram-бота

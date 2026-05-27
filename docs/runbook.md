@@ -125,6 +125,7 @@ LKOH
 LKOH SBER 2020 2024
 AAPL global USD gradient
 gold 2024
+gold silver palladium 2018-2026 RUB capital invest initial=0 monthly=30000 gradient
 btc 2024 close
 SiH4 futures 2024 close
 USD000UTSTOM selt 2024 close

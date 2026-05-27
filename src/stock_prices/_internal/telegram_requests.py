@@ -148,6 +148,14 @@ def parse_telegram_video_request(
                 "metric",
                 "engine",
                 "market",
+                "initial",
+                "initial_investment",
+                "monthly",
+                "monthly_investment",
+                "month",
+                "yearly",
+                "yearly_investment",
+                "year",
                 "gradient",
                 "legend",
                 "show_legend",
@@ -178,6 +186,12 @@ def parse_telegram_video_request(
             engine = value.lower()
         elif key == "market":
             market = value.lower()
+        elif key in {"initial", "initial_investment"}:
+            updates["initial_investment"] = _parse_int(value, 0, 1_000_000_000, "initial")
+        elif key in {"monthly", "monthly_investment", "month"}:
+            updates["monthly_investment"] = _parse_int(value, 0, 1_000_000_000, "monthly")
+        elif key in {"yearly", "yearly_investment", "year"}:
+            updates["yearly_investment"] = _parse_int(value, 0, 1_000_000_000, "yearly")
         elif key == "gradient":
             updates["use_gradient"] = _parse_bool(value)
         elif key in {"legend", "show_legend"}:

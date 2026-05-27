@@ -100,3 +100,26 @@ def test_parse_telegram_video_request_understands_moex_futures() -> None:
     assert parsed.request.ticker_specs[0].ticker == "SIH4"
     assert parsed.request.ticker_specs[0].engine == "futures"
     assert parsed.request.ticker_specs[0].market == "forts"
+
+
+def test_parse_telegram_video_request_accepts_investment_amounts_for_metals() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request(
+        "gold silver palladium 2018-2026 RUB capital invest initial=0 monthly=30000 gradient",
+        base,
+    )
+
+    assert [(spec.ticker, spec.engine, spec.market) for spec in parsed.request.ticker_specs] == [
+        ("GC=F", "global", "metals"),
+        ("SI=F", "global", "metals"),
+        ("PA=F", "global", "metals"),
+    ]
+    assert parsed.request.render.start_date == date(2018, 1, 1)
+    assert parsed.request.render.end_date == date(2026, 12, 31)
+    assert parsed.request.render.currency == "RUB"
+    assert parsed.request.render.value_col == "CAPITAL_REINVEST"
+    assert parsed.request.render.with_investments is True
+    assert parsed.request.render.initial_investment == 0
+    assert parsed.request.render.monthly_investment == 30_000
+    assert parsed.request.render.use_gradient is True

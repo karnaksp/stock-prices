@@ -49,6 +49,7 @@ SBER LKOH 2020 2024
 AAPL global USD gradient
 BTC price duration=12 fps=24
 gold 2018-2026 USD gradient
+gold silver palladium 2018-2026 RUB capital invest initial=0 monthly=30000 gradient
 SiH4 futures 2024 close
 USD000UTSTOM selt 2024 close
 ```
