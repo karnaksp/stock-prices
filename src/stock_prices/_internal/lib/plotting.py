@@ -72,6 +72,11 @@ def _return_from_series(values: pd.Series, basis: pd.Series | None = None) -> st
 
 
 def _series_summary(name: str, values: pd.Series, basis: pd.Series | None = None) -> str:
+    clean = pd.to_numeric(values, errors="coerce").dropna()
+    if clean.empty:
+        return f"{name}: n/a"
+    if name == "Invested":
+        return f"{name}: {_compact_number(float(clean.iloc[-1]))}"
     return f"{name}: {_return_from_series(values, basis)}"
 
 
@@ -338,7 +343,7 @@ def create_multi_line_animation(
             last_x = x_data.loc[last_idx]
             last_y = float(clean.iloc[-1])
             basis = current_data[basis_columns[name]] if name in basis_columns else None
-            label_text = f"{name}: {_return_from_series(clean, basis)}"
+            label_text = _series_summary(name, clean, basis)
             labels[name].set_text(label_text)
             label_targets.append((name, last_x, last_y, label_text))
             summary_artists[name].set_text(wrap_text(_series_summary(name, clean, basis), summary_wrap_width))

@@ -23,10 +23,16 @@ def test_return_from_series_uses_invested_basis_for_zero_initial_dca() -> None:
     assert _return_from_series(capital, invested) == "+15.0%"
 
 
-def test_return_from_series_keeps_invested_line_at_zero() -> None:
+def test_return_from_series_keeps_equal_basis_at_zero() -> None:
     invested = pd.Series([0.0, 100.0, 200.0])
 
     assert _return_from_series(invested, invested) == "0.0%"
+
+
+def test_series_summary_shows_invested_actual_amount() -> None:
+    invested = pd.Series([0.0, 30_000.0, 60_000.0])
+
+    assert _series_summary("Invested", invested, invested) == "Invested: 60.0K"
 
 
 def test_combine_data_handles_invested_series_without_dividends() -> None:
