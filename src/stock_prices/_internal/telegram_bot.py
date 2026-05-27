@@ -16,13 +16,21 @@ class TelegramApiError(RuntimeError):
     pass
 
 
+def _redact_token(text: str, token: str) -> str:
+    return text.replace(token, "<telegram-token>")
+
+
 class TelegramClient:
     def __init__(self, token: str, timeout: int = 30) -> None:
+        self.token = token
         self.base_url = f"https://api.telegram.org/bot{token}"
         self.timeout = timeout
 
     def call(self, method: str, **data: Any) -> Any:
-        response = requests.post(f"{self.base_url}/{method}", data=data, timeout=self.timeout + 10)
+        try:
+            response = requests.post(f"{self.base_url}/{method}", data=data, timeout=self.timeout + 10)
+        except requests.RequestException as exc:
+            raise TelegramApiError(f"Telegram {method} request failed: {_redact_token(str(exc), self.token)}") from None
         payload = response.json()
         if not response.ok or not payload.get("ok"):
             description = payload.get("description", response.text)
@@ -40,12 +48,15 @@ class TelegramClient:
 
     def send_video(self, chat_id: int, video_path: Path, caption: str) -> None:
         with video_path.open("rb") as video:
-            response = requests.post(
-                f"{self.base_url}/sendVideo",
-                data={"chat_id": chat_id, "caption": caption, "supports_streaming": True},
-                files={"video": (video_path.name, video, "video/mp4")},
-                timeout=max(self.timeout + 60, 120),
-            )
+            try:
+                response = requests.post(
+                    f"{self.base_url}/sendVideo",
+                    data={"chat_id": chat_id, "caption": caption, "supports_streaming": True},
+                    files={"video": (video_path.name, video, "video/mp4")},
+                    timeout=max(self.timeout + 60, 120),
+                )
+            except requests.RequestException as exc:
+                raise TelegramApiError(f"Telegram sendVideo request failed: {_redact_token(str(exc), self.token)}") from None
         payload = response.json()
         if not response.ok or not payload.get("ok"):
             description = payload.get("description", response.text)

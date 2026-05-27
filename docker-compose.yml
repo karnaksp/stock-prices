@@ -8,11 +8,13 @@ services:
       - .env
     environment:
       MPLBACKEND: Agg
+      PYTHONPATH: /app/src
       STOCK_PRICES_OUTPUT_DIR: /app/animations
     command: ["python", "-m", "stock_prices", "bot"]
     init: true
     restart: unless-stopped
     volumes:
+      - ./src:/app/src:ro
       - ./animations:/app/animations
       - ./logs:/app/logs
       - ./stock:/app/stock

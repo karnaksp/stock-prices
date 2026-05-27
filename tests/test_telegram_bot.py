@@ -3,10 +3,13 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
+import pytest
+import requests
+
 from stock_prices._internal import telegram_bot
 from stock_prices._internal.models import RenderSettings
 from stock_prices._internal.telegram_requests import parse_telegram_video_request
-from stock_prices._internal.telegram_bot import TelegramBotSettings, handle_ticker_message
+from stock_prices._internal.telegram_bot import TelegramApiError, TelegramBotSettings, TelegramClient, handle_ticker_message
 
 
 class FakeClient:
@@ -52,6 +55,22 @@ def test_handle_ticker_message_respects_allowed_chat_ids() -> None:
 
     assert client.messages == [(2, "This chat is not allowed to use this bot.")]
     assert client.videos == []
+
+
+def test_telegram_client_redacts_token_in_network_errors(monkeypatch) -> None:
+    token = "123456:SECRET"
+
+    def fail_post(url, **_kwargs):
+        raise requests.ConnectionError(f"Cannot connect to {url}")
+
+    monkeypatch.setattr(requests, "post", fail_post)
+
+    with pytest.raises(TelegramApiError) as error:
+        TelegramClient(token).get_updates(offset=None, timeout=1)
+
+    assert token not in str(error.value)
+    assert "<telegram-token>" in str(error.value)
+    assert error.value.__cause__ is None
 
 
 def test_parse_telegram_video_request_accepts_human_message() -> None:

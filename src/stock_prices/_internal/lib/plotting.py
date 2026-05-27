@@ -108,7 +108,8 @@ def _combine_data(data_list: list[dict[str, Any]], value_column: str) -> tuple[p
         df_temp["TRADEDATE"] = pd.to_datetime(df_temp["TRADEDATE"])
         df_temp[name] = pd.to_numeric(df_temp[value_column], errors="coerce")
         dividend_col = f"DIVIDEND_{name}"
-        df_temp[dividend_col] = pd.to_numeric(df_temp.get("DIVIDEND", 0.0), errors="coerce").fillna(0.0)
+        dividend_values = df_temp["DIVIDEND"] if "DIVIDEND" in df_temp else pd.Series(0.0, index=df_temp.index)
+        df_temp[dividend_col] = pd.to_numeric(dividend_values, errors="coerce").fillna(0.0)
         columns = ["TRADEDATE", name, dividend_col]
         combined_df = df_temp[columns].copy() if combined_df is None else combined_df.merge(df_temp[columns], on="TRADEDATE", how="outer")
         value_columns.append(name)
@@ -285,17 +286,23 @@ def create_multi_line_animation(
                 labels[name].set_text("")
                 summary_artists[name].set_text("")
                 continue
+            line_x = x_data.loc[clean.index]
             if use_gradient:
-                lines[name].set_data([], [])
+                lines[name].set_data(line_x, clean)
+                lines[name].set_alpha(0.42)
+                gradient_tail_points = 180
+                tail_x = line_x.iloc[-gradient_tail_points:]
+                tail_y = clean.iloc[-gradient_tail_points:]
                 before = len(ax.collections)
-                draw_gradient_line(ax, x_data.loc[clean.index], clean, by_name[name]["color"], name)
+                draw_gradient_line(ax, tail_x, tail_y, by_name[name]["color"], name)
                 gradient_collections.extend(ax.collections[before:])
             else:
-                lines[name].set_data(x_data.loc[clean.index], clean)
+                lines[name].set_alpha(0.92)
+                lines[name].set_data(line_x, clean)
             if len(clean) > 1:
                 fill_artists.append(
                     ax.fill_between(
-                        x_data.loc[clean.index],
+                        line_x,
                         clean,
                         ax.get_ylim()[0],
                         color=by_name[name]["color"],
