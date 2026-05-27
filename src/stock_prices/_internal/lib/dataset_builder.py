@@ -178,7 +178,7 @@ def build_data_list(args: Any, build_args: Any, start_date, end_date) -> list[di
         data_list.append({"data": df_raw, "name": ticker, "color": color})
         if getattr(args, "with_investments", False) and investments_df is None:
             investments_df = df_raw[["TRADEDATE", "savings"]].copy()
-            investments_df.rename(columns={"savings": "CAPITAL_REINVEST"}, inplace=True)
+            investments_df["CAPITAL_REINVEST"] = investments_df["savings"]
 
     if investments_df is not None:
         data_list.append({"data": investments_df, "name": "Invested", "color": "#8f9aa8"})
