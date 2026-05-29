@@ -44,40 +44,11 @@ def _compact_number(value: float) -> str:
     return f"{value:.0f}"
 
 
-def _format_return(start: float, current: float) -> str:
-    if start == 0:
-        return "0.0%"
-    percent = ((current / start) - 1) * 100
-    if round(percent, 1) == 0:
-        return "0.0%"
-    return f"{percent:+.1f}%"
-
-
-def _return_from_series(values: pd.Series, basis: pd.Series | None = None) -> str:
-    clean = pd.to_numeric(values, errors="coerce").dropna()
-    if clean.empty:
-        return "n/a"
-
-    if basis is not None:
-        basis_clean = pd.to_numeric(basis, errors="coerce").reindex(clean.index).dropna()
-        positive_basis = basis_clean[basis_clean > 0]
-        if not positive_basis.empty:
-            last_index = positive_basis.index[-1]
-            return _format_return(float(positive_basis.loc[last_index]), float(clean.loc[last_index]))
-
-    non_zero = clean[clean != 0]
-    if non_zero.empty:
-        return "0.0%"
-    return _format_return(float(non_zero.iloc[0]), float(clean.iloc[-1]))
-
-
-def _series_summary(name: str, values: pd.Series, basis: pd.Series | None = None) -> str:
+def _series_summary(name: str, values: pd.Series) -> str:
     clean = pd.to_numeric(values, errors="coerce").dropna()
     if clean.empty:
         return f"{name}: n/a"
-    if name == "Invested":
-        return f"{name}: {_compact_number(float(clean.iloc[-1]))}"
-    return f"{name}: {_return_from_series(values, basis)}"
+    return f"{name}: {_compact_number(float(clean.iloc[-1]))}"
 
 
 def create_another_color(base_color: str, hue_shift: float = 0.08, lightness_factor: float = 1.12) -> tuple[float, float, float]:
@@ -115,11 +86,10 @@ def _configure_ffmpeg() -> None:
     mpl.rcParams["animation.ffmpeg_path"] = get_ffmpeg_exe()
 
 
-def _combine_data(data_list: list[dict[str, Any]], value_column: str) -> tuple[pd.DataFrame, list[str], dict[str, str], dict[str, str]]:
+def _combine_data(data_list: list[dict[str, Any]], value_column: str) -> tuple[pd.DataFrame, list[str], dict[str, str]]:
     combined_df: pd.DataFrame | None = None
     value_columns = []
     dividend_columns: dict[str, str] = {}
-    basis_columns: dict[str, str] = {}
 
     for item in data_list:
         name = item["name"]
@@ -132,11 +102,6 @@ def _combine_data(data_list: list[dict[str, Any]], value_column: str) -> tuple[p
         dividend_values = df_temp["DIVIDEND"] if "DIVIDEND" in df_temp else pd.Series(0.0, index=df_temp.index)
         df_temp[dividend_col] = pd.to_numeric(dividend_values, errors="coerce").fillna(0.0)
         columns = ["TRADEDATE", name, dividend_col]
-        if "savings" in df_temp:
-            basis_col = f"SAVINGS_{name}"
-            df_temp[basis_col] = pd.to_numeric(df_temp["savings"], errors="coerce")
-            columns.append(basis_col)
-            basis_columns[name] = basis_col
         combined_df = df_temp[columns].copy() if combined_df is None else combined_df.merge(df_temp[columns], on="TRADEDATE", how="outer")
         value_columns.append(name)
         dividend_columns[name] = dividend_col
@@ -147,9 +112,7 @@ def _combine_data(data_list: list[dict[str, Any]], value_column: str) -> tuple[p
     combined_df = combined_df.sort_values("TRADEDATE").reset_index(drop=True)
     combined_df[value_columns] = combined_df[value_columns].ffill()
     combined_df[list(dividend_columns.values())] = combined_df[list(dividend_columns.values())].fillna(0.0)
-    if basis_columns:
-        combined_df[list(basis_columns.values())] = combined_df[list(basis_columns.values())].ffill()
-    return combined_df, value_columns, dividend_columns, basis_columns
+    return combined_df, value_columns, dividend_columns
 
 
 def _frame_indexes(row_count: int, target_duration: int, fps: int, final_frame_duration: int) -> list[int]:
@@ -198,7 +161,7 @@ def create_multi_line_animation(
     import numpy as np
     from matplotlib.ticker import FuncFormatter
 
-    combined_df, value_columns, dividend_columns, basis_columns = _combine_data(data_list, value_column)
+    combined_df, value_columns, dividend_columns = _combine_data(data_list, value_column)
     all_frames = _frame_indexes(len(combined_df), target_duration, fps, final_frame_duration)
 
     plt.rcParams["figure.facecolor"] = "#0D0E11"
@@ -221,9 +184,9 @@ def create_multi_line_animation(
     by_name = {item["name"]: item for item in data_list}
     summary_columns = min(max(len(value_columns), 1), 3)
     summary_x_positions = [0.08, 0.36, 0.64][:summary_columns]
-    summary_font_size = 16 if len(value_columns) <= 3 else 11
+    summary_font_size = 17 if len(value_columns) <= 4 else 13
     summary_wrap_width = 24
-    summary_row_gap = 0.031
+    summary_row_gap = 0.038
 
     fig.text(0.08, 0.955, "MARKET MOTION", ha="left", va="top", fontsize=10, color="#858B96", weight="bold")
     title_artist = fig.text(0.08, 0.925, wrap_text(title, 24), ha="left", va="top", fontsize=34, color="#f8fafc", weight="bold")
@@ -269,7 +232,7 @@ def create_multi_line_animation(
             combined_df["TRADEDATE"].iloc[0],
             0,
             "",
-            fontsize=13,
+            fontsize=14,
             color=color,
             va="center",
             ha="right",
@@ -342,11 +305,10 @@ def create_multi_line_animation(
             last_idx = clean.index[-1]
             last_x = x_data.loc[last_idx]
             last_y = float(clean.iloc[-1])
-            basis = current_data[basis_columns[name]] if name in basis_columns else None
-            label_text = _series_summary(name, clean, basis)
+            label_text = _series_summary(name, clean)
             labels[name].set_text(label_text)
             label_targets.append((name, last_x, last_y, label_text))
-            summary_artists[name].set_text(wrap_text(_series_summary(name, clean, basis), summary_wrap_width))
+            summary_artists[name].set_text(wrap_text(_series_summary(name, clean), summary_wrap_width))
 
             dividend_data = current_data[current_data[dividend_columns[name]] > 0]
             if dividend_data.empty:
