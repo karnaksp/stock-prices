@@ -79,6 +79,8 @@ def _amount_summary(name: str, values: pd.Series) -> str:
 
 
 def _return_summary(name: str, values: pd.Series, basis: pd.Series | None = None) -> str:
+    if name == "Invested":
+        return _amount_summary(name, values)
     return f"{name}: {_return_from_series(values, basis)}"
 
 
