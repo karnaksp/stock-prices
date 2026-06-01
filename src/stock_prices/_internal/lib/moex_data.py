@@ -42,8 +42,8 @@ def get_div_for_me(ticker: str, start_date: pd.Timestamp, end_date: pd.Timestamp
     try:
         dividends = yf.Ticker(f"{ticker}.ME").dividends
     except Exception:
-        dividends = pd.Series(dtype=float)
-    if dividends.empty:
+        dividends = None
+    if dividends is None or getattr(dividends, "empty", True):
         return pd.DataFrame({"TRADEDATE": pd.Series(dtype="datetime64[ns]"), "DIVIDEND": pd.Series(dtype="float64")})
     if hasattr(dividends.index, "tz") and dividends.index.tz is not None:
         dividends.index = dividends.index.tz_convert(None)
