@@ -165,6 +165,12 @@ def _frame_indexes(row_count: int, target_duration: int, fps: int, final_frame_d
     return animated + [final_index] * max(0, int(final_frame_duration * fps))
 
 
+def _visible_x_span_days(x_start: pd.Timestamp, frame_date: pd.Timestamp, total_span_days: int) -> int:
+    min_window_days = min(total_span_days, 45)
+    elapsed_days = max(1, (frame_date - x_start).days)
+    return max(min_window_days, elapsed_days)
+
+
 def _active_events(events_df: pd.DataFrame, frame_date: pd.Timestamp) -> list[tuple[pd.Timestamp, pd.Timestamp, str, int]]:
     if events_df.empty or "EVENT_NAME" not in events_df:
         return []
@@ -301,6 +307,8 @@ def create_multi_line_animation(
         current_data = combined_df.iloc[: frame_index + 1]
         frame_date = pd.Timestamp(current_data["TRADEDATE"].iloc[-1])
         date_artist.set_text(frame_date.strftime("%d.%m.%Y"))
+        visible_x_span_days = _visible_x_span_days(x_start, frame_date, x_span_days)
+        ax.set_xlim(x_start, x_start + pd.Timedelta(days=visible_x_span_days * 1.12))
 
         values = current_data[value_columns].stack().dropna()
         if not values.empty:
@@ -362,7 +370,7 @@ def create_multi_line_animation(
         y_bottom, y_top = ax.get_ylim()
         min_gap = (y_top - y_bottom) * 0.065
         used_y: list[float] = []
-        label_x = combined_df["TRADEDATE"].iloc[-1] + pd.Timedelta(days=x_span_days * 0.105)
+        label_x = frame_date + pd.Timedelta(days=visible_x_span_days * 0.105)
         for name, _last_x, last_y, _label_text in sorted(label_targets, key=lambda item: item[2]):
             adjusted_y = min(max(last_y, y_bottom + min_gap), y_top - min_gap)
             while any(abs(adjusted_y - used) < min_gap for used in used_y):
@@ -377,8 +385,9 @@ def create_multi_line_animation(
             color = event_color(impact)
             patch = ax.axvspan(start, visible_end, alpha=0.12, color=color, linewidth=0, zorder=0)
             label_x = start + (visible_end - start) / 2
-            label_padding = pd.Timedelta(days=x_span_days * 0.045)
-            label_x = max(x_start + label_padding, min(label_x, x_end - label_padding))
+            label_padding = pd.Timedelta(days=visible_x_span_days * 0.045)
+            x_right = x_start + pd.Timedelta(days=visible_x_span_days)
+            label_x = max(x_start + label_padding, min(label_x, x_right - label_padding))
             label = ax.text(
                 label_x,
                 0.035 + (event_index % 3) * 0.048,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from stock_prices._internal.lib import dataset_builder
-from stock_prices._internal.lib.plotting import _amount_summary, _combine_data, _return_summary
+from stock_prices._internal.lib.plotting import _amount_summary, _combine_data, _return_summary, _visible_x_span_days
 
 
 def test_amount_summary_shows_latest_amount() -> None:
@@ -33,6 +33,14 @@ def test_return_summary_shows_invested_actual_amount() -> None:
     invested = pd.Series([0.0, 30_000.0, 60_000.0])
 
     assert _return_summary("Invested", invested, invested) == "Invested: 60.0K"
+
+
+def test_visible_x_span_starts_with_readable_window() -> None:
+    start = pd.Timestamp("2021-12-17")
+
+    assert _visible_x_span_days(start, start, 1627) == 45
+    assert _visible_x_span_days(start, start + pd.Timedelta(days=10), 1627) == 45
+    assert _visible_x_span_days(start, start + pd.Timedelta(days=120), 1627) == 120
 
 
 def test_combine_data_handles_invested_series_without_dividends() -> None:
