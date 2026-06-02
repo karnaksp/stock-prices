@@ -10,9 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from stock_prices._internal import debug
-from stock_prices._internal.env import load_env_file
+from stock_prices._internal.env import get_cleanup_retention_days, load_env_file
 from stock_prices._internal.models import RenderSettings, VideoRequest, parse_ticker_spec
 from stock_prices._internal.pipeline import generate_video
+from stock_prices._internal.rendering.theme import get_theme_names
 from stock_prices._internal.telegram_bot import TelegramBotSettings, run_telegram_bot
 from stock_prices._internal.lib.utils import configure_logging, get_ticker_specs
 
@@ -70,6 +71,7 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument("--currency", default="RUB", help="Display currency label.")
     parser.add_argument("--title", default="", help="Chart title.")
     parser.add_argument("--under_title", default="", help="Chart subtitle.")
+    parser.add_argument("--theme", default="default", choices=get_theme_names(), help="Chart visual theme.")
     parser.add_argument("--output_dir", default="animations", help="Directory for generated videos.")
     return parser
 
@@ -89,7 +91,9 @@ def get_bot_parser() -> argparse.ArgumentParser:
     parser.add_argument("--duration", type=int, default=int(os.getenv("STOCK_PRICES_DURATION", "30")))
     parser.add_argument("--fps", type=int, default=int(os.getenv("STOCK_PRICES_FPS", "20")))
     parser.add_argument("--currency", default=os.getenv("STOCK_PRICES_CURRENCY", "RUB"))
+    parser.add_argument("--theme", default=os.getenv("STOCK_PRICES_THEME", "default"), choices=get_theme_names())
     parser.add_argument("--output_dir", default=os.getenv("STOCK_PRICES_OUTPUT_DIR", "animations"))
+    parser.add_argument("--retention_days", type=int, default=get_cleanup_retention_days(), help="Delete generated MP4 files older than this many days. 0 disables cleanup.")
     parser.add_argument("--poll_timeout", type=int, default=30)
     parser.add_argument("--once", action="store_true", help="Process currently available updates once and exit.")
     return parser
@@ -120,6 +124,7 @@ def request_from_args(args: argparse.Namespace) -> VideoRequest:
             currency=args.currency,
             title=args.title,
             under_title=args.under_title,
+            theme=args.theme,
             use_gradient=args.use_gradient,
             show_legend=not args.no_legend,
             initial_investment=args.initial_investment,
@@ -156,12 +161,14 @@ def _run_bot(argv: Sequence[str]) -> int:
         default_market=args.default_market,
         poll_timeout=args.poll_timeout,
         once=args.once,
+        cleanup_retention_days=args.retention_days,
         render=RenderSettings(
             start_date=args.start_date,
             end_date=args.end_date,
             duration=args.duration,
             fps=args.fps,
             currency=args.currency,
+            theme=args.theme,
             output_dir=Path(args.output_dir),
         ),
     )

@@ -10,7 +10,9 @@ import matplotlib.animation as animation
 import pandas as pd
 
 from stock_prices._internal.lib.dataset_builder import build_data_list
-from stock_prices._internal.models import TickerSpec, safe_video_stem
+from stock_prices._internal.models import TickerSpec
+from stock_prices._internal.rendering.filenames import safe_video_stem
+from stock_prices._internal.rendering.theme import ChartTheme, get_chart_theme
 
 
 def event_color(impact: int) -> str:
@@ -166,9 +168,7 @@ def _frame_indexes(row_count: int, target_duration: int, fps: int, final_frame_d
 
 
 def _visible_x_span_days(x_start: pd.Timestamp, frame_date: pd.Timestamp, total_span_days: int) -> int:
-    min_window_days = min(total_span_days, 45)
-    elapsed_days = max(1, (frame_date - x_start).days)
-    return max(min_window_days, elapsed_days)
+    return max(1, total_span_days)
 
 
 def _active_events(events_df: pd.DataFrame, frame_date: pd.Timestamp) -> list[tuple[pd.Timestamp, pd.Timestamp, str, int]]:
@@ -202,31 +202,33 @@ def create_multi_line_animation(
     use_legend: bool = True,
     title: str = "",
     under_title: str = "",
+    theme: str | ChartTheme = "default",
 ):
     import matplotlib.dates as mdates
     import matplotlib.pyplot as plt
     import numpy as np
     from matplotlib.ticker import FuncFormatter
 
+    chart_theme = get_chart_theme(theme) if isinstance(theme, str) else theme
     combined_df, value_columns, dividend_columns, basis_columns = _combine_data(data_list, value_column)
     all_frames = _frame_indexes(len(combined_df), target_duration, fps, final_frame_duration)
 
-    plt.rcParams["figure.facecolor"] = "#0D0E11"
-    plt.rcParams["axes.facecolor"] = "#15171C"
+    plt.rcParams["figure.facecolor"] = chart_theme.figure_bg
+    plt.rcParams["axes.facecolor"] = chart_theme.axes_bg
     fig, ax = plt.subplots(figsize=(9, 16), dpi=120)
     fig.subplots_adjust(left=0.12, right=0.86, top=0.76, bottom=0.24)
     x_start = combined_df["TRADEDATE"].min()
     x_end = combined_df["TRADEDATE"].max()
     x_span_days = max(1, (x_end - x_start).days)
     ax.set_xlim(x_start, x_end + pd.Timedelta(days=x_span_days * 0.12))
-    ax.grid(True, alpha=0.2, color="#B6BCC6", linewidth=0.8)
-    ax.set_ylabel(y_label, color="#B6BCC6", fontsize=14)
-    ax.tick_params(axis="both", labelcolor="#B6BCC6", labelsize=11, colors="#B6BCC6")
+    ax.grid(True, alpha=0.2, color=chart_theme.grid_color, linewidth=0.8)
+    ax.set_ylabel(y_label, color=chart_theme.axis_color, fontsize=14)
+    ax.tick_params(axis="both", labelcolor=chart_theme.axis_color, labelsize=11, colors=chart_theme.axis_color)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _pos: _compact_number(value)))
     ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=4, maxticks=7))
     ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
     for spine in ax.spines.values():
-        spine.set_color("#343942")
+        spine.set_color(chart_theme.spine_color)
 
     by_name = {item["name"]: item for item in data_list}
     summary_columns = min(max(len(value_columns), 1), 3)
@@ -235,9 +237,9 @@ def create_multi_line_animation(
     summary_wrap_width = 24
     summary_row_gap = 0.038
 
-    fig.text(0.08, 0.955, "MARKET MOTION", ha="left", va="top", fontsize=10, color="#858B96", weight="bold")
-    title_artist = fig.text(0.08, 0.925, wrap_text(title, 24), ha="left", va="top", fontsize=34, color="#f8fafc", weight="bold")
-    subtitle_artist = fig.text(0.08, 0.165, wrap_text(under_title, 40), ha="left", va="bottom", fontsize=16, color="#A2A9B3")
+    fig.text(0.08, 0.955, "MARKET MOTION", ha="left", va="top", fontsize=10, color=chart_theme.muted_color, weight="bold")
+    title_artist = fig.text(0.08, 0.925, wrap_text(title, 24), ha="left", va="top", fontsize=34, color=chart_theme.title_color, weight="bold")
+    subtitle_artist = fig.text(0.08, 0.165, wrap_text(under_title, 40), ha="left", va="bottom", fontsize=16, color=chart_theme.subtitle_color)
     summary_artists = {
         name: fig.text(
             summary_x_positions[index % summary_columns],
@@ -252,7 +254,7 @@ def create_multi_line_animation(
         )
         for index, name in enumerate(value_columns)
     }
-    fig.text(0.92, 0.055, "stock-prices", ha="right", va="bottom", fontsize=10, color="#595F6B")
+    fig.text(0.92, 0.055, "stock-prices", ha="right", va="bottom", fontsize=10, color=chart_theme.footer_color)
     date_artist = ax.text(
         0.98,
         0.97,
@@ -261,9 +263,9 @@ def create_multi_line_animation(
         ha="right",
         va="top",
         fontsize=18,
-        color="#f8fafc",
+        color=chart_theme.title_color,
         weight="bold",
-        bbox={"boxstyle": "round,pad=0.35", "facecolor": "#0D0E11", "edgecolor": "#343942", "alpha": 0.92},
+        bbox={"boxstyle": "round,pad=0.35", "facecolor": chart_theme.date_box_bg, "edgecolor": chart_theme.date_box_edge, "alpha": 0.92},
     )
 
     lines = {}
@@ -283,13 +285,13 @@ def create_multi_line_animation(
             color=color,
             va="center",
             ha="right",
-            bbox={"boxstyle": "round,pad=0.35", "facecolor": "#10131a", "edgecolor": color, "alpha": 0.92},
+            bbox={"boxstyle": "round,pad=0.35", "facecolor": chart_theme.label_box_bg, "edgecolor": color, "alpha": 0.92},
         )
         dividend_markers[name] = ax.scatter([], [], s=55, color=color, alpha=0.7, zorder=5)
     if use_legend:
         legend = ax.legend(loc="upper left", frameon=False, fontsize=12)
         for text in legend.get_texts():
-            text.set_color("#d6dce6")
+            text.set_color(chart_theme.title_color)
 
     event_artists = []
 
@@ -396,8 +398,8 @@ def create_multi_line_animation(
                 ha="center",
                 va="bottom",
                 fontsize=9,
-                color="#eef2f6",
-                bbox={"boxstyle": "round,pad=0.28", "facecolor": "#0D0E11", "edgecolor": color, "alpha": 0.88},
+                color=chart_theme.title_color,
+                bbox={"boxstyle": "round,pad=0.28", "facecolor": chart_theme.date_box_bg, "edgecolor": color, "alpha": 0.88},
                 clip_on=True,
                 zorder=6,
             )
@@ -449,6 +451,7 @@ def render_charts(args: Any, specs: list[dict[str, str]], start_date: pd.Timesta
         use_legend=not getattr(args, "no_legend", False),
         title=getattr(args, "title", "") or default_title,
         under_title=getattr(args, "under_title", "") or default_subtitle,
+        theme=getattr(args, "theme", "default"),
     )
 
     output_dir = Path(getattr(args, "output_dir", "animations"))

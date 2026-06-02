@@ -80,6 +80,7 @@ hide:
     SBER LKOH 2020 2024
     AAPL global USD gradient
     BTC price duration=12 fps=24
+    gold silver palladium RUB capital invest initial=0 monthly=30000 gradient theme=aurora
     ```
 
 ## Основные разделы
@@ -92,6 +93,10 @@ hide:
   <a class="sp-card" href="runbook/">
     <strong>Запуск и проверка</strong>
     <span>Пошаговый runbook для Windows/PowerShell, CLI, Telegram и диагностики.</span>
+  </a>
+  <a class="sp-card" href="telegram/">
+    <strong>Telegram-запросы</strong>
+    <span>Синтаксис сообщений, рынки, инвестиции, темы и проверенные примеры.</span>
   </a>
   <a class="sp-card" href="docker/">
     <strong>Docker</strong>
@@ -111,6 +116,7 @@ SBER LKOH 2020 2024
 AAPL global USD gradient
 gold 2018-2026 USD gradient
 BTC-USD global crypto close
+gold silver palladium RUB capital invest initial=0 monthly=30000 gradient theme=aurora
 SiH4 futures 2024 close
 USD000UTSTOM selt 2024 close
 ```

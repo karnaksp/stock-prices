@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
+import time
 
 import pytest
 import requests
@@ -9,7 +10,7 @@ import requests
 from stock_prices._internal import telegram_bot
 from stock_prices._internal.models import RenderSettings
 from stock_prices._internal.telegram_requests import parse_telegram_video_request
-from stock_prices._internal.telegram_bot import TelegramApiError, TelegramBotSettings, TelegramClient, handle_ticker_message
+from stock_prices._internal.telegram_bot import TelegramApiError, TelegramBotSettings, TelegramClient, cleanup_old_outputs, handle_ticker_message
 
 
 class FakeClient:
@@ -26,21 +27,75 @@ class FakeClient:
 
 def test_handle_ticker_message_generates_video(monkeypatch) -> None:
     client = FakeClient()
+    seen_job_ids = []
     settings = TelegramBotSettings(
         token="token",
         render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
     )
 
-    def fake_generate(request):
+    def fake_generate(request, job_id=None):
         assert request.ticker_specs[0].ticker == "LKOH"
+        seen_job_ids.append(job_id)
         return Path("animations/LKOH.mp4")
 
     monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
-    handle_ticker_message(client, settings, 123, "lkoh")
+    handle_ticker_message(client, settings, 123, "lkoh", job_id="tg-1")
 
     assert client.messages[0][0] == 123
     assert "Генерирую видео: LKOH" in client.messages[0][1]
+    assert seen_job_ids == ["tg-1"]
     assert client.videos == [(123, Path("animations/LKOH.mp4"), "LKOH: 2020-01-01 - 2020-01-02")]
+
+
+def test_run_telegram_bot_queues_generation_once(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 42, "message": {"text": "LKOH", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fake_client_factory(*_args, **_kwargs):
+        return client
+
+    def fake_generate(_request, job_id=None):
+        assert job_id == "tg-42"
+        return Path("animations/LKOH.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert any("queued" in message for _chat_id, message in client.messages)
+    assert any("Генерирую видео: LKOH" in message for _chat_id, message in client.messages)
+    assert client.videos == [(123, Path("animations/LKOH.mp4"), "LKOH: 2020-01-01 - 2020-01-02")]
+
+
+def test_cleanup_old_outputs_removes_old_mp4_but_keeps_current(tmp_path: Path) -> None:
+    old_video = tmp_path / "old.mp4"
+    current_video = tmp_path / "current.mp4"
+    old_video.write_bytes(b"old")
+    current_video.write_bytes(b"current")
+    old_mtime = time.time() - 3 * 24 * 60 * 60
+    old_video.touch()
+    current_video.touch()
+    import os
+
+    os.utime(old_video, (old_mtime, old_mtime))
+
+    removed = cleanup_old_outputs(tmp_path, retention_days=1, keep={current_video})
+
+    assert removed == [old_video]
+    assert not old_video.exists()
+    assert current_video.exists()
 
 
 def test_handle_ticker_message_respects_allowed_chat_ids() -> None:
@@ -55,6 +110,21 @@ def test_handle_ticker_message_respects_allowed_chat_ids() -> None:
 
     assert client.messages == [(2, "This chat is not allowed to use this bot.")]
     assert client.videos == []
+
+
+def test_help_text_mentions_investments_and_themes() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "/help")
+
+    help_text = client.messages[0][1]
+    assert "monthly=30000" in help_text
+    assert "theme=default|aurora|studio" in help_text
+    assert "SiH4 futures" in help_text
 
 
 def test_telegram_client_redacts_token_in_network_errors(monkeypatch) -> None:
@@ -76,7 +146,7 @@ def test_telegram_client_redacts_token_in_network_errors(monkeypatch) -> None:
 def test_parse_telegram_video_request_accepts_human_message() -> None:
     base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
 
-    parsed = parse_telegram_video_request("lkoh sber 2020 2024 gradient duration=12 fps=24 close", base)
+    parsed = parse_telegram_video_request("lkoh sber 2020 2024 gradient duration=12 fps=24 close theme=aurora", base)
 
     assert [spec.ticker for spec in parsed.request.ticker_specs] == ["LKOH", "SBER"]
     assert parsed.request.render.start_date == date(2020, 1, 1)
@@ -85,6 +155,14 @@ def test_parse_telegram_video_request_accepts_human_message() -> None:
     assert parsed.request.render.fps == 24
     assert parsed.request.render.value_col == "CLOSE"
     assert parsed.request.render.use_gradient is True
+    assert parsed.request.render.theme == "aurora"
+
+
+def test_parse_telegram_video_request_rejects_unknown_theme() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    with pytest.raises(ValueError, match="Unknown theme"):
+        parse_telegram_video_request("lkoh theme=bad", base)
 
 
 def test_parse_telegram_video_request_accepts_global_currency_shortcuts() -> None:

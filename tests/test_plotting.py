@@ -4,6 +4,7 @@ import pandas as pd
 
 from stock_prices._internal.lib import dataset_builder
 from stock_prices._internal.lib.plotting import _amount_summary, _combine_data, _return_summary, _visible_x_span_days
+from stock_prices._internal.rendering.theme import get_chart_theme, get_theme_names
 
 
 def test_amount_summary_shows_latest_amount() -> None:
@@ -35,12 +36,12 @@ def test_return_summary_shows_invested_actual_amount() -> None:
     assert _return_summary("Invested", invested, invested) == "Invested: 60.0K"
 
 
-def test_visible_x_span_starts_with_readable_window() -> None:
+def test_visible_x_span_uses_full_period_to_prevent_expanding_axis() -> None:
     start = pd.Timestamp("2021-12-17")
 
-    assert _visible_x_span_days(start, start, 1627) == 45
-    assert _visible_x_span_days(start, start + pd.Timedelta(days=10), 1627) == 45
-    assert _visible_x_span_days(start, start + pd.Timedelta(days=120), 1627) == 120
+    assert _visible_x_span_days(start, start, 1627) == 1627
+    assert _visible_x_span_days(start, start + pd.Timedelta(days=10), 1627) == 1627
+    assert _visible_x_span_days(start, start + pd.Timedelta(days=120), 1627) == 1627
 
 
 def test_combine_data_handles_invested_series_without_dividends() -> None:
@@ -88,3 +89,20 @@ def test_generate_unique_colors_shuffles_palette(monkeypatch) -> None:
     monkeypatch.setattr(dataset_builder.random, "SystemRandom", lambda: ReverseRandom())
 
     assert dataset_builder.generate_unique_colors(2) == ["#A3E635", "#F72585"]
+
+
+def test_chart_themes_include_default_and_optional_presets() -> None:
+    assert get_theme_names() == ("default", "aurora", "studio")
+    assert get_chart_theme("default").figure_bg == "#0D0E11"
+    assert get_chart_theme("aurora").name == "aurora"
+    assert get_chart_theme("studio").invested_color == "#9BA3AF"
+
+
+def test_generate_unique_colors_uses_theme_palette(monkeypatch) -> None:
+    class IdentityRandom:
+        def shuffle(self, _values: list[str]) -> None:
+            return None
+
+    monkeypatch.setattr(dataset_builder.random, "SystemRandom", lambda: IdentityRandom())
+
+    assert dataset_builder.generate_unique_colors(2, palette=get_chart_theme("studio").palette) == ["#F4D35E", "#33C7A7"]

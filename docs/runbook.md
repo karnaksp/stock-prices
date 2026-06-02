@@ -57,7 +57,9 @@ STOCK_PRICES_DEFAULT_MARKET=shares
 STOCK_PRICES_CURRENCY=RUB
 STOCK_PRICES_DURATION=30
 STOCK_PRICES_FPS=20
+STOCK_PRICES_THEME=default
 STOCK_PRICES_OUTPUT_DIR=animations
+STOCK_PRICES_RETENTION_DAYS=0
 ```
 
 Проверить, что Telegram API видит бота:
@@ -125,7 +127,7 @@ LKOH
 LKOH SBER 2020 2024
 AAPL global USD gradient
 gold 2024
-gold silver palladium 2018-2026 RUB capital invest initial=0 monthly=30000 gradient
+gold silver palladium 2018-2026 RUB capital invest initial=0 monthly=30000 gradient theme=aurora
 btc 2024 close
 SiH4 futures 2024 close
 USD000UTSTOM selt 2024 close
@@ -133,10 +135,13 @@ USD000UTSTOM selt 2024 close
 
 Ожидаемый сценарий:
 
-1. Бот отвечает статусом `Генерирую видео`.
-2. Скачивает или обновляет данные.
-3. Собирает MP4.
-4. Отправляет видео обратно в чат.
+1. Бот ставит запрос в очередь и показывает `job id`.
+2. Бот отвечает статусом `Генерирую видео`.
+3. Скачивает или обновляет данные.
+4. Собирает MP4.
+5. Отправляет видео обратно в чат.
+
+Подробный синтаксис: [Как писать запросы в Telegram](telegram.md).
 
 ## 7. Диагностика
 

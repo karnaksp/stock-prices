@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime
 
 from stock_prices._internal.models import RenderSettings, TickerSpec, VideoRequest, parse_ticker_spec
+from stock_prices._internal.rendering.theme import get_theme_names
 
 
 @dataclass(frozen=True)
@@ -160,6 +161,7 @@ def parse_telegram_video_request(
                 "legend",
                 "show_legend",
                 "title",
+                "theme",
             }:
                 key = possible_key
                 value = possible_value.strip()
@@ -198,6 +200,11 @@ def parse_telegram_video_request(
             updates["show_legend"] = _parse_bool(value)
         elif key == "title":
             title = value.replace("_", " ")
+        elif key == "theme":
+            theme = value.lower()
+            if theme not in get_theme_names():
+                raise ValueError(f"Unknown theme: {value}")
+            updates["theme"] = theme
         elif key:
             raise ValueError(f"Unknown option: {key}")
         elif "|" in token:
