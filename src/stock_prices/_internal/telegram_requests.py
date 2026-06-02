@@ -6,12 +6,14 @@ from datetime import date, datetime
 
 from stock_prices._internal.models import RenderSettings, TickerSpec, VideoRequest, parse_ticker_spec
 from stock_prices._internal.rendering.theme import get_theme_names
+from stock_prices._internal.telegram_presets import expand_preset_text
 
 
 @dataclass(frozen=True)
 class ParsedTelegramRequest:
     request: VideoRequest
     display_name: str
+    preset_name: str | None = None
 
 
 _CURRENCIES = {"RUB", "USD", "EUR", "CNY", "GBP", "JPY", "CHF"}
@@ -100,6 +102,7 @@ def parse_telegram_video_request(
     default_engine: str = "stock",
     default_market: str = "shares",
 ) -> ParsedTelegramRequest:
+    text, preset = expand_preset_text(text)
     tokens = _tokenize(text)
     if tokens and tokens[0].startswith("/"):
         tokens = tokens[1:]
@@ -259,4 +262,4 @@ def parse_telegram_video_request(
     render = replace(base_render, **updates)
     display_name = " / ".join(spec.ticker for spec in specs)
     render = replace(render, title=title or render.title or display_name)
-    return ParsedTelegramRequest(VideoRequest(specs, render), display_name)
+    return ParsedTelegramRequest(VideoRequest(specs, render), display_name, preset.name if preset else None)
