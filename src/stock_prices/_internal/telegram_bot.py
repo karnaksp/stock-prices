@@ -160,10 +160,96 @@ def _job_preview(text: str, limit: int = 56) -> str:
 
 
 @dataclass(frozen=True)
+class TelegramExample:
+    name: str
+    button_label: str
+    request: str
+    description: str
+
+
+_TELEGRAM_EXAMPLES = (
+    TelegramExample(
+        name="metals-dca",
+        button_label="Металлы DCA",
+        request="gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 shorts theme=aurora",
+        description="золото / серебро / палладий, ежемесячные 30 000 RUB",
+    ),
+    TelegramExample(
+        name="new-economy",
+        button_label="Новая экономика",
+        request="SMLT SGZH POSI from=2021-12-17 to=2026-06-01 RUB capital invest initial=0 monthly=30000 shorts theme=studio",
+        description="SMLT / SGZH / POSI после хайпа 2021",
+    ),
+    TelegramExample(
+        name="global-tech",
+        button_label="US Tech",
+        request="AAPL MSFT NVDA global USD capital shorts theme=studio",
+        description="AAPL / MSFT / NVDA в USD",
+    ),
+    TelegramExample(
+        name="crypto",
+        button_label="Крипта",
+        request="btc eth 2020-2026 USD close shorts theme=studio",
+        description="BTC / ETH на одной шкале",
+    ),
+    TelegramExample(
+        name="moex-futures",
+        button_label="Фьючерс Si",
+        request="SiH4 futures 2024 close shorts",
+        description="пример MOEX futures / FORTS",
+    ),
+    TelegramExample(
+        name="currency",
+        button_label="Валюта",
+        request="USD000UTSTOM selt 2024 close shorts",
+        description="пример MOEX currency / SELT",
+    ),
+)
+
+
+def _get_telegram_example(name: str) -> TelegramExample | None:
+    for example in _TELEGRAM_EXAMPLES:
+        if example.name == name:
+            return example
+    return None
+
+
+def format_example_list() -> str:
+    lines = [
+        "Проверенные примеры запросов:",
+        "",
+    ]
+    for example in _TELEGRAM_EXAMPLES:
+        lines.append(f"{example.button_label}: {example.description}")
+        lines.append(example.request)
+        lines.append("")
+    lines.append("Нажмите кнопку ниже, чтобы сразу поставить пример в очередь.")
+    lines.append("Это фиксированные рецепты без LLM и автопридумывания идей.")
+    return "\n".join(lines).strip()
+
+
+def example_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
+    buttons = [
+        {"text": example.button_label, "callback_data": f"example:{example.name}"}
+        for example in _TELEGRAM_EXAMPLES
+    ]
+    rows = [buttons[index : index + columns] for index in range(0, len(buttons), columns)]
+    return {"inline_keyboard": rows}
+
+
+@dataclass(frozen=True)
 class TelegramPresetCallback:
     callback_query_id: str
     chat_id: int
     text: str
+
+
+@dataclass(frozen=True)
+class TelegramExampleCallback:
+    callback_query_id: str
+    chat_id: int
+    text: str
+    name: str
 
 
 @dataclass(frozen=True)
@@ -379,6 +465,26 @@ def _extract_preset_callback(update: dict[str, Any]) -> TelegramPresetCallback |
     return TelegramPresetCallback(str(callback_query_id), int(chat_id), text)
 
 
+def _extract_example_callback(update: dict[str, Any]) -> TelegramExampleCallback | None:
+    callback_query = update.get("callback_query") or {}
+    callback_query_id = callback_query.get("id")
+    data = (callback_query.get("data") or "").strip()
+    if not callback_query_id or not data.startswith("example:"):
+        return None
+    message = callback_query.get("message") or {}
+    chat = message.get("chat") or {}
+    chat_id = chat.get("id")
+    if chat_id is None:
+        return None
+    parts = [part.strip() for part in data.split(":")]
+    if len(parts) != 2:
+        return None
+    example = _get_telegram_example(parts[1])
+    if example is None:
+        return None
+    return TelegramExampleCallback(str(callback_query_id), int(chat_id), example.request, example.name)
+
+
 def _extract_queue_status_callback(update: dict[str, Any]) -> TelegramQueueStatusCallback | None:
     callback_query = update.get("callback_query") or {}
     callback_query_id = callback_query.get("id")
@@ -397,7 +503,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, все черновики, случайный черновик, /queue, металлы, черновик металлы\n"
+        "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, /examples, /примеры, все черновики, случайный черновик, /queue, металлы, черновик металлы\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
         "После preset-видео будут кнопки: черновик 4s, шортс 16s, вариант 12s.\n"
@@ -413,6 +519,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "все черновики\n"
         "случайный черновик\n"
         "/random_draft\n"
+        "/examples\n"
+        "/примеры\n"
         "/queue\n"
         "очередь\n"
         "AAPL global USD gradient theme=studio\n"
@@ -485,6 +593,21 @@ def _preset_list_mode(text: str) -> str | None:
     }:
         return "draft"
     return None
+
+
+def _is_examples(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    return normalized in {
+        "/examples",
+        "/example",
+        "/примеры",
+        "/пример",
+        "examples",
+        "example",
+        "примеры",
+        "пример",
+        "примеры запросов",
+    }
 
 
 def _is_draft_batch(text: str) -> bool:
@@ -670,6 +793,9 @@ def handle_ticker_message(
     if _is_queue_status(text):
         client.send_message(chat_id, "Статус очереди доступен в режиме Telegram-бота.")
         return
+    if _is_examples(text):
+        client.send_message(chat_id, format_example_list(), reply_markup=example_inline_keyboard())
+        return
     if len(_batch_request_lines(text)) > 1:
         client.send_message(chat_id, "Несколько запросов одним сообщением работают в режиме Telegram-очереди.")
         return
@@ -735,6 +861,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             job_queue.enqueue_random_preset_draft(chat_id, int(update["update_id"]))
                         elif _is_queue_status(text):
                             client.send_message(chat_id, job_queue.status_text(), reply_markup=queue_status_keyboard())
+                        elif _is_examples(text):
+                            client.send_message(chat_id, format_example_list(), reply_markup=example_inline_keyboard())
                         else:
                             preset_list_mode = _preset_list_mode(text)
                             if preset_list_mode is not None:
@@ -761,6 +889,20 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 queue_callback.chat_id,
                                 job_queue.status_text(),
                                 reply_markup=queue_status_keyboard(),
+                            )
+                        continue
+                    example_callback = _extract_example_callback(update)
+                    if example_callback is not None:
+                        if settings.allowed_chat_ids and example_callback.chat_id not in settings.allowed_chat_ids:
+                            client.answer_callback_query(example_callback.callback_query_id, "This chat is not allowed.")
+                            client.send_message(example_callback.chat_id, "This chat is not allowed to use this bot.")
+                        else:
+                            client.answer_callback_query(example_callback.callback_query_id, "Пример поставлен в очередь.")
+                            job_queue.enqueue(
+                                example_callback.chat_id,
+                                example_callback.text,
+                                int(update["update_id"]),
+                                job_suffix=f"example-{example_callback.name}",
                             )
                         continue
                     callback = _extract_preset_callback(update)
