@@ -17,13 +17,19 @@ from stock_prices._internal.telegram_bot import TelegramApiError, TelegramBotSet
 class FakeClient:
     def __init__(self) -> None:
         self.messages: list[tuple[int, str]] = []
+        self.message_markups: list[dict | None] = []
         self.videos: list[tuple[int, Path, str]] = []
+        self.callback_answers: list[tuple[str, str]] = []
 
-    def send_message(self, chat_id: int, text: str) -> None:
+    def send_message(self, chat_id: int, text: str, reply_markup: dict | None = None) -> None:
         self.messages.append((chat_id, text))
+        self.message_markups.append(reply_markup)
 
     def send_video(self, chat_id: int, video_path: Path, caption: str) -> None:
         self.videos.append((chat_id, video_path, caption))
+
+    def answer_callback_query(self, callback_query_id: str, text: str = "") -> None:
+        self.callback_answers.append((callback_query_id, text))
 
 
 def test_handle_ticker_message_generates_video(monkeypatch) -> None:
@@ -78,6 +84,48 @@ def test_run_telegram_bot_queues_generation_once(monkeypatch) -> None:
     assert any("queued" in message for _chat_id, message in client.messages)
     assert any("Генерирую видео: LKOH" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/LKOH.mp4"), "LKOH: 2020-01-01 - 2020-01-02")]
+
+
+def test_run_telegram_bot_queues_preset_from_inline_button(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 43,
+                    "callback_query": {
+                        "id": "callback-1",
+                        "data": "preset:metals",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fake_client_factory(*_args, **_kwargs):
+        return client
+
+    def fake_generate(request, job_id=None):
+        assert job_id == "tg-43"
+        assert [spec.ticker for spec in request.ticker_specs] == ["GC=F", "SI=F", "PA=F"]
+        return Path("animations/metals.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-1", "Сценарий поставлен в очередь.")]
+    assert any("queued" in message for _chat_id, message in client.messages)
+    assert client.videos == [(123, Path("animations/metals.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 
 def test_cleanup_old_outputs_removes_old_mp4_but_keeps_current(tmp_path: Path) -> None:
@@ -142,6 +190,14 @@ def test_handle_ticker_message_lists_pulse_presets() -> None:
     assert "Готовые сценарии для Пульса" in preset_text
     assert "preset metals" in preset_text
     assert "preset neweconomy" in preset_text
+    assert client.message_markups[0] == {
+        "inline_keyboard": [
+            [{"text": "neweconomy", "callback_data": "preset:neweconomy"}, {"text": "metals", "callback_data": "preset:metals"}],
+            [{"text": "vodka", "callback_data": "preset:vodka"}, {"text": "mechel", "callback_data": "preset:mechel"}],
+            [{"text": "wagons", "callback_data": "preset:wagons"}, {"text": "bluechips", "callback_data": "preset:bluechips"}],
+            [{"text": "techru", "callback_data": "preset:techru"}],
+        ]
+    }
     assert client.videos == []
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -13,7 +14,7 @@ import requests
 from stock_prices._internal.env import get_cleanup_retention_days
 from stock_prices._internal.models import RenderSettings
 from stock_prices._internal.pipeline import generate_video, log_event
-from stock_prices._internal.telegram_presets import format_preset_list
+from stock_prices._internal.telegram_presets import format_preset_list, preset_inline_keyboard
 from stock_prices._internal.telegram_requests import parse_telegram_video_request
 
 
@@ -43,13 +44,26 @@ class TelegramClient:
         return payload["result"]
 
     def get_updates(self, offset: int | None, timeout: int, limit: int = 10) -> list[dict[str, Any]]:
-        data: dict[str, Any] = {"timeout": timeout, "limit": limit, "allowed_updates": '["message"]'}
+        data: dict[str, Any] = {
+            "timeout": timeout,
+            "limit": limit,
+            "allowed_updates": json.dumps(["message", "callback_query"]),
+        }
         if offset is not None:
             data["offset"] = offset
         return self.call("getUpdates", **data)
 
-    def send_message(self, chat_id: int, text: str) -> None:
-        self.call("sendMessage", chat_id=chat_id, text=text)
+    def send_message(self, chat_id: int, text: str, reply_markup: dict[str, Any] | None = None) -> None:
+        data: dict[str, Any] = {"chat_id": chat_id, "text": text}
+        if reply_markup is not None:
+            data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
+        self.call("sendMessage", **data)
+
+    def answer_callback_query(self, callback_query_id: str, text: str = "") -> None:
+        data: dict[str, Any] = {"callback_query_id": callback_query_id}
+        if text:
+            data["text"] = text
+        self.call("answerCallbackQuery", **data)
 
     def send_video(self, chat_id: int, video_path: Path, caption: str) -> None:
         with video_path.open("rb") as video:
@@ -101,6 +115,13 @@ class TelegramJob:
     chat_id: int
     text: str
     queued_at: float
+
+
+@dataclass(frozen=True)
+class TelegramPresetCallback:
+    callback_query_id: str
+    chat_id: int
+    text: str
 
 
 class TelegramJobQueue:
@@ -172,6 +193,23 @@ def _extract_text_message(update: dict[str, Any]) -> tuple[int, str] | None:
     return int(chat_id), text
 
 
+def _extract_preset_callback(update: dict[str, Any]) -> TelegramPresetCallback | None:
+    callback_query = update.get("callback_query") or {}
+    callback_query_id = callback_query.get("id")
+    data = (callback_query.get("data") or "").strip()
+    if not callback_query_id or not data.startswith("preset:"):
+        return None
+    message = callback_query.get("message") or {}
+    chat = message.get("chat") or {}
+    chat_id = chat.get("id")
+    if chat_id is None:
+        return None
+    preset_name = data.split(":", 1)[1].strip()
+    if not preset_name:
+        return None
+    return TelegramPresetCallback(str(callback_query_id), int(chat_id), f"preset {preset_name}")
+
+
 def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
@@ -233,7 +271,7 @@ def handle_ticker_message(
         client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
         return
     if _is_preset_list(text):
-        client.send_message(chat_id, format_preset_list())
+        client.send_message(chat_id, format_preset_list(), reply_markup=preset_inline_keyboard())
         return
 
     parsed = parse_telegram_video_request(text, settings.render, settings.default_engine, settings.default_market)
@@ -267,17 +305,26 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                 for update in updates:
                     offset = int(update["update_id"]) + 1
                     extracted = _extract_text_message(update)
-                    if extracted is None:
+                    if extracted is not None:
+                        chat_id, text = extracted
+                        if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
+                            client.send_message(chat_id, "This chat is not allowed to use this bot.")
+                        elif _is_help(text):
+                            client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
+                        elif _is_preset_list(text):
+                            client.send_message(chat_id, format_preset_list(), reply_markup=preset_inline_keyboard())
+                        else:
+                            job_queue.enqueue(chat_id, text, int(update["update_id"]))
                         continue
-                    chat_id, text = extracted
-                    if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
-                        client.send_message(chat_id, "This chat is not allowed to use this bot.")
-                    elif _is_help(text):
-                        client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
-                    elif _is_preset_list(text):
-                        client.send_message(chat_id, format_preset_list())
+                    callback = _extract_preset_callback(update)
+                    if callback is None:
+                        continue
+                    if settings.allowed_chat_ids and callback.chat_id not in settings.allowed_chat_ids:
+                        client.answer_callback_query(callback.callback_query_id, "This chat is not allowed.")
+                        client.send_message(callback.chat_id, "This chat is not allowed to use this bot.")
                     else:
-                        job_queue.enqueue(chat_id, text, int(update["update_id"]))
+                        client.answer_callback_query(callback.callback_query_id, "Сценарий поставлен в очередь.")
+                        job_queue.enqueue(callback.chat_id, callback.text, int(update["update_id"]))
                 if settings.once:
                     job_queue.join()
                     return

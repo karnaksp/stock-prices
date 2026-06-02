@@ -141,3 +141,9 @@ def format_preset_list() -> str:
         lines.append("")
     lines.append("Можно дописать параметры: preset metals duration=12 theme=studio")
     return "\n".join(lines).strip()
+
+
+def preset_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
+    buttons = [{"text": preset.name, "callback_data": f"preset:{preset.name}"} for preset in PRESETS]
+    rows = [buttons[index : index + columns] for index in range(0, len(buttons), columns)]
+    return {"inline_keyboard": rows}
