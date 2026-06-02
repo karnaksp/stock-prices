@@ -52,6 +52,7 @@ docker compose logs -f stock-prices-bot
 
 ```text
 /ideas
+/drafts
 LKOH
 SBER LKOH 2020 2024
 preset metals
@@ -109,6 +110,7 @@ stock-prices bot --allowed_chat_id 123456789
 
 ```text
 /ideas                  список готовых сценариев для Пульса с кнопками
+/drafts                 те же preset-кнопки, но в быстром черновом режиме
 preset metals           готовый сценарий с металлами
 preset neweconomy       готовый сценарий новой экономики
 2020 2024              период

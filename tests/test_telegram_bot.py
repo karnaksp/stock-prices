@@ -130,6 +130,51 @@ def test_run_telegram_bot_queues_preset_from_inline_button(monkeypatch) -> None:
     assert client.videos == [(123, Path("animations/metals.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 
+def test_run_telegram_bot_queues_draft_preset_from_inline_button(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 44,
+                    "callback_query": {
+                        "id": "callback-2",
+                        "data": "preset:metals:draft",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), use_gradient=True),
+    )
+
+    def fake_client_factory(*_args, **_kwargs):
+        return client
+
+    def fake_generate(request, job_id=None):
+        assert job_id == "tg-44"
+        assert [spec.ticker for spec in request.ticker_specs] == ["GC=F", "SI=F", "PA=F"]
+        assert request.render.duration == 4
+        assert request.render.fps == 8
+        assert request.render.use_gradient is False
+        return Path("animations/metals-draft.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers[0][0] == "callback-2"
+    assert any("4s/8fps" in message for _chat_id, message in client.messages)
+    assert client.videos == [(123, Path("animations/metals-draft.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
+
+
 def test_cleanup_old_outputs_removes_old_mp4_but_keeps_current(tmp_path: Path) -> None:
     old_video = tmp_path / "old.mp4"
     current_video = tmp_path / "current.mp4"
@@ -176,6 +221,7 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "monthly=30000" in help_text
     assert "shorts" in help_text
     assert "draft" in help_text
+    assert "/drafts" in help_text
     assert "theme=default|aurora|studio" in help_text
     assert "SiH4 futures" in help_text
     assert "preset neweconomy" in help_text
@@ -200,6 +246,30 @@ def test_handle_ticker_message_lists_pulse_presets() -> None:
             [{"text": "vodka", "callback_data": "preset:vodka"}, {"text": "mechel", "callback_data": "preset:mechel"}],
             [{"text": "wagons", "callback_data": "preset:wagons"}, {"text": "bluechips", "callback_data": "preset:bluechips"}],
             [{"text": "techru", "callback_data": "preset:techru"}],
+        ]
+    }
+    assert client.videos == []
+
+
+def test_handle_ticker_message_lists_draft_presets() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "/drafts")
+
+    preset_text = client.messages[0][1]
+    assert "draft" in preset_text
+    assert "preset metals" in preset_text
+    assert "preset neweconomy" in preset_text
+    assert client.message_markups[0] == {
+        "inline_keyboard": [
+            [{"text": "neweconomy", "callback_data": "preset:neweconomy:draft"}, {"text": "metals", "callback_data": "preset:metals:draft"}],
+            [{"text": "vodka", "callback_data": "preset:vodka:draft"}, {"text": "mechel", "callback_data": "preset:mechel:draft"}],
+            [{"text": "wagons", "callback_data": "preset:wagons:draft"}, {"text": "bluechips", "callback_data": "preset:bluechips:draft"}],
+            [{"text": "techru", "callback_data": "preset:techru:draft"}],
         ]
     }
     assert client.videos == []
