@@ -9,6 +9,7 @@ import requests
 
 from stock_prices._internal import telegram_bot
 from stock_prices._internal.models import RenderSettings
+from stock_prices._internal.telegram_presets import PRESETS
 from stock_prices._internal.telegram_requests import parse_telegram_video_request
 from stock_prices._internal.telegram_bot import TelegramApiError, TelegramBotSettings, TelegramClient, cleanup_old_outputs, handle_ticker_message
 
@@ -125,6 +126,23 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "monthly=30000" in help_text
     assert "theme=default|aurora|studio" in help_text
     assert "SiH4 futures" in help_text
+    assert "preset neweconomy" in help_text
+
+
+def test_handle_ticker_message_lists_pulse_presets() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "/ideas")
+
+    preset_text = client.messages[0][1]
+    assert "Готовые сценарии для Пульса" in preset_text
+    assert "preset metals" in preset_text
+    assert "preset neweconomy" in preset_text
+    assert client.videos == []
 
 
 def test_telegram_client_redacts_token_in_network_errors(monkeypatch) -> None:
@@ -220,3 +238,44 @@ def test_parse_telegram_video_request_accepts_investment_amounts_for_metals() ->
     assert parsed.request.render.initial_investment == 0
     assert parsed.request.render.monthly_investment == 30_000
     assert parsed.request.render.use_gradient is True
+
+
+def test_parse_telegram_video_request_expands_pulse_preset() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request("preset metals duration=12", base)
+
+    assert parsed.preset_name == "metals"
+    assert [(spec.ticker, spec.engine, spec.market) for spec in parsed.request.ticker_specs] == [
+        ("GC=F", "global", "metals"),
+        ("SI=F", "global", "metals"),
+        ("PA=F", "global", "metals"),
+    ]
+    assert parsed.request.render.start_date == date(2010, 1, 1)
+    assert parsed.request.render.end_date == date(2026, 5, 27)
+    assert parsed.request.render.currency == "RUB"
+    assert parsed.request.render.with_investments is True
+    assert parsed.request.render.initial_investment == 0
+    assert parsed.request.render.monthly_investment == 30_000
+    assert parsed.request.render.duration == 12
+    assert parsed.request.render.theme == "aurora"
+
+
+def test_parse_telegram_video_request_accepts_preset_alias() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request("/preset growth theme=default", base)
+
+    assert parsed.preset_name == "neweconomy"
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["SMLT", "SGZH", "POSI"]
+    assert parsed.request.render.theme == "default"
+
+
+def test_all_pulse_presets_are_parseable() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    for preset in PRESETS:
+        parsed = parse_telegram_video_request(f"preset {preset.name}", base)
+
+        assert parsed.preset_name == preset.name
+        assert parsed.request.ticker_specs

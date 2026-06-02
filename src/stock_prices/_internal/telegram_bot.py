@@ -13,6 +13,7 @@ import requests
 from stock_prices._internal.env import get_cleanup_retention_days
 from stock_prices._internal.models import RenderSettings
 from stock_prices._internal.pipeline import generate_video, log_event
+from stock_prices._internal.telegram_presets import format_preset_list
 from stock_prices._internal.telegram_requests import parse_telegram_video_request
 
 
@@ -175,9 +176,11 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
+        "Готовые сценарии: /ideas или preset metals\n"
         "Примеры:\n"
         "LKOH\n"
         "LKOH SBER 2020 2024\n"
+        "preset neweconomy duration=12\n"
         "AAPL global USD gradient theme=studio\n"
         "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n"
         "SiH4 futures 2024 close\n"
@@ -211,6 +214,11 @@ def _is_help(text: str) -> bool:
     return text.startswith("/start") or text.startswith("/help")
 
 
+def _is_preset_list(text: str) -> bool:
+    normalized = text.strip().lower()
+    return normalized in {"/ideas", "/presets", "/stories", "ideas", "presets", "stories"}
+
+
 def handle_ticker_message(
     client: TelegramClient,
     settings: TelegramBotSettings,
@@ -223,6 +231,9 @@ def handle_ticker_message(
         return
     if _is_help(text):
         client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
+        return
+    if _is_preset_list(text):
+        client.send_message(chat_id, format_preset_list())
         return
 
     parsed = parse_telegram_video_request(text, settings.render, settings.default_engine, settings.default_market)
@@ -263,6 +274,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         client.send_message(chat_id, "This chat is not allowed to use this bot.")
                     elif _is_help(text):
                         client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
+                    elif _is_preset_list(text):
+                        client.send_message(chat_id, format_preset_list())
                     else:
                         job_queue.enqueue(chat_id, text, int(update["update_id"]))
                 if settings.once:
