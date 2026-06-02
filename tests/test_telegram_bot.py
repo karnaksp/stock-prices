@@ -76,7 +76,7 @@ def test_telegram_client_redacts_token_in_network_errors(monkeypatch) -> None:
 def test_parse_telegram_video_request_accepts_human_message() -> None:
     base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
 
-    parsed = parse_telegram_video_request("lkoh sber 2020 2024 gradient duration=12 fps=24 close", base)
+    parsed = parse_telegram_video_request("lkoh sber 2020 2024 gradient duration=12 fps=24 close theme=aurora", base)
 
     assert [spec.ticker for spec in parsed.request.ticker_specs] == ["LKOH", "SBER"]
     assert parsed.request.render.start_date == date(2020, 1, 1)
@@ -85,6 +85,14 @@ def test_parse_telegram_video_request_accepts_human_message() -> None:
     assert parsed.request.render.fps == 24
     assert parsed.request.render.value_col == "CLOSE"
     assert parsed.request.render.use_gradient is True
+    assert parsed.request.render.theme == "aurora"
+
+
+def test_parse_telegram_video_request_rejects_unknown_theme() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    with pytest.raises(ValueError, match="Unknown theme"):
+        parse_telegram_video_request("lkoh theme=bad", base)
 
 
 def test_parse_telegram_video_request_accepts_global_currency_shortcuts() -> None:

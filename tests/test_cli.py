@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from stock_prices import main
+from stock_prices._internal.cli import get_bot_parser, parse_arguments, request_from_args
 from stock_prices._internal import debug
 
 
@@ -50,3 +51,28 @@ def test_show_debug_info(capsys: pytest.CaptureFixture) -> None:
     assert "system" in captured
     assert "environment" in captured
     assert "packages" in captured
+
+
+def test_cli_request_accepts_theme() -> None:
+    args = parse_arguments(
+        [
+            "--tickers",
+            "LKOH",
+            "--start_date",
+            "2020-01-01",
+            "--end_date",
+            "2020-01-02",
+            "--theme",
+            "studio",
+        ]
+    )
+
+    assert request_from_args(args).render.theme == "studio"
+
+
+def test_bot_parser_reads_theme_from_env(monkeypatch) -> None:
+    monkeypatch.setenv("STOCK_PRICES_THEME", "aurora")
+
+    args = get_bot_parser().parse_args([])
+
+    assert args.theme == "aurora"
