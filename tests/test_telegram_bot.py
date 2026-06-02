@@ -58,7 +58,11 @@ def test_handle_ticker_message_generates_video(monkeypatch) -> None:
     assert client.messages[0][0] == 123
     assert "Генерирую видео: LKOH" in client.messages[0][1]
     assert seen_job_ids == ["tg-1"]
-    assert len(client.messages) == 1
+    assert len(client.messages) == 2
+    assert "Текст для Пульса" in client.messages[1][1]
+    assert "LKOH" in client.messages[1][1]
+    assert "01.01.2020 - 02.01.2020" in client.messages[1][1]
+    assert "#акции" in client.messages[1][1]
     assert client.videos == [(123, Path("animations/LKOH.mp4"), "LKOH: 2020-01-01 - 2020-01-02")]
 
 
@@ -378,6 +382,35 @@ def test_handle_ticker_message_mentions_queue_mode_for_multiline_batch() -> None
 
     assert client.messages == [(123, "Несколько запросов одним сообщением работают в режиме Telegram-очереди.")]
     assert client.videos == []
+
+
+def test_handle_ticker_message_sends_generic_pulse_copy_for_investment_request(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), use_gradient=True),
+    )
+
+    def fake_generate(request, job_id=None):
+        assert [spec.ticker for spec in request.ticker_specs] == ["GC=F", "SI=F", "PA=F"]
+        assert request.render.with_investments is True
+        return Path("animations/metals-custom.mp4")
+
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+    handle_ticker_message(
+        client,
+        settings,
+        123,
+        "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 shorts",
+        job_id="tg-2",
+    )
+
+    pulse_text = client.messages[-1][1]
+    assert "Текст для Пульса" in pulse_text
+    assert "GC=F / SI=F / PA=F" in pulse_text
+    assert "ежемесячно 30 000 RUB" in pulse_text
+    assert "#сырье" in pulse_text
+    assert "Не инвестиционная рекомендация" in pulse_text
 
 
 def test_telegram_job_queue_status_tracks_pending_and_finished(monkeypatch) -> None:
