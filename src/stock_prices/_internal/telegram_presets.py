@@ -24,7 +24,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         description="SMLT / SGZH / POSI: IPO-эйфория, ставка, длинный откат.",
         request=(
             "SMLT SGZH POSI from=2021-12-17 to=2026-06-01 RUB capital invest "
-            "initial=0 monthly=30000 gradient theme=studio title=New_Economy"
+            "initial=0 monthly=30000 shorts theme=studio title=New_Economy"
         ),
         hook="Если бы вы каждый месяц покупали новую экономику с IPO-эйфорией, чем бы это закончилось?",
         post_text=(
@@ -42,7 +42,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         description="Золото / серебро / палладий в RUB: наглядный долгий DCA-сюжет.",
         request=(
             "gold silver palladium from=2010-01-01 to=2026-05-27 RUB capital invest "
-            "initial=0 monthly=30000 gradient theme=aurora title=Metals_DCA"
+            "initial=0 monthly=30000 shorts theme=aurora title=Metals_DCA"
         ),
         hook="Что было бы, если 16 лет подряд каждый месяц покупать золото, серебро и палладий на 30 000 ₽?",
         post_text=(
@@ -60,7 +60,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         description="BELU / ABRD / KLVZ: менее хайповая, но зрелищная история.",
         request=(
             "BELU ABRD KLVZ from=2024-02-22 to=2026-06-01 RUB capital invest "
-            "initial=0 monthly=30000 gradient theme=aurora title=Alcohol_Stocks"
+            "initial=0 monthly=30000 shorts theme=aurora title=Alcohol_Stocks"
         ),
         hook="Не только IT умеет устраивать американские горки. Алкогольные акции тоже могут удивить.",
         post_text=(
@@ -78,7 +78,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         description="MTLR / MTLRP: резкие движения и понятный риск циклического бизнеса.",
         request=(
             "MTLR MTLRP from=2014-01-01 to=2026-06-01 RUB capital invest "
-            "initial=0 monthly=30000 gradient theme=studio title=Mechel_Drama"
+            "initial=0 monthly=30000 shorts theme=studio title=Mechel_Drama"
         ),
         hook="Мечел — акция, где слово 'волатильность' выглядит слишком мягко.",
         post_text=(
@@ -96,7 +96,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         description="UWGN против индекса Мосбиржи: история хайпа, ожиданий и просадки.",
         request=(
             "UWGN IMOEX from=2015-01-01 to=2026-06-01 RUB capital invest "
-            "initial=0 monthly=30000 gradient theme=default title=Wagons_vs_Market"
+            "initial=0 monthly=30000 shorts theme=default title=Wagons_vs_Market"
         ),
         hook="Вагоны против индекса: что осталось от большой истории ожиданий?",
         post_text=(
@@ -113,7 +113,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         description="SBER / LKOH / MGNT: понятное сравнение для широкой аудитории.",
         request=(
             "SBER LKOH MGNT from=2014-01-01 to=2026-06-01 RUB capital invest "
-            "initial=0 monthly=30000 gradient theme=default title=Blue_Chips"
+            "initial=0 monthly=30000 shorts theme=default title=Blue_Chips"
         ),
         hook="Скучные голубые фишки против желания найти 'ракету'. Кто выглядит сильнее на длинной дистанции?",
         post_text=(
@@ -131,7 +131,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         description="YDEX / OZON / VKCO: новый рынок, разные траектории и много споров.",
         request=(
             "YDEX OZON VKCO from=2024-07-24 to=2026-06-01 RUB capital invest "
-            "initial=0 monthly=30000 gradient theme=studio title=Russian_Tech"
+            "initial=0 monthly=30000 shorts theme=studio title=Russian_Tech"
         ),
         hook="Российский tech: мечта о росте или слишком нервная ставка?",
         post_text=(

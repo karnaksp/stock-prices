@@ -81,7 +81,7 @@ hide:
     SBER LKOH 2020 2024
     preset metals
     preset neweconomy duration=12 theme=studio
-    AAPL global USD gradient
+    AAPL global USD shorts
     BTC price duration=12 fps=24
     gold silver palladium RUB capital invest initial=0 monthly=30000 gradient theme=aurora
     ```
@@ -120,6 +120,7 @@ SBER LKOH 2020 2024
 preset metals
 preset neweconomy duration=12 theme=studio
 AAPL global USD gradient
+SBER LKOH shorts
 gold 2018-2026 USD gradient
 BTC-USD global crypto close
 gold silver palladium RUB capital invest initial=0 monthly=30000 gradient theme=aurora

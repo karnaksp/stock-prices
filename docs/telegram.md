@@ -52,6 +52,8 @@ preset neweconomy from=2021-12-17 to=2026-06-01 fps=24
 preset vodka monthly=50000
 ```
 
+Все preset-сценарии по умолчанию используют `shorts`: это короткий режим `duration=16`, `fps=24` и `gradient`. Если нужен другой темп, допишите свои `duration=` или `fps=` после имени preset.
+
 Текущие сценарии:
 
 ```text
@@ -117,6 +119,7 @@ nogradient             обычная линия
 nolegend               скрыть легенду
 duration=12            длительность основной анимации
 fps=24                 кадров в секунду
+shorts                 короткий режим: duration=16 fps=24 gradient
 theme=default          базовая темная тема
 theme=aurora           зелено-бирюзовая тема
 theme=studio           контрастная студийная тема
