@@ -136,6 +136,16 @@ class TelegramQueueSnapshot:
 
 
 QUEUE_STATUS_CALLBACK_DATA = "queue:status"
+MENU_CALLBACK_PREFIX = "menu:"
+MENU_ACTIONS = {
+    "ideas",
+    "examples",
+    "drafts",
+    "example_drafts",
+    "random_draft",
+    "random_example",
+    "queue",
+}
 CUSTOM_FOLLOWUP_MODES = {
     "draft": "draft",
     "shorts": "shorts",
@@ -145,6 +155,28 @@ CUSTOM_FOLLOWUP_MODES = {
 
 def queue_status_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return {"inline_keyboard": [[{"text": "Статус очереди", "callback_data": QUEUE_STATUS_CALLBACK_DATA}]]}
+
+
+def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "Идеи", "callback_data": f"{MENU_CALLBACK_PREFIX}ideas"},
+                {"text": "Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}examples"},
+            ],
+            [
+                {"text": "Draft presets", "callback_data": f"{MENU_CALLBACK_PREFIX}drafts"},
+                {"text": "Draft examples", "callback_data": f"{MENU_CALLBACK_PREFIX}example_drafts"},
+            ],
+            [
+                {"text": "Случайный preset", "callback_data": f"{MENU_CALLBACK_PREFIX}random_draft"},
+                {"text": "Случайный пример", "callback_data": f"{MENU_CALLBACK_PREFIX}random_example"},
+            ],
+            [
+                {"text": "Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
+            ],
+        ]
+    }
 
 
 def custom_followup_keyboard(request_key: str) -> dict[str, list[list[dict[str, str]]]]:
@@ -283,6 +315,13 @@ class TelegramCustomFollowupCallback:
 class TelegramQueueStatusCallback:
     callback_query_id: str
     chat_id: int
+
+
+@dataclass(frozen=True)
+class TelegramMenuCallback:
+    callback_query_id: str
+    chat_id: int
+    action: str
 
 
 class TelegramJobQueue:
@@ -604,16 +643,46 @@ def _extract_queue_status_callback(update: dict[str, Any]) -> TelegramQueueStatu
     return TelegramQueueStatusCallback(str(callback_query_id), int(chat_id))
 
 
+def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | None:
+    callback_query = update.get("callback_query") or {}
+    callback_query_id = callback_query.get("id")
+    data = (callback_query.get("data") or "").strip()
+    if not callback_query_id or not data.startswith(MENU_CALLBACK_PREFIX):
+        return None
+    action = data.removeprefix(MENU_CALLBACK_PREFIX).strip().lower()
+    if action not in MENU_ACTIONS:
+        return None
+    message = callback_query.get("message") or {}
+    chat = message.get("chat") or {}
+    chat_id = chat.get("id")
+    if chat_id is None:
+        return None
+    return TelegramMenuCallback(str(callback_query_id), int(chat_id), action)
+
+
+def _main_menu_text() -> str:
+    return (
+        "Меню Telegram\n"
+        "Выбери действие кнопкой: готовые идеи, проверенные примеры, draft-прогоны, случайный draft или статус очереди."
+    )
+
+
+def _send_main_menu(client: TelegramClient, chat_id: int) -> None:
+    client.send_message(chat_id, _main_menu_text(), reply_markup=main_menu_keyboard())
+
+
 def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, /examples, /примеры, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
+        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
         "После preset-видео будут кнопки: черновик 4s, шортс 16s, вариант 12s.\n"
         "После custom-видео будут такие же быстрые варианты для этого запроса.\n"
         "Примеры:\n"
+        "/menu\n"
+        "/меню\n"
         "LKOH\n"
         "LKOH SBER 2020 2024\n"
         "металлы\n"
@@ -670,6 +739,11 @@ def _is_help(text: str) -> bool:
         or normalized.startswith("/старт")
         or normalized in {"/помощь", "помощь", "help"}
     )
+
+
+def _is_menu(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    return normalized in {"/menu", "/меню", "menu", "меню"}
 
 
 def _preset_list_mode(text: str) -> str | None:
@@ -927,6 +1001,9 @@ def handle_ticker_message(
     if _is_help(text):
         client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
         return
+    if _is_menu(text):
+        _send_main_menu(client, chat_id)
+        return
     if _is_draft_batch(text):
         client.send_message(chat_id, "Команда пакетных черновиков работает в режиме Telegram-очереди.")
         return
@@ -1010,6 +1087,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             client.send_message(chat_id, "This chat is not allowed to use this bot.")
                         elif _is_help(text):
                             client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
+                        elif _is_menu(text):
+                            _send_main_menu(client, chat_id)
                         elif _is_draft_batch(text):
                             job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
                         elif _is_random_draft(text):
@@ -1036,6 +1115,49 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                     job_queue.enqueue_batch(chat_id, batch_lines, int(update["update_id"]))
                                 else:
                                     job_queue.enqueue(chat_id, text, int(update["update_id"]))
+                        continue
+                    menu_callback = _extract_menu_callback(update)
+                    if menu_callback is not None:
+                        if settings.allowed_chat_ids and menu_callback.chat_id not in settings.allowed_chat_ids:
+                            client.answer_callback_query(menu_callback.callback_query_id, "This chat is not allowed.")
+                            client.send_message(menu_callback.chat_id, "This chat is not allowed to use this bot.")
+                        elif menu_callback.action == "ideas":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Меню обновлено.")
+                            client.send_message(
+                                menu_callback.chat_id,
+                                format_preset_list("shorts"),
+                                reply_markup=preset_inline_keyboard(mode="shorts"),
+                            )
+                        elif menu_callback.action == "examples":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Меню обновлено.")
+                            client.send_message(
+                                menu_callback.chat_id,
+                                format_example_list(),
+                                reply_markup=example_inline_keyboard(),
+                            )
+                        elif menu_callback.action == "drafts":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Меню обновлено.")
+                            client.send_message(
+                                menu_callback.chat_id,
+                                format_preset_list("draft"),
+                                reply_markup=preset_inline_keyboard(mode="draft"),
+                            )
+                        elif menu_callback.action == "example_drafts":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Draft-примеры поставлены в очередь.")
+                            job_queue.enqueue_example_drafts(menu_callback.chat_id, int(update["update_id"]))
+                        elif menu_callback.action == "random_draft":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Случайный draft поставлен в очередь.")
+                            job_queue.enqueue_random_preset_draft(menu_callback.chat_id, int(update["update_id"]))
+                        elif menu_callback.action == "random_example":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Случайный пример поставлен в очередь.")
+                            job_queue.enqueue_random_example_draft(menu_callback.chat_id, int(update["update_id"]))
+                        elif menu_callback.action == "queue":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Статус очереди обновлен.")
+                            client.send_message(
+                                menu_callback.chat_id,
+                                job_queue.status_text(),
+                                reply_markup=queue_status_keyboard(),
+                            )
                         continue
                     queue_callback = _extract_queue_status_callback(update)
                     if queue_callback is not None:

@@ -526,6 +526,90 @@ def test_run_telegram_bot_queues_random_example_draft(monkeypatch) -> None:
     assert client.videos == [(123, Path("animations/tg-57-random-example-metals-dca.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-12-31")]
 
 
+def test_run_telegram_bot_menu_callback_opens_examples(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 58,
+                    "callback_query": {
+                        "id": "callback-menu-examples",
+                        "data": "menu:examples",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-examples", "Меню обновлено.")]
+    assert "Проверенные примеры запросов" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.example_inline_keyboard()]
+    assert client.videos == []
+
+
+def test_run_telegram_bot_menu_callback_queues_random_example(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 59,
+                    "callback_query": {
+                        "id": "callback-menu-random-example",
+                        "data": "menu:random_example",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), use_gradient=True),
+    )
+    generated: list[tuple[str | None, int, int, bool, list[str]]] = []
+    selected = telegram_bot._TELEGRAM_EXAMPLES[0]
+
+    def fake_generate(request, job_id=None):
+        generated.append(
+            (
+                job_id,
+                request.render.duration,
+                request.render.fps,
+                request.render.use_gradient,
+                [spec.ticker for spec in request.ticker_specs],
+            )
+        )
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+    monkeypatch.setattr(telegram_bot.random, "choice", lambda examples: selected)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-random-example", "Случайный пример поставлен в очередь.")]
+    assert telegram_bot.queue_status_keyboard() in client.message_markups
+    assert generated == [("tg-59-random-example-metals-dca", 4, 8, False, ["GC=F", "SI=F", "PA=F"])]
+    assert client.videos == [(123, Path("animations/tg-59-random-example-metals-dca.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-12-31")]
+
+
 def test_run_telegram_bot_queues_multiline_batch(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -840,6 +924,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     handle_ticker_message(client, settings, 123, "/help")
 
     help_text = client.messages[0][1]
+    assert "/menu" in help_text
+    assert "/меню" in help_text
     assert "monthly=30000" in help_text
     assert "shorts" in help_text
     assert "draft" in help_text
@@ -863,6 +949,38 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "theme=default|aurora|studio" in help_text
     assert "SiH4 futures" in help_text
     assert "preset neweconomy" in help_text
+
+
+def test_handle_ticker_message_shows_main_menu() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "/menu")
+
+    assert "Меню Telegram" in client.messages[0][1]
+    assert client.message_markups[0] == telegram_bot.main_menu_keyboard()
+    keyboard = client.message_markups[0]["inline_keyboard"]
+    assert keyboard[0][0]["callback_data"] == "menu:ideas"
+    assert keyboard[0][1]["callback_data"] == "menu:examples"
+    assert keyboard[-1][0]["callback_data"] == "menu:queue"
+    assert client.videos == []
+
+
+def test_handle_ticker_message_shows_main_menu_with_russian_command() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "/меню")
+
+    assert "Меню Telegram" in client.messages[0][1]
+    assert client.message_markups[0]["inline_keyboard"][2][1]["callback_data"] == "menu:random_example"
+    assert client.videos == []
 
 
 def test_handle_ticker_message_lists_checked_examples() -> None:
