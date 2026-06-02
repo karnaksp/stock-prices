@@ -24,7 +24,7 @@ from stock_prices._internal.telegram_presets import (
     preset_followup_keyboard,
     preset_inline_keyboard,
 )
-from stock_prices._internal.telegram_requests import parse_telegram_video_request
+from stock_prices._internal.telegram_requests import ParsedTelegramRequest, parse_telegram_video_request
 
 
 class TelegramApiError(RuntimeError):
@@ -526,6 +526,61 @@ def _batch_request_lines(text: str) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
+def _format_amount(value: int, currency: str) -> str:
+    return f"{value:,}".replace(",", " ") + f" {currency}"
+
+
+def _metric_label(value_col: str) -> str:
+    if value_col.upper() == "CLOSE":
+        return "цена закрытия"
+    return "капитал с реинвестированием"
+
+
+def _market_tags(parsed: ParsedTelegramRequest) -> str:
+    tags = ["#пульс", "#инвестиции", "#график"]
+    markets = {spec.market for spec in parsed.request.ticker_specs}
+    engines = {spec.engine for spec in parsed.request.ticker_specs}
+    if "crypto" in markets:
+        tags.append("#крипто")
+    if "metals" in markets or "commodities" in markets:
+        tags.append("#сырье")
+    if "futures" in markets or "forts" in markets or "futures" in engines:
+        tags.append("#фьючерсы")
+    if "currency" in markets or "selt" in markets or "currency" in engines:
+        tags.append("#валюта")
+    if "shares" in markets or "stock" in engines:
+        tags.append("#акции")
+    return " ".join(dict.fromkeys(tags))
+
+
+def format_generic_pulse_post(parsed: ParsedTelegramRequest) -> str:
+    render = parsed.request.render
+    period = f"{render.start_date:%d.%m.%Y} - {render.end_date:%d.%m.%Y}"
+    lines = [
+        "Текст для Пульса:",
+        f"Что было бы, если сравнить {parsed.display_name} на одном графике?",
+        "",
+        f"Период: {period}. Валюта: {render.currency}. Метрика: {_metric_label(render.value_col)}.",
+    ]
+    if render.with_investments:
+        parts = [f"старт {_format_amount(render.initial_investment, render.currency)}"]
+        if render.monthly_investment:
+            parts.append(f"ежемесячно {_format_amount(render.monthly_investment, render.currency)}")
+        if render.yearly_investment:
+            parts.append(f"ежегодно {_format_amount(render.yearly_investment, render.currency)}")
+        lines.append(f"Сценарий инвестирования: {', '.join(parts)}.")
+    lines.extend(
+        [
+            "На видео историческая траектория, а не прогноз. Хороший формат для обсуждения: где график удивляет, где ожидания ломаются, а где регулярные покупки действительно меняют картину.",
+            "",
+            "Монтаж: оставить быстрый темп, в финале сделать паузу на результатах и процентах.",
+            f"{_market_tags(parsed)}",
+            "Не инвестиционная рекомендация.",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def handle_ticker_message(
     client: TelegramClient,
     settings: TelegramBotSettings,
@@ -580,6 +635,8 @@ def handle_ticker_message(
             "Быстрые варианты для этого сценария:",
             reply_markup=preset_followup_keyboard(preset.name),
         )
+    else:
+        client.send_message(chat_id, format_generic_pulse_post(parsed))
     removed = cleanup_old_outputs(render.output_dir, settings.cleanup_retention_days, keep={output_path})
     if removed:
         log_event("cleanup", "completed", job_id=job_id, removed_count=len(removed), retention_days=settings.cleanup_retention_days)
