@@ -18,6 +18,7 @@ TICKER [TICKER...] [period] [market/source] [currency] [metric] [options]
 LKOH
 SBER LKOH 2020 2024
 preset metals
+пресет металлы
 preset neweconomy duration=12 theme=studio
 AAPL global USD gradient theme=studio
 gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient
@@ -34,7 +35,10 @@ USD000UTSTOM selt 2024 close
 ```text
 /ideas
 /drafts
+/идеи
+/черновики
 preset metals
+пресет металлы
 preset neweconomy
 preset vodka
 preset mechel
@@ -43,18 +47,20 @@ preset bluechips
 preset techru
 ```
 
-Команда `preset <name>` делает то же самое текстом: разворачивается в обычный запрос с тикерами, датами, валютой, инвестициями и темой.
+Команды `preset <name>` и `пресет <имя>` делают то же самое текстом: разворачиваются в обычный запрос с тикерами, датами, валютой, инвестициями и темой.
 
 После имени можно дописать параметры, и они переопределят дефолт пресета:
 
 ```text
 preset metals duration=12 theme=studio
+пресет металлы draft
+сценарий голубые фишки duration=12
 preset neweconomy from=2021-12-17 to=2026-06-01 fps=24
 preset vodka monthly=50000
 preset metals draft
 ```
 
-Все preset-сценарии по умолчанию используют `shorts`: это короткий режим `duration=16`, `fps=24` и `gradient`. Если нужен другой темп, допишите свои `duration=` или `fps=` после имени preset. Для быстрой проверки идеи используйте `draft`: это черновой режим `duration=4`, `fps=8`, без `gradient`. Команда `/drafts` показывает те же preset-кнопки, но каждая кнопка сразу запускает черновой прогон.
+Все preset-сценарии по умолчанию используют `shorts`: это короткий режим `duration=16`, `fps=24` и `gradient`. Если нужен другой темп, допишите свои `duration=` или `fps=` после имени preset. Для быстрой проверки идеи используйте `draft`: это черновой режим `duration=4`, `fps=8`, без `gradient`. Команды `/drafts` и `/черновики` показывают те же preset-кнопки, но каждая кнопка сразу запускает черновой прогон. Команды `/ideas` и `/идеи` показывают кнопки полноценного shorts-режима.
 
 Текущие сценарии:
 

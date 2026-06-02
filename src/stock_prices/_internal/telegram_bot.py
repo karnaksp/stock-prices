@@ -223,12 +223,14 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /ideas или preset metals\n"
+        "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, preset metals или пресет металлы\n"
         "Примеры:\n"
         "LKOH\n"
         "LKOH SBER 2020 2024\n"
         "preset neweconomy duration=12\n"
+        "пресет металлы draft\n"
         "/drafts\n"
+        "/черновики\n"
         "AAPL global USD gradient theme=studio\n"
         "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n"
         "SiH4 futures 2024 close\n"
@@ -259,14 +261,42 @@ def cleanup_old_outputs(output_dir: Path, retention_days: int, keep: set[Path] |
 
 
 def _is_help(text: str) -> bool:
-    return text.startswith("/start") or text.startswith("/help")
+    normalized = text.strip().lower()
+    return (
+        normalized.startswith("/start")
+        or normalized.startswith("/help")
+        or normalized.startswith("/старт")
+        or normalized in {"/помощь", "помощь", "help"}
+    )
 
 
 def _preset_list_mode(text: str) -> str | None:
     normalized = text.strip().lower()
-    if normalized in {"/ideas", "/presets", "/stories", "ideas", "presets", "stories"}:
+    if normalized in {
+        "/ideas",
+        "/presets",
+        "/stories",
+        "/идеи",
+        "/сценарии",
+        "/истории",
+        "ideas",
+        "presets",
+        "stories",
+        "идеи",
+        "сценарии",
+        "истории",
+    }:
         return "shorts"
-    if normalized in {"/drafts", "/previews", "drafts", "previews"}:
+    if normalized in {
+        "/drafts",
+        "/previews",
+        "/черновики",
+        "/превью",
+        "drafts",
+        "previews",
+        "черновики",
+        "превью",
+    }:
         return "draft"
     return None
 

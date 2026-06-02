@@ -79,10 +79,13 @@ hide:
     ```text
     /ideas
     /drafts
+    /идеи
+    /черновики
     SBER LKOH 2020 2024
     preset metals
+    пресет металлы
     preset neweconomy duration=12 theme=studio
-    preset metals draft
+    сценарий голубые фишки draft
     AAPL global USD shorts
     BTC price duration=12 fps=24
     gold silver palladium RUB capital invest initial=0 monthly=30000 gradient theme=aurora
@@ -120,7 +123,10 @@ LKOH
 SBER LKOH 2020 2024
 /ideas
 /drafts
+/идеи
+/черновики
 preset metals
+пресет металлы
 preset neweconomy duration=12 theme=studio
 preset metals draft
 AAPL global USD gradient
