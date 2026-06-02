@@ -50,9 +50,10 @@ preset techru
 preset metals duration=12 theme=studio
 preset neweconomy from=2021-12-17 to=2026-06-01 fps=24
 preset vodka monthly=50000
+preset metals draft
 ```
 
-Все preset-сценарии по умолчанию используют `shorts`: это короткий режим `duration=16`, `fps=24` и `gradient`. Если нужен другой темп, допишите свои `duration=` или `fps=` после имени preset.
+Все preset-сценарии по умолчанию используют `shorts`: это короткий режим `duration=16`, `fps=24` и `gradient`. Если нужен другой темп, допишите свои `duration=` или `fps=` после имени preset. Для быстрой проверки идеи используйте `draft`: это черновой режим `duration=4`, `fps=8`, без `gradient`.
 
 Текущие сценарии:
 
@@ -120,6 +121,7 @@ nolegend               скрыть легенду
 duration=12            длительность основной анимации
 fps=24                 кадров в секунду
 shorts                 короткий режим: duration=16 fps=24 gradient
+draft                  быстрый черновик: duration=4 fps=8 без gradient
 theme=default          базовая темная тема
 theme=aurora           зелено-бирюзовая тема
 theme=studio           контрастная студийная тема

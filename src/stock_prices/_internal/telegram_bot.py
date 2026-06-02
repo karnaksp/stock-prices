@@ -223,7 +223,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n"
         "SiH4 futures 2024 close\n"
         "USD000UTSTOM selt 2024 close\n"
-        "Параметры: from=YYYY-MM-DD to=YYYY-MM-DD shorts close capital invest initial=0 monthly=30000 "
+        "Параметры: from=YYYY-MM-DD to=YYYY-MM-DD shorts draft close capital invest initial=0 monthly=30000 "
         "duration=12 fps=24 theme=default|aurora|studio"
     )
 
