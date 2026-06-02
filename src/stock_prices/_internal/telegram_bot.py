@@ -759,11 +759,11 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "очередь\n"
         "AAPL global USD gradient theme=studio\n"
         "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n"
-        "золото серебро палладий с 2010 по 2026 в рублях капитал инвестируя каждый месяц 30000 градиент шортс\n"
+        "золото серебро палладий с 2010 по 2026 в рублях капитал инвестируя каждый месяц 30к градиент шортс\n"
         "SiH4 futures 2024 close\n"
         "USD000UTSTOM selt 2024 close\n"
         "Параметры: from=YYYY-MM-DD to=YYYY-MM-DD shorts draft close capital invest initial=0 monthly=30000 "
-        "или по-русски: с 2020 по 2024, каждый месяц 30000 рублей, по 30 000 рублей в месяц. "
+        "или по-русски: с 2020 по 2024, каждый месяц 30к рублей, по 30 тыс рублей в месяц. "
         "duration=12 fps=24 theme=default|aurora|studio"
     )
 

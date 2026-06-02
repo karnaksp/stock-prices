@@ -189,6 +189,7 @@ SBER LKOH shorts
 gold 2018-2026 USD gradient
 BTC-USD global crypto close
 gold silver palladium RUB capital invest initial=0 monthly=30000 gradient theme=aurora
+золото серебро палладий в рублях капитал каждый месяц 30к шортс
 SiH4 futures 2024 close
 USD000UTSTOM selt 2024 close
 ```
