@@ -223,6 +223,7 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "draft" in help_text
     assert "/drafts" in help_text
     assert "/черновики" in help_text
+    assert "черновик металлы" in help_text
     assert "пресет металлы" in help_text
     assert "theme=default|aurora|studio" in help_text
     assert "SiH4 futures" in help_text
@@ -466,6 +467,51 @@ def test_parse_telegram_video_request_accepts_multiword_russian_preset_alias() -
     assert parsed.request.render.duration == 12
 
 
+def test_parse_telegram_video_request_accepts_direct_russian_preset_shortcut() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request("металлы", base)
+
+    assert parsed.preset_name == "metals"
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["GC=F", "SI=F", "PA=F"]
+    assert parsed.request.render.duration == 16
+    assert parsed.request.render.fps == 24
+    assert parsed.request.render.use_gradient is True
+
+
+def test_parse_telegram_video_request_accepts_direct_draft_preset_shortcut() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), duration=30, fps=20, use_gradient=True)
+
+    parsed = parse_telegram_video_request("черновик металлы", base)
+
+    assert parsed.preset_name == "metals"
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["GC=F", "SI=F", "PA=F"]
+    assert parsed.request.render.duration == 4
+    assert parsed.request.render.fps == 8
+    assert parsed.request.render.use_gradient is False
+
+
+def test_parse_telegram_video_request_direct_shortcut_allows_multiword_alias_and_overrides() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request("голубые фишки duration=12", base)
+
+    assert parsed.preset_name == "bluechips"
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["SBER", "LKOH", "MGNT"]
+    assert parsed.request.render.duration == 12
+
+
+def test_parse_telegram_video_request_keeps_gold_as_single_asset() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request("gold", base)
+
+    assert parsed.preset_name is None
+    assert [(spec.ticker, spec.engine, spec.market) for spec in parsed.request.ticker_specs] == [
+        ("GC=F", "global", "metals")
+    ]
+
+
 def test_handle_ticker_message_sends_pulse_copy_for_preset(monkeypatch) -> None:
     client = FakeClient()
     settings = TelegramBotSettings(
@@ -485,6 +531,26 @@ def test_handle_ticker_message_sends_pulse_copy_for_preset(monkeypatch) -> None:
     assert "Текст для Пульса" in client.messages[-1][1]
     assert "Что было бы" in client.messages[-1][1]
     assert "#металлы" in client.messages[-1][1]
+
+
+def test_handle_ticker_message_sends_pulse_copy_for_direct_preset(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fake_generate(request, job_id=None):
+        assert [spec.ticker for spec in request.ticker_specs] == ["GC=F", "SI=F", "PA=F"]
+        assert request.render.duration == 4
+        assert request.render.fps == 8
+        return Path("animations/metals-draft.mp4")
+
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+    handle_ticker_message(client, settings, 123, "черновик металлы", job_id="tg-1")
+
+    assert client.videos == [(123, Path("animations/metals-draft.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
+    assert "Текст для Пульса" in client.messages[-1][1]
 
 
 def test_parse_telegram_video_request_accepts_preset_alias() -> None:

@@ -147,6 +147,39 @@ PRESETS: tuple[TelegramPreset, ...] = (
 
 _PRESET_COMMANDS = {"preset", "idea", "story", "scenario", "пресет", "идея", "история", "сценарий"}
 _PRESET_EQUALS_PREFIXES = ("preset=", "idea=", "story=", "scenario=", "пресет=", "идея=", "история=", "сценарий=")
+_DIRECT_PRESET_ALIASES = {
+    "neweconomy": "neweconomy",
+    "новая": "neweconomy",
+    "новая экономика": "neweconomy",
+    "metals": "metals",
+    "металлы": "metals",
+    "металл": "metals",
+    "vodka": "vodka",
+    "водка": "vodka",
+    "алкоголь": "vodka",
+    "mechel": "mechel",
+    "мечел": "mechel",
+    "wagons": "wagons",
+    "вагоны": "wagons",
+    "bluechips": "bluechips",
+    "голубые": "bluechips",
+    "голубые фишки": "bluechips",
+    "techru": "techru",
+    "российский тех": "techru",
+    "технологии": "techru",
+}
+_DIRECT_MODE_PREFIXES = {
+    "short": "shorts",
+    "shorts": "shorts",
+    "reels": "shorts",
+    "шорт": "shorts",
+    "шортс": "shorts",
+    "шортсы": "shorts",
+    "draft": "draft",
+    "preview": "draft",
+    "черновик": "draft",
+    "превью": "draft",
+}
 
 
 def _normalize_name(name: str) -> str:
@@ -157,6 +190,10 @@ _PRESET_BY_NAME = {_normalize_name(preset.name): preset for preset in PRESETS}
 for _preset in PRESETS:
     for _alias in _preset.aliases:
         _PRESET_BY_NAME[_normalize_name(_alias)] = _preset
+_DIRECT_PRESET_BY_NAME = {
+    _normalize_name(alias): _PRESET_BY_NAME[_normalize_name(preset_name)]
+    for alias, preset_name in _DIRECT_PRESET_ALIASES.items()
+}
 
 
 def get_preset(name: str) -> TelegramPreset:
@@ -179,6 +216,26 @@ def _match_preset_tokens(tokens: list[str]) -> tuple[TelegramPreset, list[str]]:
     raise ValueError(f"Unknown preset: {' '.join(tokens)}. Use one of: {options}.")
 
 
+def _match_direct_preset_tokens(tokens: list[str]) -> tuple[TelegramPreset, list[str]] | None:
+    if not tokens:
+        return None
+
+    rest_prefix: list[str] = []
+    candidate_tokens = tokens
+    first = tokens[0].lstrip("/").lower()
+    if first in _DIRECT_MODE_PREFIXES:
+        rest_prefix = [_DIRECT_MODE_PREFIXES[first]]
+        candidate_tokens = tokens[1:]
+    if not candidate_tokens:
+        return None
+
+    for end in range(len(candidate_tokens), 0, -1):
+        normalized = _normalize_name(" ".join(candidate_tokens[:end]))
+        if normalized in _DIRECT_PRESET_BY_NAME:
+            return _DIRECT_PRESET_BY_NAME[normalized], [*rest_prefix, *candidate_tokens[end:]]
+    return None
+
+
 def expand_preset_text(text: str) -> tuple[str, TelegramPreset | None]:
     tokens = text.strip().split()
     if not tokens:
@@ -192,7 +249,10 @@ def expand_preset_text(text: str) -> tuple[str, TelegramPreset | None]:
         preset = get_preset(first.split("=", 1)[1])
         rest = tokens[1:]
     else:
-        return text, None
+        direct_match = _match_direct_preset_tokens(tokens)
+        if direct_match is None:
+            return text, None
+        preset, rest = direct_match
 
     expanded = " ".join([preset.request, *rest]).strip()
     return expanded, preset
@@ -209,6 +269,7 @@ def format_preset_list(mode: str = "shorts") -> str:
         lines.append(f"{preset.title} — {preset.description}")
         lines.append("")
     lines.append("Можно дописать параметры: preset metals duration=12 theme=studio")
+    lines.append("Коротко: металлы, черновик металлы, голубые фишки duration=12")
     if mode == "draft":
         lines.append("Draft-кнопки ниже запустят быстрый черновик: duration=4 fps=8 без gradient.")
         lines.append("Текстом: preset metals draft")

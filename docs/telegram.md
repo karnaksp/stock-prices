@@ -17,6 +17,8 @@ TICKER [TICKER...] [period] [market/source] [currency] [metric] [options]
 ```text
 LKOH
 SBER LKOH 2020 2024
+металлы
+черновик металлы
 preset metals
 пресет металлы
 preset neweconomy duration=12 theme=studio
@@ -39,6 +41,8 @@ USD000UTSTOM selt 2024 close
 /черновики
 preset metals
 пресет металлы
+металлы
+черновик металлы
 preset neweconomy
 preset vodka
 preset mechel
@@ -47,12 +51,15 @@ preset bluechips
 preset techru
 ```
 
-Команды `preset <name>` и `пресет <имя>` делают то же самое текстом: разворачиваются в обычный запрос с тикерами, датами, валютой, инвестициями и темой.
+Команды `preset <name>` и `пресет <имя>` делают то же самое текстом: разворачиваются в обычный запрос с тикерами, датами, валютой, инвестициями и темой. Для русских story-имен слово `пресет` можно опускать: `металлы`, `черновик металлы`, `голубые фишки`.
 
 После имени можно дописать параметры, и они переопределят дефолт пресета:
 
 ```text
 preset metals duration=12 theme=studio
+металлы
+черновик металлы
+голубые фишки duration=12
 пресет металлы draft
 сценарий голубые фишки duration=12
 preset neweconomy from=2021-12-17 to=2026-06-01 fps=24

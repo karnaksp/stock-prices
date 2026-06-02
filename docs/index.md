@@ -82,6 +82,8 @@ hide:
     /идеи
     /черновики
     SBER LKOH 2020 2024
+    металлы
+    черновик металлы
     preset metals
     пресет металлы
     preset neweconomy duration=12 theme=studio
@@ -125,6 +127,8 @@ SBER LKOH 2020 2024
 /drafts
 /идеи
 /черновики
+металлы
+черновик металлы
 preset metals
 пресет металлы
 preset neweconomy duration=12 theme=studio
