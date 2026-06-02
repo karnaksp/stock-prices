@@ -20,6 +20,53 @@ _CURRENCIES = {"RUB", "USD", "EUR", "CNY", "GBP", "JPY", "CHF"}
 _ENGINES = {"stock", "global", "currency"}
 _BOOL_TRUE = {"1", "true", "yes", "y", "on", "да"}
 _BOOL_FALSE = {"0", "false", "no", "n", "off", "нет"}
+_CURRENCY_WORDS = {
+    "руб": "RUB",
+    "рубль": "RUB",
+    "рубля": "RUB",
+    "рублей": "RUB",
+    "рубли": "RUB",
+    "рублях": "RUB",
+    "₽": "RUB",
+    "доллар": "USD",
+    "доллара": "USD",
+    "долларов": "USD",
+    "доллары": "USD",
+    "долларах": "USD",
+    "$": "USD",
+    "евро": "EUR",
+    "юань": "CNY",
+    "юаня": "CNY",
+    "юаней": "CNY",
+}
+_DATE_FROM_WORDS = {"с", "от"}
+_DATE_TO_WORDS = {"по", "до"}
+_MONTH_WORDS = {"месяц", "месяца", "месяцев", "мес"}
+_YEAR_WORDS = {"год", "года", "лет"}
+_MONTHLY_WORDS = {"monthly", "ежемесячно", "помесячно"}
+_YEARLY_WORDS = {"yearly", "ежегодно", "ежегодный"}
+_INITIAL_WORDS = {
+    "initial",
+    "старт",
+    "стартовый",
+    "начальный",
+    "начальное",
+    "первоначальный",
+    "первоначально",
+    "сначала",
+}
+_INVEST_WORDS = {
+    "invest",
+    "investments",
+    "инвестиции",
+    "инвестируя",
+    "инвестировать",
+    "вкладывать",
+    "вкладывая",
+    "вложения",
+    "вложение",
+    "вложений",
+}
 SHORTS_DURATION = 16
 SHORTS_FPS = 24
 DRAFT_DURATION = 4
@@ -39,8 +86,11 @@ _GLOBAL_ALIASES = {
     "СЕРЕБРО": ("SI=F", "metals"),
     "XAG": ("SI=F", "metals"),
     "PLATINUM": ("PL=F", "metals"),
+    "ПЛАТИНА": ("PL=F", "metals"),
     "PALLADIUM": ("PA=F", "metals"),
+    "ПАЛЛАДИЙ": ("PA=F", "metals"),
     "COPPER": ("HG=F", "metals"),
+    "МЕДЬ": ("HG=F", "metals"),
     "OIL": ("CL=F", "commodities"),
     "НЕФТЬ": ("CL=F", "commodities"),
     "WTI": ("CL=F", "commodities"),
@@ -83,6 +133,59 @@ def _parse_int(value: str, minimum: int, maximum: int, name: str) -> int:
     except ValueError as exc:
         raise ValueError(f"{name} must be an integer.") from exc
     return max(minimum, min(parsed, maximum))
+
+
+def _read_amount(tokens: list[str], idx: int) -> tuple[int | None, int, str | None]:
+    if idx >= len(tokens):
+        return None, idx, None
+    first = tokens[idx].replace("_", "")
+    if not first.isdigit():
+        return None, idx, None
+
+    amount_parts = [first]
+    idx += 1
+    if len(first) <= 3:
+        while idx < len(tokens):
+            group = tokens[idx].replace("_", "")
+            if not re.fullmatch(r"\d{3}", group):
+                break
+            amount_parts.append(group)
+            idx += 1
+
+    currency = None
+    if idx < len(tokens):
+        currency = _CURRENCY_WORDS.get(tokens[idx].strip().lower())
+        if currency is not None:
+            idx += 1
+
+    return int("".join(amount_parts)), idx, currency
+
+
+def _read_amount_after_optional_po(tokens: list[str], idx: int) -> tuple[int | None, int, str | None]:
+    if idx < len(tokens) and tokens[idx].strip().lower() == "по":
+        idx += 1
+    return _read_amount(tokens, idx)
+
+
+def _has_period_word_after_amount(tokens: list[str], idx: int, words: set[str]) -> tuple[bool, int]:
+    if idx < len(tokens) and tokens[idx].strip().lower() == "в":
+        idx += 1
+    if idx < len(tokens) and tokens[idx].strip().lower() in words:
+        return True, idx + 1
+    return False, idx
+
+
+def _set_investment_amount(
+    updates: dict[str, object],
+    field: str,
+    amount: int,
+    currency: str | None,
+    name: str,
+) -> None:
+    updates[field] = _parse_int(str(amount), 0, 1_000_000_000, name)
+    updates["with_investments"] = True
+    if currency is not None:
+        updates["currency"] = currency
 
 
 def _looks_like_ticker(token: str) -> bool:
@@ -216,6 +319,30 @@ def parse_telegram_video_request(
             raise ValueError(f"Unknown option: {key}")
         elif "|" in token:
             specs.append(parse_ticker_spec(token, engine, market))
+        elif lowered in _DATE_FROM_WORDS and idx + 1 < len(tokens):
+            parsed_date = _parse_date_token(tokens[idx + 1])
+            if parsed_date is None:
+                raise ValueError(f"Invalid start date: {tokens[idx + 1]}")
+            updates["start_date"] = parsed_date
+            idx += 1
+        elif lowered in _DATE_TO_WORDS and idx + 1 < len(tokens):
+            parsed_date = _parse_date_token(tokens[idx + 1], end=True)
+            if parsed_date is not None:
+                updates["end_date"] = parsed_date
+                idx += 1
+            else:
+                amount, next_idx, amount_currency = _read_amount(tokens, idx + 1)
+                has_month, final_idx = _has_period_word_after_amount(tokens, next_idx, _MONTH_WORDS)
+                has_year = False
+                if not has_month:
+                    has_year, final_idx = _has_period_word_after_amount(tokens, next_idx, _YEAR_WORDS)
+                if amount is None or not (has_month or has_year):
+                    raise ValueError(f"Cannot parse token: {token}")
+                if has_month:
+                    _set_investment_amount(updates, "monthly_investment", amount, amount_currency, "monthly")
+                else:
+                    _set_investment_amount(updates, "yearly_investment", amount, amount_currency, "yearly")
+                idx = final_idx - 1
         elif (parsed_date := _parse_date_token(token, end=len(positional_dates) == 1)) is not None:
             positional_dates.append(parsed_date)
         elif lowered in {"gradient", "градиент"}:
@@ -232,10 +359,47 @@ def parse_telegram_video_request(
             updates["use_gradient"] = False
         elif lowered in {"close", "price", "цена"}:
             updates["value_col"] = "CLOSE"
-        elif lowered in {"capital", "reinvest", "капитал"}:
+        elif lowered in {"capital", "reinvest", "капитал", "капитала", "капитализация"}:
             updates["value_col"] = "CAPITAL_REINVEST"
-        elif lowered in {"invest", "investments", "инвестиции"}:
+        elif lowered in _INVEST_WORDS:
             updates["with_investments"] = True
+        elif lowered in _MONTHLY_WORDS:
+            amount, next_idx, amount_currency = _read_amount_after_optional_po(tokens, idx + 1)
+            if amount is None:
+                raise ValueError("monthly must be an integer.")
+            _set_investment_amount(updates, "monthly_investment", amount, amount_currency, "monthly")
+            idx = next_idx - 1
+        elif lowered in _YEARLY_WORDS:
+            amount, next_idx, amount_currency = _read_amount_after_optional_po(tokens, idx + 1)
+            if amount is None:
+                raise ValueError("yearly must be an integer.")
+            _set_investment_amount(updates, "yearly_investment", amount, amount_currency, "yearly")
+            idx = next_idx - 1
+        elif lowered in _INITIAL_WORDS:
+            amount, next_idx, amount_currency = _read_amount_after_optional_po(tokens, idx + 1)
+            if amount is None:
+                raise ValueError("initial must be an integer.")
+            _set_investment_amount(updates, "initial_investment", amount, amount_currency, "initial")
+            idx = next_idx - 1
+        elif lowered in {"каждый", "каждую"} and idx + 1 < len(tokens):
+            period_word = tokens[idx + 1].strip().lower()
+            if period_word not in _MONTH_WORDS | _YEAR_WORDS:
+                raise ValueError(f"Cannot parse token: {token}")
+            amount, next_idx, amount_currency = _read_amount_after_optional_po(tokens, idx + 2)
+            if amount is None:
+                raise ValueError("Investment amount is missing.")
+            if period_word in _MONTH_WORDS:
+                _set_investment_amount(updates, "monthly_investment", amount, amount_currency, "monthly")
+            else:
+                _set_investment_amount(updates, "yearly_investment", amount, amount_currency, "yearly")
+            idx = next_idx - 1
+        elif lowered == "в" and idx + 1 < len(tokens) and tokens[idx + 1].strip().lower() in _CURRENCY_WORDS:
+            updates["currency"] = _CURRENCY_WORDS[tokens[idx + 1].strip().lower()]
+            idx += 1
+        elif lowered == "в" and idx + 1 < len(tokens) and tokens[idx + 1].strip().lower() in _MONTH_WORDS | _YEAR_WORDS:
+            idx += 1
+        elif lowered in _CURRENCY_WORDS:
+            updates["currency"] = _CURRENCY_WORDS[lowered]
         elif lowered in {"nolegend", "no_legend"}:
             updates["show_legend"] = False
         elif token.upper() in _CURRENCIES:

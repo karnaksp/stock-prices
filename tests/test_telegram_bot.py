@@ -773,6 +773,47 @@ def test_parse_telegram_video_request_accepts_investment_amounts_for_metals() ->
     assert parsed.request.render.use_gradient is True
 
 
+def test_parse_telegram_video_request_accepts_natural_russian_investment_phrase() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request(
+        "золото серебро палладий с 2010 по 2026 в рублях капитал инвестируя каждый месяц 30000 градиент шортс",
+        base,
+    )
+
+    assert [(spec.ticker, spec.engine, spec.market) for spec in parsed.request.ticker_specs] == [
+        ("GC=F", "global", "metals"),
+        ("SI=F", "global", "metals"),
+        ("PA=F", "global", "metals"),
+    ]
+    assert parsed.request.render.start_date == date(2010, 1, 1)
+    assert parsed.request.render.end_date == date(2026, 12, 31)
+    assert parsed.request.render.currency == "RUB"
+    assert parsed.request.render.value_col == "CAPITAL_REINVEST"
+    assert parsed.request.render.with_investments is True
+    assert parsed.request.render.monthly_investment == 30_000
+    assert parsed.request.render.duration == 16
+    assert parsed.request.render.fps == 24
+    assert parsed.request.render.use_gradient is True
+
+
+def test_parse_telegram_video_request_accepts_split_russian_amount() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request(
+        "SBER LKOH с 2020 до 2024 капитал вкладывать по 30 000 рублей в месяц",
+        base,
+    )
+
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["SBER", "LKOH"]
+    assert parsed.request.render.start_date == date(2020, 1, 1)
+    assert parsed.request.render.end_date == date(2024, 12, 31)
+    assert parsed.request.render.currency == "RUB"
+    assert parsed.request.render.value_col == "CAPITAL_REINVEST"
+    assert parsed.request.render.with_investments is True
+    assert parsed.request.render.monthly_investment == 30_000
+
+
 def test_parse_telegram_video_request_accepts_shorts_mode() -> None:
     base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), duration=30, fps=20)
 
