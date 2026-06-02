@@ -99,6 +99,11 @@ hide:
     AAPL global USD shorts
     BTC price duration=12 fps=24
     gold silver palladium RUB capital invest initial=0 monthly=30000 gradient theme=aurora
+
+    # одним сообщением, по строке на ролик:
+    металлы
+    черновик угольщики
+    SBER LKOH 2020 2024 shorts
     ```
 
 ## Основные разделы
@@ -142,6 +147,7 @@ random draft
 /queue
 очередь
 кнопка Статус очереди
+несколько строк одним сообщением: каждая строка - отдельная задача
 кнопки /ideas подписаны по-русски
 follow-up кнопки после preset-видео: черновик 4s / шортс 16s / вариант 12s
 металлы
