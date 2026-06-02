@@ -42,9 +42,18 @@ _CURRENCY_WORDS = {
 }
 _DATE_FROM_WORDS = {"с", "от"}
 _DATE_TO_WORDS = {"по", "до"}
-_RELATIVE_PERIOD_WORDS = {"за", "last", "последние", "последних"}
+_RELATIVE_PERIOD_WORDS = {"за", "last", "последнее", "последний", "последние", "последних", "последнюю"}
 _MONTH_WORDS = {"month", "months", "месяц", "месяца", "месяцев", "мес"}
 _YEAR_WORDS = {"year", "years", "год", "года", "лет"}
+_SINGLE_RELATIVE_PERIODS = {
+    "month": (1, "month"),
+    "месяц": (1, "month"),
+    "мес": (1, "month"),
+    "полгода": (6, "month"),
+    "полугодие": (6, "month"),
+    "year": (1, "year"),
+    "год": (1, "year"),
+}
 _MONTHLY_WORDS = {"monthly", "ежемесячно", "помесячно"}
 _YEARLY_WORDS = {"yearly", "ежегодно", "ежегодный"}
 _INITIAL_WORDS = {
@@ -257,6 +266,14 @@ def _is_ignored_request_word(token: str) -> bool:
     return not (token.isascii() and token.isupper())
 
 
+def _set_relative_period(updates: dict[str, object], base_render: RenderSettings, amount: int, unit: str) -> None:
+    updates["end_date"] = base_render.end_date
+    if unit == "month":
+        updates["start_date"] = _shift_months(base_render.end_date, amount)
+    else:
+        updates["start_date"] = _shift_years(base_render.end_date, amount)
+
+
 def _spec_from_ticker(raw_ticker: str, engine: str, market: str) -> TickerSpec:
     normalized = raw_ticker.upper().replace("/", "")
     if normalized in _GLOBAL_ALIASES:
@@ -412,18 +429,26 @@ def parse_telegram_video_request(
                 else:
                     _set_investment_amount(updates, "yearly_investment", amount, amount_currency, "yearly")
                 idx = final_idx - 1
-        elif lowered in _RELATIVE_PERIOD_WORDS and idx + 2 < len(tokens):
+        elif lowered in _RELATIVE_PERIOD_WORDS and idx + 1 < len(tokens):
+            next_word = tokens[idx + 1].strip().lower()
+            single_period = _SINGLE_RELATIVE_PERIODS.get(next_word)
+            if single_period is not None:
+                amount, unit = single_period
+                _set_relative_period(updates, base_render, amount, unit)
+                idx += 2
+                continue
+            if idx + 2 >= len(tokens):
+                raise ValueError(f"Cannot parse token: {token}")
             amount = tokens[idx + 1].strip().replace("_", "")
             period_word = tokens[idx + 2].strip().lower()
             if not amount.isdigit() or period_word not in _MONTH_WORDS | _YEAR_WORDS:
                 raise ValueError(f"Cannot parse token: {token}")
-            updates["end_date"] = base_render.end_date
             if period_word in _MONTH_WORDS:
                 months = _parse_int(amount, 1, 1200, "months")
-                updates["start_date"] = _shift_months(base_render.end_date, months)
+                _set_relative_period(updates, base_render, months, "month")
             else:
                 years = _parse_int(amount, 1, 100, "years")
-                updates["start_date"] = _shift_years(base_render.end_date, years)
+                _set_relative_period(updates, base_render, years, "year")
             idx += 2
         elif (parsed_date := _parse_date_token(token, end=len(positional_dates) == 1)) is not None:
             positional_dates.append(parsed_date)

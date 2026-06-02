@@ -1203,7 +1203,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "После custom-видео" in help_text
     assert "несколько запросов строками" in help_text
     assert "сделай шортс про SBER" in help_text
-    assert "сравни SBER с LKOH" in help_text
+    assert "за полгода" in help_text
+    assert "сравни SBER с LKOH за год" in help_text
     assert "черновик металлы" in help_text
     assert "пресет металлы" in help_text
     assert "вариант 12s" in help_text
@@ -1426,6 +1427,32 @@ def test_parse_telegram_video_request_accepts_relative_month_period() -> None:
     assert parsed.request.render.use_gradient is True
 
 
+def test_parse_telegram_video_request_accepts_short_relative_year_period() -> None:
+    base = RenderSettings(start_date=date(2010, 1, 1), end_date=date(2026, 6, 3))
+
+    parsed = parse_telegram_video_request("сравни SBER с LKOH за год шортс", base)
+
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["SBER", "LKOH"]
+    assert parsed.request.render.start_date == date(2025, 6, 3)
+    assert parsed.request.render.end_date == date(2026, 6, 3)
+    assert parsed.request.render.duration == 16
+    assert parsed.request.render.fps == 24
+    assert parsed.request.render.use_gradient is True
+
+
+def test_parse_telegram_video_request_accepts_half_year_period() -> None:
+    base = RenderSettings(start_date=date(2010, 1, 1), end_date=date(2026, 6, 3))
+
+    parsed = parse_telegram_video_request("YDEX OZON за полгода shorts", base)
+
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["YDEX", "OZON"]
+    assert parsed.request.render.start_date == date(2025, 12, 3)
+    assert parsed.request.render.end_date == date(2026, 6, 3)
+    assert parsed.request.render.duration == 16
+    assert parsed.request.render.fps == 24
+    assert parsed.request.render.use_gradient is True
+
+
 def test_parse_telegram_video_request_accepts_natural_russian_phrase() -> None:
     base = RenderSettings(start_date=date(2010, 1, 1), end_date=date(2026, 6, 3))
 
@@ -1474,6 +1501,19 @@ def test_parse_telegram_video_request_accepts_english_relative_month_period() ->
     assert parsed.request.render.start_date == date(2026, 2, 28)
     assert parsed.request.render.end_date == date(2026, 3, 31)
     assert parsed.request.render.currency == "USD"
+
+
+def test_parse_telegram_video_request_accepts_english_short_relative_month_period() -> None:
+    base = RenderSettings(start_date=date(2010, 1, 1), end_date=date(2026, 3, 31))
+
+    parsed = parse_telegram_video_request("AAPL MSFT global USD last month shorts", base)
+
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["AAPL", "MSFT"]
+    assert parsed.request.render.start_date == date(2026, 2, 28)
+    assert parsed.request.render.end_date == date(2026, 3, 31)
+    assert parsed.request.render.currency == "USD"
+    assert parsed.request.render.duration == 16
+    assert parsed.request.render.fps == 24
 
 
 def test_parse_telegram_video_request_ignores_english_filler_words() -> None:
