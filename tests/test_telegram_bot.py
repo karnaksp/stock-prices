@@ -9,7 +9,7 @@ import requests
 
 from stock_prices._internal import telegram_bot
 from stock_prices._internal.models import RenderSettings
-from stock_prices._internal.telegram_presets import PRESETS, format_pulse_post
+from stock_prices._internal.telegram_presets import PRESETS, format_pulse_post, preset_followup_keyboard
 from stock_prices._internal.telegram_requests import parse_telegram_video_request
 from stock_prices._internal.telegram_bot import TelegramApiError, TelegramBotSettings, TelegramClient, cleanup_old_outputs, handle_ticker_message
 
@@ -181,6 +181,51 @@ def test_run_telegram_bot_queues_draft_preset_from_inline_button(monkeypatch) ->
     assert client.videos == [(123, Path("animations/metals-draft.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 
+def test_run_telegram_bot_queues_12s_preset_from_followup_button(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 45,
+                    "callback_query": {
+                        "id": "callback-3",
+                        "data": "preset:metals:12s",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fake_client_factory(*_args, **_kwargs):
+        return client
+
+    def fake_generate(request, job_id=None):
+        assert job_id == "tg-45"
+        assert [spec.ticker for spec in request.ticker_specs] == ["GC=F", "SI=F", "PA=F"]
+        assert request.render.duration == 12
+        assert request.render.fps == 24
+        assert request.render.use_gradient is True
+        return Path("animations/metals-12s.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-3", "Сценарий поставлен в очередь.")]
+    assert any("12s/24fps" in message for _chat_id, message in client.messages)
+    assert client.videos == [(123, Path("animations/metals-12s.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
+
+
 def test_cleanup_old_outputs_removes_old_mp4_but_keeps_current(tmp_path: Path) -> None:
     old_video = tmp_path / "old.mp4"
     current_video = tmp_path / "current.mp4"
@@ -231,6 +276,7 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "/черновики" in help_text
     assert "черновик металлы" in help_text
     assert "пресет металлы" in help_text
+    assert "вариант 12s" in help_text
     assert "theme=default|aurora|studio" in help_text
     assert "SiH4 futures" in help_text
     assert "preset neweconomy" in help_text
@@ -251,6 +297,7 @@ def test_handle_ticker_message_lists_pulse_presets() -> None:
     assert "preset neweconomy" in preset_text
     assert "preset exporters" in preset_text
     assert "preset coalminers" in preset_text
+    assert "вариант 12s" in preset_text
     assert client.message_markups[0] == _expected_preset_keyboard()
     assert client.videos == []
 
@@ -556,10 +603,12 @@ def test_handle_ticker_message_sends_pulse_copy_for_preset(monkeypatch) -> None:
     handle_ticker_message(client, settings, 123, "preset metals", job_id="tg-1")
 
     assert client.videos == [(123, Path("animations/metals.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
-    assert client.messages[-1][0] == 123
-    assert "Текст для Пульса" in client.messages[-1][1]
-    assert "Что было бы" in client.messages[-1][1]
-    assert "#металлы" in client.messages[-1][1]
+    assert client.messages[-2][0] == 123
+    assert "Текст для Пульса" in client.messages[-2][1]
+    assert "Что было бы" in client.messages[-2][1]
+    assert "#металлы" in client.messages[-2][1]
+    assert client.messages[-1] == (123, "Быстрые варианты для этого сценария:")
+    assert client.message_markups[-1] == preset_followup_keyboard("metals")
 
 
 def test_handle_ticker_message_sends_pulse_copy_for_direct_preset(monkeypatch) -> None:
@@ -579,7 +628,8 @@ def test_handle_ticker_message_sends_pulse_copy_for_direct_preset(monkeypatch) -
     handle_ticker_message(client, settings, 123, "черновик металлы", job_id="tg-1")
 
     assert client.videos == [(123, Path("animations/metals-draft.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
-    assert "Текст для Пульса" in client.messages[-1][1]
+    assert "Текст для Пульса" in client.messages[-2][1]
+    assert client.message_markups[-1] == preset_followup_keyboard("metals")
 
 
 def test_parse_telegram_video_request_accepts_preset_alias() -> None:
