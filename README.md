@@ -56,6 +56,7 @@ LKOH
 SBER LKOH 2020 2024
 preset metals
 preset neweconomy duration=12 theme=studio
+preset metals draft
 SBER LKOH shorts
 AAPL global USD shorts
 BTC price duration=12 fps=24
@@ -121,6 +122,7 @@ close / price          цена закрытия
 capital / reinvest     капитал с реинвестированием
 gradient               градиентная линия
 shorts                 короткий режим: duration=16 fps=24 gradient
+draft                  быстрый черновик: duration=4 fps=8 без gradient
 theme=aurora           визуальная тема: default, aurora или studio
 duration=12 fps=24     настройки видео
 ```

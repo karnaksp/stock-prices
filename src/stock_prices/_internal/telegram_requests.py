@@ -22,6 +22,8 @@ _BOOL_TRUE = {"1", "true", "yes", "y", "on", "да"}
 _BOOL_FALSE = {"0", "false", "no", "n", "off", "нет"}
 SHORTS_DURATION = 16
 SHORTS_FPS = 24
+DRAFT_DURATION = 4
+DRAFT_FPS = 8
 _GLOBAL_ALIASES = {
     "BTC": ("BTC-USD", "crypto"),
     "БИТКОИН": ("BTC-USD", "crypto"),
@@ -224,6 +226,10 @@ def parse_telegram_video_request(
             updates["duration"] = SHORTS_DURATION
             updates["fps"] = SHORTS_FPS
             updates["use_gradient"] = True
+        elif lowered in {"draft", "preview", "черновик", "превью"}:
+            updates["duration"] = DRAFT_DURATION
+            updates["fps"] = DRAFT_FPS
+            updates["use_gradient"] = False
         elif lowered in {"close", "price", "цена"}:
             updates["value_col"] = "CLOSE"
         elif lowered in {"capital", "reinvest", "капитал"}:

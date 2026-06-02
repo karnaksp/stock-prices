@@ -175,6 +175,7 @@ def test_help_text_mentions_investments_and_themes() -> None:
     help_text = client.messages[0][1]
     assert "monthly=30000" in help_text
     assert "shorts" in help_text
+    assert "draft" in help_text
     assert "theme=default|aurora|studio" in help_text
     assert "SiH4 futures" in help_text
     assert "preset neweconomy" in help_text
@@ -310,6 +311,17 @@ def test_parse_telegram_video_request_accepts_shorts_mode() -> None:
     assert parsed.request.render.use_gradient is True
 
 
+def test_parse_telegram_video_request_accepts_draft_mode() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), duration=30, fps=20, use_gradient=True)
+
+    parsed = parse_telegram_video_request("lkoh sber 2020 2024 draft", base)
+
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["LKOH", "SBER"]
+    assert parsed.request.render.duration == 4
+    assert parsed.request.render.fps == 8
+    assert parsed.request.render.use_gradient is False
+
+
 def test_parse_telegram_video_request_expands_pulse_preset() -> None:
     base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
 
@@ -372,6 +384,17 @@ def test_pulse_preset_defaults_to_shorts_but_allows_overrides() -> None:
     assert parsed.request.render.duration == 22
     assert parsed.request.render.fps == 12
     assert parsed.request.render.use_gradient is True
+
+
+def test_pulse_preset_allows_draft_preview() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), duration=30, fps=20, use_gradient=True)
+
+    parsed = parse_telegram_video_request("preset metals draft", base)
+
+    assert parsed.preset_name == "metals"
+    assert parsed.request.render.duration == 4
+    assert parsed.request.render.fps == 8
+    assert parsed.request.render.use_gradient is False
 
 
 def test_all_pulse_presets_are_parseable() -> None:
