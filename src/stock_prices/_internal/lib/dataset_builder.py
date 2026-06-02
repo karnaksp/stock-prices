@@ -2,17 +2,19 @@ from __future__ import annotations
 
 import logging
 import random
+from collections.abc import Sequence
 from typing import Any
 
 import pandas as pd
 
 from stock_prices._internal.portfolio.calculations import InvestmentPlan, calculate_capital_with_reinvest
+from stock_prices._internal.rendering.theme import get_chart_theme
 
 
-def generate_unique_colors(n: int, palette_name: str = "tab10") -> list[str]:
+def generate_unique_colors(n: int, palette_name: str = "tab10", palette: Sequence[str] | None = None) -> list[str]:
     if n <= 0:
         return []
-    palette = [
+    base_palette = list(palette) if palette is not None else [
         "#FFD166",
         "#00D1B2",
         "#5B8CFF",
@@ -30,7 +32,7 @@ def generate_unique_colors(n: int, palette_name: str = "tab10") -> list[str]:
         "#F72585",
         "#A3E635",
     ]
-    colors = palette.copy()
+    colors = base_palette.copy()
 
     if n > len(colors):
         import matplotlib.pyplot as plt
@@ -77,7 +79,8 @@ def build_data_list(args: Any, build_args: Any, start_date, end_date) -> list[di
     if not (len(tickers) == len(engines) == len(markets)):
         raise ValueError("Each ticker must have a matching engine and market.")
 
-    colors = generate_unique_colors(len(tickers))
+    chart_theme = get_chart_theme(getattr(args, "theme", "default"))
+    colors = generate_unique_colors(len(tickers), palette=chart_theme.palette)
     data_list: list[dict[str, Any]] = []
     investments_df = None
     investment_plan = InvestmentPlan.from_args(args)
@@ -105,7 +108,7 @@ def build_data_list(args: Any, build_args: Any, start_date, end_date) -> list[di
             investments_df["CAPITAL_REINVEST"] = investments_df["savings"]
 
     if investments_df is not None:
-        data_list.append({"data": investments_df, "name": "Invested", "color": "#8f9aa8"})
+        data_list.append({"data": investments_df, "name": "Invested", "color": chart_theme.invested_color})
     if not data_list:
         raise ValueError("No datasets were prepared.")
     return data_list

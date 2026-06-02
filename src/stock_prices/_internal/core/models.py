@@ -37,6 +37,7 @@ class RenderSettings:
     currency: str = "RUB"
     title: str = ""
     under_title: str = ""
+    theme: str = "default"
     use_gradient: bool = False
     show_legend: bool = True
     initial_investment: int = 10000

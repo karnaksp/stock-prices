@@ -4,6 +4,7 @@ import pandas as pd
 
 from stock_prices._internal.lib import dataset_builder
 from stock_prices._internal.lib.plotting import _amount_summary, _combine_data, _return_summary, _visible_x_span_days
+from stock_prices._internal.rendering.theme import get_chart_theme, get_theme_names
 
 
 def test_amount_summary_shows_latest_amount() -> None:
@@ -88,3 +89,20 @@ def test_generate_unique_colors_shuffles_palette(monkeypatch) -> None:
     monkeypatch.setattr(dataset_builder.random, "SystemRandom", lambda: ReverseRandom())
 
     assert dataset_builder.generate_unique_colors(2) == ["#A3E635", "#F72585"]
+
+
+def test_chart_themes_include_default_and_optional_presets() -> None:
+    assert get_theme_names() == ("default", "aurora", "studio")
+    assert get_chart_theme("default").figure_bg == "#0D0E11"
+    assert get_chart_theme("aurora").name == "aurora"
+    assert get_chart_theme("studio").invested_color == "#9BA3AF"
+
+
+def test_generate_unique_colors_uses_theme_palette(monkeypatch) -> None:
+    class IdentityRandom:
+        def shuffle(self, _values: list[str]) -> None:
+            return None
+
+    monkeypatch.setattr(dataset_builder.random, "SystemRandom", lambda: IdentityRandom())
+
+    assert dataset_builder.generate_unique_colors(2, palette=get_chart_theme("studio").palette) == ["#F4D35E", "#33C7A7"]
