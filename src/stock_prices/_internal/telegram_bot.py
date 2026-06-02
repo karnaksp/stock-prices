@@ -138,6 +138,7 @@ class TelegramQueueSnapshot:
 QUEUE_STATUS_CALLBACK_DATA = "queue:status"
 MENU_CALLBACK_PREFIX = "menu:"
 MENU_ACTIONS = {
+    "help",
     "ideas",
     "examples",
     "drafts",
@@ -179,18 +180,19 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             hot_preset_buttons[:2],
             hot_preset_buttons[2:],
             [
-                {"text": "Hot drafts", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_drafts"},
-                {"text": "Hot shorts", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_shorts"},
+                {"text": "Топ черновики", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_drafts"},
+                {"text": "Топ шортсы", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_shorts"},
             ],
             [
-                {"text": "Draft presets", "callback_data": f"{MENU_CALLBACK_PREFIX}drafts"},
-                {"text": "Draft examples", "callback_data": f"{MENU_CALLBACK_PREFIX}example_drafts"},
+                {"text": "Черновики", "callback_data": f"{MENU_CALLBACK_PREFIX}drafts"},
+                {"text": "Черновики примеров", "callback_data": f"{MENU_CALLBACK_PREFIX}example_drafts"},
             ],
             [
-                {"text": "Случайный preset", "callback_data": f"{MENU_CALLBACK_PREFIX}random_draft"},
+                {"text": "Случайный сценарий", "callback_data": f"{MENU_CALLBACK_PREFIX}random_draft"},
                 {"text": "Случайный пример", "callback_data": f"{MENU_CALLBACK_PREFIX}random_example"},
             ],
             [
+                {"text": "Помощь", "callback_data": f"{MENU_CALLBACK_PREFIX}help"},
                 {"text": "Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
             ],
         ]
@@ -711,7 +713,7 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
 def _main_menu_text() -> str:
     return (
         "Меню Telegram\n"
-        "Выбери действие кнопкой: готовые идеи, проверенные примеры, топовые shorts-сценарии, draft-прогоны, случайный draft или статус очереди."
+        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, топовые shorts-сценарии, draft-прогоны, случайный draft или статус очереди."
     )
 
 
@@ -1217,6 +1219,12 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         if settings.allowed_chat_ids and menu_callback.chat_id not in settings.allowed_chat_ids:
                             client.answer_callback_query(menu_callback.callback_query_id, "This chat is not allowed.")
                             client.send_message(menu_callback.chat_id, "This chat is not allowed to use this bot.")
+                        elif menu_callback.action == "help":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Помощь открыта.")
+                            client.send_message(
+                                menu_callback.chat_id,
+                                _help_text(settings.default_engine, settings.default_market),
+                            )
                         elif menu_callback.action == "ideas":
                             client.answer_callback_query(menu_callback.callback_query_id, "Меню обновлено.")
                             client.send_message(
