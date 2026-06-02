@@ -54,6 +54,16 @@ _SINGLE_RELATIVE_PERIODS = {
     "year": (1, "year"),
     "год": (1, "year"),
 }
+_AMOUNT_SUFFIX_MULTIPLIERS = {"k": 1_000, "к": 1_000}
+_AMOUNT_WORD_MULTIPLIERS = {
+    "k": 1_000,
+    "к": 1_000,
+    "тыс": 1_000,
+    "тыс.": 1_000,
+    "тысяч": 1_000,
+    "тысяча": 1_000,
+    "тысячи": 1_000,
+}
 _MONTHLY_WORDS = {"monthly", "ежемесячно", "помесячно"}
 _YEARLY_WORDS = {"yearly", "ежегодно", "ежегодный"}
 _INITIAL_WORDS = {
@@ -202,21 +212,41 @@ def _shift_months(value: date, months: int) -> date:
     return date(year, month, day)
 
 
+def _read_first_amount_token(token: str) -> tuple[int | None, bool]:
+    normalized = token.replace("_", "").strip().lower()
+    if normalized.isdigit():
+        return int(normalized), False
+    suffixes = "".join(re.escape(suffix) for suffix in _AMOUNT_SUFFIX_MULTIPLIERS)
+    match = re.fullmatch(rf"(\d+)([{suffixes}])", normalized)
+    if match is None:
+        return None, False
+    multiplier = _AMOUNT_SUFFIX_MULTIPLIERS[match.group(2)]
+    return int(match.group(1)) * multiplier, True
+
+
 def _read_amount(tokens: list[str], idx: int) -> tuple[int | None, int, str | None]:
     if idx >= len(tokens):
         return None, idx, None
-    first = tokens[idx].replace("_", "")
-    if not first.isdigit():
+    first_amount, has_suffix = _read_first_amount_token(tokens[idx])
+    if first_amount is None:
         return None, idx, None
 
-    amount_parts = [first]
     idx += 1
-    if len(first) <= 3:
+    amount = first_amount
+    if not has_suffix and len(str(first_amount)) <= 3:
+        amount_parts = [str(first_amount)]
         while idx < len(tokens):
             group = tokens[idx].replace("_", "")
             if not re.fullmatch(r"\d{3}", group):
                 break
             amount_parts.append(group)
+            idx += 1
+        amount = int("".join(amount_parts))
+
+    if idx < len(tokens):
+        multiplier = _AMOUNT_WORD_MULTIPLIERS.get(tokens[idx].strip().lower())
+        if multiplier is not None:
+            amount *= multiplier
             idx += 1
 
     currency = None
@@ -225,7 +255,7 @@ def _read_amount(tokens: list[str], idx: int) -> tuple[int | None, int, str | No
         if currency is not None:
             idx += 1
 
-    return int("".join(amount_parts)), idx, currency
+    return amount, idx, currency
 
 
 def _read_amount_after_optional_po(tokens: list[str], idx: int) -> tuple[int | None, int, str | None]:
