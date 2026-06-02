@@ -33,6 +33,14 @@ python -m mkdocs build --strict
 python -m compileall -q src tests
 ```
 
+## Веточная модель
+
+- `develop` используется как интеграционная ветка для рабочих изменений.
+- `main` содержит стабильную версию проекта и публикует GitHub Pages.
+- Новые изменения делаются в отдельных ветках от актуального `origin/develop`.
+- Feature-ветки мержатся в `develop` только после локальных проверок.
+- Перенос `develop` в `main` делается после интеграционной проверки и Docker smoke-render.
+
 ## Проверка рендера
 
 ```powershell
@@ -74,6 +82,8 @@ python -m mkdocs build --strict
 
 ## Автоматический деплой GitHub Pages
 
-Workflow `.github/workflows/pages.yml` запускается при каждом push в `main` и вручную через `workflow_dispatch`. Он собирает `site/`, загружает результат как GitHub Pages artifact и публикует сайт через GitHub Pages.
+Workflow `.github/workflows/ci.yml` запускается для `main`, `develop` и pull request в эти ветки.
+
+Workflow `.github/workflows/pages.yml` запускается при каждом push в `main` и вручную через `workflow_dispatch`. Он собирает `site/`, загружает результат как GitHub Pages artifact и публикует сайт через GitHub Pages. Push в `develop` сайт не публикует.
 
 Для работы в настройках репозитория нужно выбрать Pages source `GitHub Actions`.
