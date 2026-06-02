@@ -69,6 +69,47 @@ _INVEST_WORDS = {
     "вложение",
     "вложений",
 }
+_IGNORED_REQUEST_WORDS = {
+    "a",
+    "about",
+    "and",
+    "an",
+    "chart",
+    "compare",
+    "for",
+    "make",
+    "of",
+    "show",
+    "the",
+    "video",
+    "акции",
+    "акций",
+    "акция",
+    "видео",
+    "график",
+    "для",
+    "и",
+    "или",
+    "нарисуй",
+    "покажи",
+    "показать",
+    "построй",
+    "про",
+    "пульс",
+    "пульса",
+    "ролик",
+    "сделай",
+    "сделать",
+    "собери",
+    "создай",
+    "сравнение",
+    "сравни",
+    "сравнить",
+    "тикер",
+    "тикера",
+    "тикерам",
+    "тикеры",
+}
 SHORTS_DURATION = 16
 SHORTS_FPS = 24
 DRAFT_DURATION = 4
@@ -207,6 +248,13 @@ def _set_investment_amount(
 
 def _looks_like_ticker(token: str) -> bool:
     return bool(re.fullmatch(r"[A-Za-z0-9^][A-Za-z0-9._=\-/^]{0,20}", token))
+
+
+def _is_ignored_request_word(token: str) -> bool:
+    lowered = token.strip().lower()
+    if lowered not in _IGNORED_REQUEST_WORDS:
+        return False
+    return not (token.isascii() and token.isupper())
 
 
 def _spec_from_ticker(raw_ticker: str, engine: str, market: str) -> TickerSpec:
@@ -448,6 +496,8 @@ def parse_telegram_video_request(
             market = lowered
         elif lowered in _ENGINES:
             engine = lowered
+        elif _is_ignored_request_word(token):
+            pass
         elif token.upper().replace("/", "") in _GLOBAL_ALIASES:
             raw_tickers.append(token)
         elif _looks_like_ticker(token):
