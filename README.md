@@ -12,7 +12,12 @@ python -m mkdocs serve
 
 После запуска откройте `http://127.0.0.1:8000`.
 
-В GitHub Pages сайт публикуется автоматически через workflow `.github/workflows/pages.yml` при каждом push в `main`.
+Ветки разработки:
+
+- `develop` - интеграционная ветка для рабочих улучшений и проверок.
+- `main` - стабильная ветка, из которой публикуется GitHub Pages.
+
+CI запускается для `main`, `develop` и pull request в эти ветки. GitHub Pages публикуется автоматически через workflow `.github/workflows/pages.yml` только при push в `main`.
 
 ## Быстрый запуск в Docker
 
