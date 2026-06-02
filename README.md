@@ -30,7 +30,9 @@ STOCK_PRICES_DEFAULT_MARKET=shares
 STOCK_PRICES_CURRENCY=RUB
 STOCK_PRICES_DURATION=30
 STOCK_PRICES_FPS=20
+STOCK_PRICES_THEME=default
 STOCK_PRICES_OUTPUT_DIR=animations
+STOCK_PRICES_RETENTION_DAYS=0
 ```
 
 2. Запустите контейнер:
@@ -54,7 +56,7 @@ SBER LKOH 2020 2024
 AAPL global USD gradient
 BTC price duration=12 fps=24
 gold 2018-2026 USD gradient
-gold silver palladium 2018-2026 RUB capital invest initial=0 monthly=30000 gradient
+gold silver palladium 2018-2026 RUB capital invest initial=0 monthly=30000 gradient theme=aurora
 SiH4 futures 2024 close
 USD000UTSTOM selt 2024 close
 ```
@@ -111,6 +113,7 @@ futures / selt         MOEX futures или currency
 close / price          цена закрытия
 capital / reinvest     капитал с реинвестированием
 gradient               градиентная линия
+theme=aurora           визуальная тема: default, aurora или studio
 duration=12 fps=24     настройки видео
 ```
 
@@ -160,6 +163,7 @@ python -m compileall -q src tests
 ## Разделы документации
 
 - [Демонстрация возможностей](docs/demo.md)
+- [Как писать запросы в Telegram](docs/telegram.md)
 - [Запуск и проверка](docs/runbook.md)
 - [Docker и постоянный бот](docs/docker.md)
 - [API](docs/reference/api.md)

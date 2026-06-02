@@ -20,7 +20,9 @@ STOCK_PRICES_DEFAULT_MARKET=shares
 STOCK_PRICES_CURRENCY=RUB
 STOCK_PRICES_DURATION=30
 STOCK_PRICES_FPS=20
+STOCK_PRICES_THEME=default
 STOCK_PRICES_OUTPUT_DIR=animations
+STOCK_PRICES_RETENTION_DAYS=0
 STOCK_PRICES_ALLOWED_CHAT_IDS=
 ```
 
@@ -51,7 +53,7 @@ LKOH
 SBER LKOH 2020 2024
 BTC price duration=12 fps=24
 gold 2018-2026 USD gradient
-gold silver palladium 2018-2026 RUB capital invest initial=0 monthly=30000 gradient
+gold silver palladium 2018-2026 RUB capital invest initial=0 monthly=30000 gradient theme=aurora
 SiH4 futures 2024 close
 ```
 
@@ -77,6 +79,8 @@ futures/     parquet-кэш MOEX futures
 
 Эти папки остаются на хосте и переживают пересборку контейнера.
 
+`STOCK_PRICES_RETENTION_DAYS=0` отключает очистку готовых MP4. Если указать положительное число, бот после успешной отправки будет удалять старые `.mp4` из output-директории, оставляя только текущий файл.
+
 ## Проверка без запуска бота
 
 Проверить сборку image:
@@ -96,6 +100,12 @@ docker compose run --rm stock-prices-bot python -m stock_prices bot -h
 
 ```powershell
 docker compose run --rm stock-prices-bot python -c "from stock_prices._internal.telegram_bot import TelegramClient; import os; print(TelegramClient(os.environ['TELEGRAM_BOT_TOKEN'], timeout=10).call('getMe')['username'])"
+```
+
+Проверить healthcheck вручную:
+
+```powershell
+docker compose run --rm stock-prices-bot python -m stock_prices._internal.healthcheck
 ```
 
 ## Диагностика
