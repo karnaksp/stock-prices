@@ -41,8 +41,9 @@ _CURRENCY_WORDS = {
 }
 _DATE_FROM_WORDS = {"с", "от"}
 _DATE_TO_WORDS = {"по", "до"}
+_RELATIVE_PERIOD_WORDS = {"за", "last", "последние", "последних"}
 _MONTH_WORDS = {"месяц", "месяца", "месяцев", "мес"}
-_YEAR_WORDS = {"год", "года", "лет"}
+_YEAR_WORDS = {"year", "years", "год", "года", "лет"}
 _MONTHLY_WORDS = {"monthly", "ежемесячно", "помесячно"}
 _YEARLY_WORDS = {"yearly", "ежегодно", "ежегодный"}
 _INITIAL_WORDS = {
@@ -133,6 +134,13 @@ def _parse_int(value: str, minimum: int, maximum: int, name: str) -> int:
     except ValueError as exc:
         raise ValueError(f"{name} must be an integer.") from exc
     return max(minimum, min(parsed, maximum))
+
+
+def _shift_years(value: date, years: int) -> date:
+    try:
+        return value.replace(year=value.year - years)
+    except ValueError:
+        return value.replace(year=value.year - years, day=28)
 
 
 def _read_amount(tokens: list[str], idx: int) -> tuple[int | None, int, str | None]:
@@ -343,6 +351,15 @@ def parse_telegram_video_request(
                 else:
                     _set_investment_amount(updates, "yearly_investment", amount, amount_currency, "yearly")
                 idx = final_idx - 1
+        elif lowered in _RELATIVE_PERIOD_WORDS and idx + 2 < len(tokens):
+            amount = tokens[idx + 1].strip().replace("_", "")
+            period_word = tokens[idx + 2].strip().lower()
+            if not amount.isdigit() or period_word not in _YEAR_WORDS:
+                raise ValueError(f"Cannot parse token: {token}")
+            years = _parse_int(amount, 1, 100, "years")
+            updates["end_date"] = base_render.end_date
+            updates["start_date"] = _shift_years(base_render.end_date, years)
+            idx += 2
         elif (parsed_date := _parse_date_token(token, end=len(positional_dates) == 1)) is not None:
             positional_dates.append(parsed_date)
         elif lowered in {"gradient", "градиент"}:

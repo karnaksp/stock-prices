@@ -93,6 +93,7 @@ hide:
     /queue
     очередь
     SBER LKOH 2020 2024
+    SBER LKOH за 10 лет shorts
     металлы
     черновик металлы
     госы
@@ -142,6 +143,7 @@ hide:
 ```text
 LKOH
 SBER LKOH 2020 2024
+SBER LKOH за 10 лет shorts
 /menu
 /меню
 /ideas
