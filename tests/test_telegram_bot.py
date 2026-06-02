@@ -664,6 +664,41 @@ def test_run_telegram_bot_menu_callback_opens_examples(monkeypatch) -> None:
     assert client.videos == []
 
 
+def test_run_telegram_bot_menu_callback_opens_help(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 64,
+                    "callback_query": {
+                        "id": "callback-menu-help",
+                        "data": "menu:help",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-help", "Помощь открыта.")]
+    assert "Напиши тикер или несколько тикеров" in client.messages[0][1]
+    assert "monthly=30000" in client.messages[0][1]
+    assert client.message_markups == [None]
+    assert client.videos == []
+
+
 def test_run_telegram_bot_menu_callback_queues_hot_preset_drafts(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1194,11 +1229,13 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     assert keyboard[1][1] == {"text": "Новая экономика", "callback_data": "preset:neweconomy"}
     assert keyboard[2][0] == {"text": "Алкоголь", "callback_data": "preset:vodka"}
     assert keyboard[2][1] == {"text": "Мечел", "callback_data": "preset:mechel"}
-    assert keyboard[3][0] == {"text": "Hot drafts", "callback_data": "menu:hot_drafts"}
-    assert keyboard[3][1] == {"text": "Hot shorts", "callback_data": "menu:hot_shorts"}
-    assert keyboard[4][0] == {"text": "Draft presets", "callback_data": "menu:drafts"}
-    assert keyboard[4][1] == {"text": "Draft examples", "callback_data": "menu:example_drafts"}
-    assert keyboard[-1][0]["callback_data"] == "menu:queue"
+    assert keyboard[3][0] == {"text": "Топ черновики", "callback_data": "menu:hot_drafts"}
+    assert keyboard[3][1] == {"text": "Топ шортсы", "callback_data": "menu:hot_shorts"}
+    assert keyboard[4][0] == {"text": "Черновики", "callback_data": "menu:drafts"}
+    assert keyboard[4][1] == {"text": "Черновики примеров", "callback_data": "menu:example_drafts"}
+    assert keyboard[5][0] == {"text": "Случайный сценарий", "callback_data": "menu:random_draft"}
+    assert keyboard[-1][0]["callback_data"] == "menu:help"
+    assert keyboard[-1][1]["callback_data"] == "menu:queue"
     assert client.videos == []
 
 
