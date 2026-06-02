@@ -78,6 +78,7 @@ hide:
 
     ```text
     /ideas
+    /drafts
     SBER LKOH 2020 2024
     preset metals
     preset neweconomy duration=12 theme=studio
@@ -118,6 +119,7 @@ hide:
 LKOH
 SBER LKOH 2020 2024
 /ideas
+/drafts
 preset metals
 preset neweconomy duration=12 theme=studio
 preset metals draft

@@ -33,6 +33,7 @@ USD000UTSTOM selt 2024 close
 
 ```text
 /ideas
+/drafts
 preset metals
 preset neweconomy
 preset vodka
@@ -53,7 +54,7 @@ preset vodka monthly=50000
 preset metals draft
 ```
 
-Все preset-сценарии по умолчанию используют `shorts`: это короткий режим `duration=16`, `fps=24` и `gradient`. Если нужен другой темп, допишите свои `duration=` или `fps=` после имени preset. Для быстрой проверки идеи используйте `draft`: это черновой режим `duration=4`, `fps=8`, без `gradient`.
+Все preset-сценарии по умолчанию используют `shorts`: это короткий режим `duration=16`, `fps=24` и `gradient`. Если нужен другой темп, допишите свои `duration=` или `fps=` после имени preset. Для быстрой проверки идеи используйте `draft`: это черновой режим `duration=4`, `fps=8`, без `gradient`. Команда `/drafts` показывает те же preset-кнопки, но каждая кнопка сразу запускает черновой прогон.
 
 Текущие сценарии:
 

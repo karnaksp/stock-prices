@@ -188,7 +188,7 @@ def expand_preset_text(text: str) -> tuple[str, TelegramPreset | None]:
     return expanded, preset
 
 
-def format_preset_list() -> str:
+def format_preset_list(mode: str = "shorts") -> str:
     lines = [
         "Готовые сценарии для Пульса:",
         "",
@@ -199,6 +199,9 @@ def format_preset_list() -> str:
         lines.append(f"{preset.title} — {preset.description}")
         lines.append("")
     lines.append("Можно дописать параметры: preset metals duration=12 theme=studio")
+    if mode == "draft":
+        lines.append("Draft-кнопки ниже запустят быстрый черновик: duration=4 fps=8 без gradient.")
+        lines.append("Текстом: preset metals draft")
     return "\n".join(lines).strip()
 
 
@@ -214,7 +217,11 @@ def format_pulse_post(preset: TelegramPreset) -> str:
     )
 
 
-def preset_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
-    buttons = [{"text": preset.name, "callback_data": f"preset:{preset.name}"} for preset in PRESETS]
+def preset_inline_keyboard(columns: int = 2, mode: str = "shorts") -> dict[str, list[list[dict[str, str]]]]:
+    if mode not in {"shorts", "draft"}:
+        msg = f"Unknown preset keyboard mode: {mode}."
+        raise ValueError(msg)
+    suffix = ":draft" if mode == "draft" else ""
+    buttons = [{"text": preset.name, "callback_data": f"preset:{preset.name}{suffix}"} for preset in PRESETS]
     rows = [buttons[index : index + columns] for index in range(0, len(buttons), columns)]
     return {"inline_keyboard": rows}
