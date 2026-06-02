@@ -9,7 +9,7 @@ import requests
 
 from stock_prices._internal import telegram_bot
 from stock_prices._internal.models import RenderSettings
-from stock_prices._internal.telegram_presets import PRESETS, format_pulse_post, preset_followup_keyboard
+from stock_prices._internal.telegram_presets import PRESETS, format_pulse_post, preset_button_label, preset_followup_keyboard
 from stock_prices._internal.telegram_requests import parse_telegram_video_request
 from stock_prices._internal.telegram_bot import TelegramApiError, TelegramBotSettings, TelegramClient, cleanup_old_outputs, handle_ticker_message
 
@@ -34,7 +34,7 @@ class FakeClient:
 
 def _expected_preset_keyboard(mode: str = "shorts", columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
     suffix = ":draft" if mode == "draft" else ""
-    buttons = [{"text": preset.name, "callback_data": f"preset:{preset.name}{suffix}"} for preset in PRESETS]
+    buttons = [{"text": preset_button_label(preset), "callback_data": f"preset:{preset.name}{suffix}"} for preset in PRESETS]
     return {"inline_keyboard": [buttons[index : index + columns] for index in range(0, len(buttons), columns)]}
 
 
@@ -312,6 +312,7 @@ def test_handle_ticker_message_lists_pulse_presets_with_russian_command() -> Non
     handle_ticker_message(client, settings, 123, "/идеи")
 
     assert "preset metals" in client.messages[0][1]
+    assert client.message_markups[0]["inline_keyboard"][0][1]["text"] == "Металлы"
     assert client.message_markups[0]["inline_keyboard"][0][1]["callback_data"] == "preset:metals"
     assert client.videos == []
 
@@ -687,3 +688,12 @@ def test_all_pulse_presets_have_ready_post_copy() -> None:
         assert preset.music_mood
         assert "Текст для Пульса" in post
         assert "Не является индивидуальной инвестиционной рекомендацией." in post
+
+
+def test_all_pulse_presets_have_human_button_labels() -> None:
+    labels = [preset_button_label(preset) for preset in PRESETS]
+
+    assert "Металлы" in labels
+    assert "Новая экономика" in labels
+    assert "Угольщики" in labels
+    assert all(label and len(label) <= 24 for label in labels)
