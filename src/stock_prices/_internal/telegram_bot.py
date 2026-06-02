@@ -14,7 +14,7 @@ import requests
 from stock_prices._internal.env import get_cleanup_retention_days
 from stock_prices._internal.models import RenderSettings
 from stock_prices._internal.pipeline import generate_video, log_event
-from stock_prices._internal.telegram_presets import format_preset_list, preset_inline_keyboard
+from stock_prices._internal.telegram_presets import format_preset_list, format_pulse_post, get_preset, preset_inline_keyboard
 from stock_prices._internal.telegram_requests import parse_telegram_video_request
 
 
@@ -286,6 +286,8 @@ def handle_ticker_message(
     log_event("send", "started", job_id=job_id, chat_id=chat_id, output_path=str(output_path))
     client.send_video(chat_id, output_path, f"{parsed.display_name}: {render.start_date} - {render.end_date}")
     log_event("send", "completed", job_id=job_id, chat_id=chat_id, elapsed_ms=int((time.monotonic() - send_started_at) * 1000))
+    if parsed.preset_name:
+        client.send_message(chat_id, format_pulse_post(get_preset(parsed.preset_name)))
     removed = cleanup_old_outputs(render.output_dir, settings.cleanup_retention_days, keep={output_path})
     if removed:
         log_event("cleanup", "completed", job_id=job_id, removed_count=len(removed), retention_days=settings.cleanup_retention_days)
