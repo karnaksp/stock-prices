@@ -136,10 +136,29 @@ class TelegramQueueSnapshot:
 
 
 QUEUE_STATUS_CALLBACK_DATA = "queue:status"
+CUSTOM_FOLLOWUP_MODES = {
+    "draft": "draft",
+    "shorts": "shorts",
+    "12s": "duration=12 fps=24 gradient",
+}
 
 
 def queue_status_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return {"inline_keyboard": [[{"text": "Статус очереди", "callback_data": QUEUE_STATUS_CALLBACK_DATA}]]}
+
+
+def custom_followup_keyboard(request_key: str) -> dict[str, list[list[dict[str, str]]]]:
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "Черновик 4s", "callback_data": f"custom:{request_key}:draft"},
+                {"text": "Шортс 16s", "callback_data": f"custom:{request_key}:shorts"},
+            ],
+            [
+                {"text": "Вариант 12s", "callback_data": f"custom:{request_key}:12s"},
+            ],
+        ]
+    }
 
 
 def _ru_plural(count: int, one: str, few: str, many: str) -> str:
@@ -253,6 +272,14 @@ class TelegramExampleCallback:
 
 
 @dataclass(frozen=True)
+class TelegramCustomFollowupCallback:
+    callback_query_id: str
+    chat_id: int
+    request_key: str
+    mode: str
+
+
+@dataclass(frozen=True)
 class TelegramQueueStatusCallback:
     callback_query_id: str
     chat_id: int
@@ -269,6 +296,7 @@ class TelegramJobQueue:
         self._active_job: TelegramJob | None = None
         self._completed_count = 0
         self._failed_count = 0
+        self._followup_texts: dict[str, str] = {}
 
     def start(self) -> None:
         if self._thread is not None:
@@ -306,9 +334,23 @@ class TelegramJobQueue:
                 reply_markup=queue_status_keyboard(),
             )
         with self._lock:
+            self._followup_texts[job.job_id] = text
+            if len(self._followup_texts) > 100:
+                oldest_key = next(iter(self._followup_texts))
+                self._followup_texts.pop(oldest_key, None)
             self._pending_jobs.append(job)
         self._jobs.put(job)
         return job
+
+    def build_custom_followup_text(self, request_key: str, mode: str) -> str | None:
+        mode_suffix = CUSTOM_FOLLOWUP_MODES.get(mode)
+        if mode_suffix is None:
+            return None
+        with self._lock:
+            text = self._followup_texts.get(request_key)
+        if text is None:
+            return None
+        return f"{text} {mode_suffix}"
 
     def enqueue_preset_drafts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
         labels = ", ".join(preset_button_label(preset) for preset in PRESETS)
@@ -416,7 +458,14 @@ class TelegramJobQueue:
         wait_ms = int((time.monotonic() - job.queued_at) * 1000)
         log_event("request", "dequeued", job_id=job.job_id, chat_id=job.chat_id, wait_ms=wait_ms)
         try:
-            handle_ticker_message(self.client, self.settings, job.chat_id, job.text, job_id=job.job_id)
+            handle_ticker_message(
+                self.client,
+                self.settings,
+                job.chat_id,
+                job.text,
+                job_id=job.job_id,
+                custom_followup_key=job.job_id,
+            )
         except Exception as exc:
             log_event("request", "failed", job_id=job.job_id, chat_id=job.chat_id, error=str(exc))
             logging.exception("Failed to process Telegram request %s", job.job_id)
@@ -485,6 +534,27 @@ def _extract_example_callback(update: dict[str, Any]) -> TelegramExampleCallback
     return TelegramExampleCallback(str(callback_query_id), int(chat_id), example.request, example.name)
 
 
+def _extract_custom_followup_callback(update: dict[str, Any]) -> TelegramCustomFollowupCallback | None:
+    callback_query = update.get("callback_query") or {}
+    callback_query_id = callback_query.get("id")
+    data = (callback_query.get("data") or "").strip()
+    if not callback_query_id or not data.startswith("custom:"):
+        return None
+    message = callback_query.get("message") or {}
+    chat = message.get("chat") or {}
+    chat_id = chat.get("id")
+    if chat_id is None:
+        return None
+    parts = [part.strip() for part in data.split(":")]
+    if len(parts) != 3:
+        return None
+    request_key = parts[1]
+    mode = parts[2].lower()
+    if not request_key or mode not in CUSTOM_FOLLOWUP_MODES:
+        return None
+    return TelegramCustomFollowupCallback(str(callback_query_id), int(chat_id), request_key, mode)
+
+
 def _extract_queue_status_callback(update: dict[str, Any]) -> TelegramQueueStatusCallback | None:
     callback_query = update.get("callback_query") or {}
     callback_query_id = callback_query.get("id")
@@ -507,6 +577,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
         "После preset-видео будут кнопки: черновик 4s, шортс 16s, вариант 12s.\n"
+        "После custom-видео будут такие же быстрые варианты для этого запроса.\n"
         "Примеры:\n"
         "LKOH\n"
         "LKOH SBER 2020 2024\n"
@@ -777,6 +848,7 @@ def handle_ticker_message(
     chat_id: int,
     text: str,
     job_id: str | None = None,
+    custom_followup_key: str | None = None,
 ) -> None:
     if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
         client.send_message(chat_id, "This chat is not allowed to use this bot.")
@@ -830,6 +902,12 @@ def handle_ticker_message(
         )
     else:
         client.send_message(chat_id, format_generic_pulse_post(parsed))
+        if custom_followup_key:
+            client.send_message(
+                chat_id,
+                "Быстрые варианты для этого запроса:",
+                reply_markup=custom_followup_keyboard(custom_followup_key),
+            )
     removed = cleanup_old_outputs(render.output_dir, settings.cleanup_retention_days, keep={output_path})
     if removed:
         log_event("cleanup", "completed", job_id=job_id, removed_count=len(removed), retention_days=settings.cleanup_retention_days)
@@ -904,6 +982,34 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 int(update["update_id"]),
                                 job_suffix=f"example-{example_callback.name}",
                             )
+                        continue
+                    custom_callback = _extract_custom_followup_callback(update)
+                    if custom_callback is not None:
+                        if settings.allowed_chat_ids and custom_callback.chat_id not in settings.allowed_chat_ids:
+                            client.answer_callback_query(custom_callback.callback_query_id, "This chat is not allowed.")
+                            client.send_message(custom_callback.chat_id, "This chat is not allowed to use this bot.")
+                        else:
+                            followup_text = job_queue.build_custom_followup_text(
+                                custom_callback.request_key,
+                                custom_callback.mode,
+                            )
+                            if followup_text is None:
+                                client.answer_callback_query(
+                                    custom_callback.callback_query_id,
+                                    "Исходный запрос уже недоступен.",
+                                )
+                                client.send_message(
+                                    custom_callback.chat_id,
+                                    "Исходный запрос для кнопки уже недоступен. Отправь текст запроса еще раз.",
+                                )
+                            else:
+                                client.answer_callback_query(custom_callback.callback_query_id, "Вариант поставлен в очередь.")
+                                job_queue.enqueue(
+                                    custom_callback.chat_id,
+                                    followup_text,
+                                    int(update["update_id"]),
+                                    job_suffix=f"variant-{custom_callback.mode}",
+                                )
                         continue
                     callback = _extract_preset_callback(update)
                     if callback is None:
