@@ -81,6 +81,7 @@ SBER LKOH shorts
 SBER LKOH за 10 лет shorts
 YDEX OZON за 6 месяцев shorts
 сделай шортс про SBER и LKOH за 6 месяцев для Пульса
+сравни SBER с LKOH за 6 месяцев шортс
 AAPL global USD shorts
 BTC price duration=12 fps=24
 gold 2018-2026 USD gradient
