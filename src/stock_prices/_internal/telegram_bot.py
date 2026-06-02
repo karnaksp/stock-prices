@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from queue import Queue
-from threading import Thread
+from threading import Lock, Thread
 from typing import Any
 
 import requests
@@ -127,6 +127,14 @@ class TelegramJob:
 
 
 @dataclass(frozen=True)
+class TelegramQueueSnapshot:
+    active_job_id: str | None
+    pending_job_ids: tuple[str, ...]
+    completed_count: int
+    failed_count: int
+
+
+@dataclass(frozen=True)
 class TelegramPresetCallback:
     callback_query_id: str
     chat_id: int
@@ -139,6 +147,11 @@ class TelegramJobQueue:
         self.settings = settings
         self._jobs: Queue[TelegramJob | None] = Queue()
         self._thread: Thread | None = None
+        self._lock = Lock()
+        self._pending_jobs: list[TelegramJob] = []
+        self._active_job: TelegramJob | None = None
+        self._completed_count = 0
+        self._failed_count = 0
 
     def start(self) -> None:
         if self._thread is not None:
@@ -159,7 +172,8 @@ class TelegramJobQueue:
     def enqueue(self, chat_id: int, text: str, update_id: int, job_suffix: str = "", notify: bool = True) -> TelegramJob:
         suffix = f"-{job_suffix}" if job_suffix else ""
         job = TelegramJob(job_id=f"tg-{update_id}{suffix}", chat_id=chat_id, text=text, queued_at=time.monotonic())
-        queue_position = self._jobs.qsize() + 1
+        with self._lock:
+            queue_position = len(self._pending_jobs) + 1
         log_event(
             "request",
             "queued",
@@ -170,6 +184,8 @@ class TelegramJobQueue:
         )
         if notify:
             self.client.send_message(chat_id, f"Job {job.job_id} queued. Queue position: {queue_position}.")
+        with self._lock:
+            self._pending_jobs.append(job)
         self._jobs.put(job)
         return job
 
@@ -206,17 +222,61 @@ class TelegramJobQueue:
             notify=False,
         )
 
+    def snapshot(self) -> TelegramQueueSnapshot:
+        with self._lock:
+            return TelegramQueueSnapshot(
+                active_job_id=self._active_job.job_id if self._active_job else None,
+                pending_job_ids=tuple(job.job_id for job in self._pending_jobs),
+                completed_count=self._completed_count,
+                failed_count=self._failed_count,
+            )
+
+    def status_text(self) -> str:
+        snapshot = self.snapshot()
+        lines = ["Очередь Telegram"]
+        if snapshot.active_job_id:
+            lines.append(f"Сейчас: {snapshot.active_job_id}")
+        else:
+            lines.append("Сейчас: нет активного рендера")
+
+        pending_count = len(snapshot.pending_job_ids)
+        lines.append(f"Ждет: {pending_count}")
+        for index, job_id in enumerate(snapshot.pending_job_ids[:8], start=1):
+            lines.append(f"{index}. {job_id}")
+        if pending_count > 8:
+            lines.append(f"... еще {pending_count - 8}")
+        lines.append(f"Готово: {snapshot.completed_count}, ошибок: {snapshot.failed_count}")
+        return "\n".join(lines)
+
+    def _mark_started(self, job: TelegramJob) -> None:
+        with self._lock:
+            self._pending_jobs = [pending_job for pending_job in self._pending_jobs if pending_job.job_id != job.job_id]
+            self._active_job = job
+
+    def _mark_finished(self, job: TelegramJob, success: bool) -> None:
+        with self._lock:
+            if self._active_job and self._active_job.job_id == job.job_id:
+                self._active_job = None
+            if success:
+                self._completed_count += 1
+            else:
+                self._failed_count += 1
+
     def _run_worker(self) -> None:
         while True:
             job = self._jobs.get()
+            success = False
             try:
                 if job is None:
                     return
-                self._process_job(job)
+                self._mark_started(job)
+                success = self._process_job(job)
             finally:
+                if job is not None:
+                    self._mark_finished(job, success)
                 self._jobs.task_done()
 
-    def _process_job(self, job: TelegramJob) -> None:
+    def _process_job(self, job: TelegramJob) -> bool:
         wait_ms = int((time.monotonic() - job.queued_at) * 1000)
         log_event("request", "dequeued", job_id=job.job_id, chat_id=job.chat_id, wait_ms=wait_ms)
         try:
@@ -225,6 +285,8 @@ class TelegramJobQueue:
             log_event("request", "failed", job_id=job.job_id, chat_id=job.chat_id, error=str(exc))
             logging.exception("Failed to process Telegram request %s", job.job_id)
             self.client.send_message(job.chat_id, f"Job {job.job_id} failed: {exc}")
+            return False
+        return True
 
 
 def _extract_text_message(update: dict[str, Any]) -> tuple[int, str] | None:
@@ -271,7 +333,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, все черновики, случайный черновик, металлы, черновик металлы\n"
+        "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, все черновики, случайный черновик, /queue, металлы, черновик металлы\n"
         "После preset-видео будут кнопки: черновик 4s, шортс 16s, вариант 12s.\n"
         "Примеры:\n"
         "LKOH\n"
@@ -285,6 +347,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "все черновики\n"
         "случайный черновик\n"
         "/random_draft\n"
+        "/queue\n"
+        "очередь\n"
         "AAPL global USD gradient theme=studio\n"
         "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n"
         "SiH4 futures 2024 close\n"
@@ -387,6 +451,20 @@ def _is_random_draft(text: str) -> bool:
     }
 
 
+def _is_queue_status(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    return normalized in {
+        "/queue",
+        "/status",
+        "/очередь",
+        "/статус",
+        "queue",
+        "status",
+        "очередь",
+        "статус",
+    }
+
+
 def handle_ticker_message(
     client: TelegramClient,
     settings: TelegramBotSettings,
@@ -405,6 +483,9 @@ def handle_ticker_message(
         return
     if _is_random_draft(text):
         client.send_message(chat_id, "Команда случайного черновика работает в режиме Telegram-очереди.")
+        return
+    if _is_queue_status(text):
+        client.send_message(chat_id, "Статус очереди доступен в режиме Telegram-бота.")
         return
     preset_list_mode = _preset_list_mode(text)
     if preset_list_mode is not None:
@@ -464,6 +545,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
                         elif _is_random_draft(text):
                             job_queue.enqueue_random_preset_draft(chat_id, int(update["update_id"]))
+                        elif _is_queue_status(text):
+                            client.send_message(chat_id, job_queue.status_text())
                         else:
                             preset_list_mode = _preset_list_mode(text)
                             if preset_list_mode is not None:

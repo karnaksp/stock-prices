@@ -341,6 +341,7 @@ def format_preset_list(mode: str = "shorts") -> str:
     lines.append("Можно дописать параметры: preset metals duration=12 theme=studio")
     lines.append("Коротко: металлы, черновик металлы, голубые фишки duration=12")
     lines.append("Для отбора идей: все черновики - поставить в очередь draft-прогоны всех сценариев.")
+    lines.append("Статус очереди: /queue или очередь.")
     lines.append("После preset-видео бот покажет кнопки: черновик 4s, шортс 16s и вариант 12s.")
     if mode == "draft":
         lines.append("Draft-кнопки ниже запустят быстрый черновик: duration=4 fps=8 без gradient.")

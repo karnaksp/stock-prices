@@ -84,6 +84,8 @@ hide:
     случайный черновик
     random draft
     /random_draft
+    /queue
+    очередь
     SBER LKOH 2020 2024
     металлы
     черновик металлы
@@ -137,6 +139,8 @@ SBER LKOH 2020 2024
 случайный черновик
 random draft
 /random_draft
+/queue
+очередь
 кнопки /ideas подписаны по-русски
 follow-up кнопки после preset-видео: черновик 4s / шортс 16s / вариант 12s
 металлы
