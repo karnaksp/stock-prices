@@ -107,6 +107,57 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="медленный dark beat с резким акцентом на просадках",
     ),
     TelegramPreset(
+        name="stateowned",
+        aliases=("госы", "госкомпании", "state", "stateowned"),
+        title="Госкомпании: длинная дистанция ожиданий",
+        description="GAZP / AFLT / SNGS: знакомые имена, разные циклы и тяжелые просадки.",
+        request=(
+            "GAZP AFLT SNGS from=2010-01-01 to=2026-06-01 RUB capital invest "
+            "initial=0 monthly=30000 shorts theme=studio title=State_Owned"
+        ),
+        hook="Что было бы, если много лет подряд покупать самые узнаваемые госистории рынка?",
+        post_text=(
+            "GAZP, AFLT и SNGS хорошо подходят для ролика про ожидания и реальность. Компании знакомые, новости громкие, "
+            "но путь инвестора получается совсем не ровным: сырьевой цикл, санкции, дивиденды, переоценка рисков и длинные периоды ожидания."
+        ),
+        tags=("#пульс", "#газпром", "#аэрофлот", "#российскиеакции"),
+        music_mood="сдержанный драматичный beat с ощущением длинного ожидания",
+    ),
+    TelegramPreset(
+        name="exporters",
+        aliases=("экспортеры", "экспортёры", "exporters", "сырье"),
+        title="Экспортеры: рубль, сырье и циклы",
+        description="LKOH / PHOR / NLMK: сильные бизнесы, но разная цена входа и цикличность.",
+        request=(
+            "LKOH PHOR NLMK from=2011-07-18 to=2026-06-01 RUB capital invest "
+            "initial=0 monthly=30000 shorts theme=aurora title=Exporters"
+        ),
+        hook="Экспортеры часто кажутся защитой от слабого рубля. Но кто реально вытянул регулярные покупки?",
+        post_text=(
+            "LKOH, PHOR и NLMK дают понятное сравнение для Пульса: нефть, удобрения и металлургия. "
+            "На графике видно не только влияние валюты, но и то, насколько цикличные истории требуют терпения."
+        ),
+        tags=("#пульс", "#лукойл", "#фосагро", "#нлмк"),
+        music_mood="энергичный electronic groove с акцентами на смене лидера",
+    ),
+    TelegramPreset(
+        name="coalminers",
+        aliases=("угольщики", "уголь", "coalminers", "rasp"),
+        title="Угольщики: циклическая ставка без спокойствия",
+        description="MTLR / RASP: резкие фазы роста, откаты и проверка терпения.",
+        request=(
+            "MTLR RASP from=2014-06-09 to=2026-06-01 RUB capital invest "
+            "initial=0 monthly=30000 shorts theme=studio title=Coal_Minors"
+        ),
+        hook="Угольщики умеют выглядеть как ракета, но только если забыть, что у ракеты бывают обратные рейсы.",
+        post_text=(
+            "MTLR и RASP - история для тех, кто любит циклические активы. Такой ролик хорошо показывает, как быстро меняется настроение "
+            "в сырьевых бумагах и почему регулярные покупки не отменяют риск длинных просадок."
+        ),
+        tags=("#пульс", "#мечел", "#распадская", "#циклическиеакции"),
+        music_mood="жесткий industrial / breakbeat с резкими паузами на просадках",
+    ),
+    TelegramPreset(
         name="bluechips",
         aliases=("sber-lkoh", "classic", "голубые", "голубые фишки", "классика"),
         title="Голубые фишки: скучно или эффективно",
@@ -161,6 +212,14 @@ _DIRECT_PRESET_ALIASES = {
     "мечел": "mechel",
     "wagons": "wagons",
     "вагоны": "wagons",
+    "stateowned": "stateowned",
+    "госы": "stateowned",
+    "госкомпании": "stateowned",
+    "exporters": "exporters",
+    "экспортеры": "exporters",
+    "экспортёры": "exporters",
+    "coalminers": "coalminers",
+    "угольщики": "coalminers",
     "bluechips": "bluechips",
     "голубые": "bluechips",
     "голубые фишки": "bluechips",

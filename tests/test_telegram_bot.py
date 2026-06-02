@@ -32,6 +32,12 @@ class FakeClient:
         self.callback_answers.append((callback_query_id, text))
 
 
+def _expected_preset_keyboard(mode: str = "shorts", columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
+    suffix = ":draft" if mode == "draft" else ""
+    buttons = [{"text": preset.name, "callback_data": f"preset:{preset.name}{suffix}"} for preset in PRESETS]
+    return {"inline_keyboard": [buttons[index : index + columns] for index in range(0, len(buttons), columns)]}
+
+
 def test_handle_ticker_message_generates_video(monkeypatch) -> None:
     client = FakeClient()
     seen_job_ids = []
@@ -243,14 +249,9 @@ def test_handle_ticker_message_lists_pulse_presets() -> None:
     assert "Готовые сценарии для Пульса" in preset_text
     assert "preset metals" in preset_text
     assert "preset neweconomy" in preset_text
-    assert client.message_markups[0] == {
-        "inline_keyboard": [
-            [{"text": "neweconomy", "callback_data": "preset:neweconomy"}, {"text": "metals", "callback_data": "preset:metals"}],
-            [{"text": "vodka", "callback_data": "preset:vodka"}, {"text": "mechel", "callback_data": "preset:mechel"}],
-            [{"text": "wagons", "callback_data": "preset:wagons"}, {"text": "bluechips", "callback_data": "preset:bluechips"}],
-            [{"text": "techru", "callback_data": "preset:techru"}],
-        ]
-    }
+    assert "preset exporters" in preset_text
+    assert "preset coalminers" in preset_text
+    assert client.message_markups[0] == _expected_preset_keyboard()
     assert client.videos == []
 
 
@@ -281,14 +282,8 @@ def test_handle_ticker_message_lists_draft_presets() -> None:
     assert "draft" in preset_text
     assert "preset metals" in preset_text
     assert "preset neweconomy" in preset_text
-    assert client.message_markups[0] == {
-        "inline_keyboard": [
-            [{"text": "neweconomy", "callback_data": "preset:neweconomy:draft"}, {"text": "metals", "callback_data": "preset:metals:draft"}],
-            [{"text": "vodka", "callback_data": "preset:vodka:draft"}, {"text": "mechel", "callback_data": "preset:mechel:draft"}],
-            [{"text": "wagons", "callback_data": "preset:wagons:draft"}, {"text": "bluechips", "callback_data": "preset:bluechips:draft"}],
-            [{"text": "techru", "callback_data": "preset:techru:draft"}],
-        ]
-    }
+    assert "preset stateowned" in preset_text
+    assert client.message_markups[0] == _expected_preset_keyboard("draft")
     assert client.videos == []
 
 
@@ -499,6 +494,40 @@ def test_parse_telegram_video_request_direct_shortcut_allows_multiword_alias_and
     assert parsed.preset_name == "bluechips"
     assert [spec.ticker for spec in parsed.request.ticker_specs] == ["SBER", "LKOH", "MGNT"]
     assert parsed.request.render.duration == 12
+
+
+def test_parse_telegram_video_request_accepts_stateowned_direct_shortcut() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request("госы", base)
+
+    assert parsed.preset_name == "stateowned"
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["GAZP", "AFLT", "SNGS"]
+    assert parsed.request.render.start_date == date(2010, 1, 1)
+    assert parsed.request.render.monthly_investment == 30_000
+
+
+def test_parse_telegram_video_request_accepts_exporters_direct_shortcut() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request("экспортёры duration=12", base)
+
+    assert parsed.preset_name == "exporters"
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["LKOH", "PHOR", "NLMK"]
+    assert parsed.request.render.duration == 12
+    assert parsed.request.render.theme == "aurora"
+
+
+def test_parse_telegram_video_request_accepts_coalminers_draft_shortcut() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), duration=30, fps=20, use_gradient=True)
+
+    parsed = parse_telegram_video_request("черновик угольщики", base)
+
+    assert parsed.preset_name == "coalminers"
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["MTLR", "RASP"]
+    assert parsed.request.render.duration == 4
+    assert parsed.request.render.fps == 8
+    assert parsed.request.render.use_gradient is False
 
 
 def test_parse_telegram_video_request_keeps_gold_as_single_asset() -> None:

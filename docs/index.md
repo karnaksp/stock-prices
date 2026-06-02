@@ -84,6 +84,9 @@ hide:
     SBER LKOH 2020 2024
     металлы
     черновик металлы
+    госы
+    экспортёры
+    черновик угольщики
     preset metals
     пресет металлы
     preset neweconomy duration=12 theme=studio
@@ -129,6 +132,9 @@ SBER LKOH 2020 2024
 /черновики
 металлы
 черновик металлы
+госы
+экспортёры
+черновик угольщики
 preset metals
 пресет металлы
 preset neweconomy duration=12 theme=studio
