@@ -83,6 +83,8 @@ hide:
     /drafts
     /идеи
     /черновики
+    top drafts
+    топ черновики
     случайный черновик
     random draft
     /random_draft
@@ -145,6 +147,8 @@ SBER LKOH 2020 2024
 /идеи
 /черновики
 все черновики
+top drafts
+топ черновики
 случайный черновик
 random draft
 /random_draft
