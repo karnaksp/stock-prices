@@ -94,6 +94,7 @@ hide:
     очередь
     SBER LKOH 2020 2024
     SBER LKOH за 10 лет shorts
+    YDEX OZON за 6 месяцев shorts
     металлы
     черновик металлы
     госы
@@ -144,6 +145,7 @@ hide:
 LKOH
 SBER LKOH 2020 2024
 SBER LKOH за 10 лет shorts
+YDEX OZON за 6 месяцев shorts
 /menu
 /меню
 /ideas
