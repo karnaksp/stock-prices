@@ -134,9 +134,14 @@ stock-prices --tickers "USD000UTSTOM|currency|selt" --start_date 2020-01-01 --en
 
 Telegram-бот рассчитан на короткие запросы без знания CLI. Пользователь пишет тикер или несколько параметров в одном сообщении, бот отвечает статусом, генерирует видео и отправляет MP4.
 
+Для контента в Пульсе можно запускать готовые preset-сценарии. Команды `случайный черновик`, `random draft` и `/random_draft` выбирают один проверенный preset и ставят короткий draft в очередь без LLM.
+
 Примеры сообщений:
 
 ```text
+случайный черновик
+random draft
+/random_draft
 LKOH
 SBER LKOH 2020 2024
 AAPL global USD gradient

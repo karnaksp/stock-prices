@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -191,6 +192,20 @@ class TelegramJobQueue:
             )
         return jobs
 
+    def enqueue_random_preset_draft(self, chat_id: int, update_id: int) -> TelegramJob:
+        preset = random.choice(PRESETS)
+        self.client.send_message(
+            chat_id,
+            f"Случайный черновик: {preset_button_label(preset)}. Ставлю короткий draft в очередь.",
+        )
+        return self.enqueue(
+            chat_id,
+            f"preset {preset.name} draft",
+            update_id,
+            job_suffix=f"random-draft-{preset.name}",
+            notify=False,
+        )
+
     def _run_worker(self) -> None:
         while True:
             job = self._jobs.get()
@@ -256,7 +271,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, все черновики, металлы, черновик металлы\n"
+        "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, все черновики, случайный черновик, металлы, черновик металлы\n"
         "После preset-видео будут кнопки: черновик 4s, шортс 16s, вариант 12s.\n"
         "Примеры:\n"
         "LKOH\n"
@@ -268,6 +283,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "/drafts\n"
         "/черновики\n"
         "все черновики\n"
+        "случайный черновик\n"
+        "/random_draft\n"
         "AAPL global USD gradient theme=studio\n"
         "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n"
         "SiH4 futures 2024 close\n"
@@ -354,6 +371,22 @@ def _is_draft_batch(text: str) -> bool:
     }
 
 
+def _is_random_draft(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    return normalized in {
+        "/random",
+        "/random_draft",
+        "/случайный",
+        "/случайный_черновик",
+        "random",
+        "random draft",
+        "draft random",
+        "случайный",
+        "случайный черновик",
+        "черновик случайный",
+    }
+
+
 def handle_ticker_message(
     client: TelegramClient,
     settings: TelegramBotSettings,
@@ -369,6 +402,9 @@ def handle_ticker_message(
         return
     if _is_draft_batch(text):
         client.send_message(chat_id, "Команда пакетных черновиков работает в режиме Telegram-очереди.")
+        return
+    if _is_random_draft(text):
+        client.send_message(chat_id, "Команда случайного черновика работает в режиме Telegram-очереди.")
         return
     preset_list_mode = _preset_list_mode(text)
     if preset_list_mode is not None:
@@ -426,6 +462,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
                         elif _is_draft_batch(text):
                             job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
+                        elif _is_random_draft(text):
+                            job_queue.enqueue_random_preset_draft(chat_id, int(update["update_id"]))
                         else:
                             preset_list_mode = _preset_list_mode(text)
                             if preset_list_mode is not None:
