@@ -407,10 +407,27 @@ def test_handle_ticker_message_sends_generic_pulse_copy_for_investment_request(m
 
     pulse_text = client.messages[-1][1]
     assert "Текст для Пульса" in pulse_text
+    assert "Заголовок: GC=F / SI=F / PA=F - ежемесячные покупки против разных активов" in pulse_text
+    assert "Хук: Если каждый месяц откладывать 30 000 RUB" in pulse_text
+    assert "Вопрос для обсуждения: вы бы выдержали такую регулярную стратегию" in pulse_text
+    assert "Музыка/монтаж: плотный драматичный бит" in pulse_text
     assert "GC=F / SI=F / PA=F" in pulse_text
     assert "ежемесячно 30 000 RUB" in pulse_text
     assert "#сырье" in pulse_text
     assert "Не инвестиционная рекомендация" in pulse_text
+
+
+def test_format_generic_pulse_post_uses_single_asset_hook() -> None:
+    base = RenderSettings(start_date=date(2020, 1, 1), end_date=date(2024, 12, 31))
+    parsed = parse_telegram_video_request("LKOH 2020 2024 close", base)
+
+    pulse_text = telegram_bot.format_generic_pulse_post(parsed)
+
+    assert "Заголовок: LKOH - один актив на истории" in pulse_text
+    assert "Хук: Один график, который быстро показывает характер LKOH" in pulse_text
+    assert "Вопрос для обсуждения: это больше похоже на возможность" in pulse_text
+    assert "Музыка/монтаж: минималистичный бит" in pulse_text
+    assert "#акции" in pulse_text
 
 
 def test_telegram_job_queue_status_tracks_pending_and_finished(monkeypatch) -> None:

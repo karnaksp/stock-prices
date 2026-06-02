@@ -564,12 +564,67 @@ def _market_tags(parsed: ParsedTelegramRequest) -> str:
     return " ".join(dict.fromkeys(tags))
 
 
+def _custom_story_label(parsed: ParsedTelegramRequest) -> str:
+    render = parsed.request.render
+    markets = {spec.market for spec in parsed.request.ticker_specs}
+    engines = {spec.engine for spec in parsed.request.ticker_specs}
+    ticker_count = len(parsed.request.ticker_specs)
+
+    if render.with_investments and ticker_count > 1:
+        return "ежемесячные покупки против разных активов"
+    if "crypto" in markets:
+        return "крипта на одной шкале"
+    if "metals" in markets or "commodities" in markets:
+        return "сырьевой сюжет на длинной дистанции"
+    if "futures" in markets or "forts" in markets or "futures" in engines:
+        return "фьючерсная динамика без лишних слов"
+    if "currency" in markets or "selt" in markets or "currency" in engines:
+        return "валютная траектория"
+    if ticker_count == 1:
+        return "один актив на истории"
+    return "сравнение активов на одной шкале"
+
+
+def _custom_pulse_hook(parsed: ParsedTelegramRequest) -> str:
+    render = parsed.request.render
+    if render.with_investments and render.monthly_investment:
+        return (
+            f"Если каждый месяц откладывать {_format_amount(render.monthly_investment, render.currency)}, "
+            f"какой из вариантов выглядит убедительнее на истории: {parsed.display_name}?"
+        )
+    if len(parsed.request.ticker_specs) == 1:
+        return f"Один график, который быстро показывает характер {parsed.display_name} на выбранном периоде."
+    return f"На одном графике {parsed.display_name}: где была спокойная траектория, а где началась настоящая драма?"
+
+
+def _custom_pulse_question(parsed: ParsedTelegramRequest) -> str:
+    render = parsed.request.render
+    if render.with_investments:
+        return "Вопрос для обсуждения: вы бы выдержали такую регулярную стратегию до финального результата?"
+    if len(parsed.request.ticker_specs) > 1:
+        return "Вопрос для обсуждения: какой актив на графике выглядит самым неожиданным?"
+    return "Вопрос для обсуждения: это больше похоже на возможность или на ловушку ожиданий?"
+
+
+def _custom_music_mood(parsed: ParsedTelegramRequest) -> str:
+    markets = {spec.market for spec in parsed.request.ticker_specs}
+    if "crypto" in markets:
+        return "быстрый электронный бит, резкие акценты на разворотах"
+    if "metals" in markets or "commodities" in markets:
+        return "плотный драматичный бит, пауза на финальном сравнении"
+    if len(parsed.request.ticker_specs) == 1:
+        return "минималистичный бит, акцент на финальной подписи"
+    return "энергичный темп, короткая пауза на победителе и отстающих"
+
+
 def format_generic_pulse_post(parsed: ParsedTelegramRequest) -> str:
     render = parsed.request.render
     period = f"{render.start_date:%d.%m.%Y} - {render.end_date:%d.%m.%Y}"
+    story_label = _custom_story_label(parsed)
     lines = [
         "Текст для Пульса:",
-        f"Что было бы, если сравнить {parsed.display_name} на одном графике?",
+        f"Заголовок: {parsed.display_name} - {story_label}",
+        f"Хук: {_custom_pulse_hook(parsed)}",
         "",
         f"Период: {period}. Валюта: {render.currency}. Метрика: {_metric_label(render.value_col)}.",
     ]
@@ -584,7 +639,8 @@ def format_generic_pulse_post(parsed: ParsedTelegramRequest) -> str:
         [
             "На видео историческая траектория, а не прогноз. Хороший формат для обсуждения: где график удивляет, где ожидания ломаются, а где регулярные покупки действительно меняют картину.",
             "",
-            "Монтаж: оставить быстрый темп, в финале сделать паузу на результатах и процентах.",
+            _custom_pulse_question(parsed),
+            f"Музыка/монтаж: {_custom_music_mood(parsed)}.",
             f"{_market_tags(parsed)}",
             "Не инвестиционная рекомендация.",
         ]
