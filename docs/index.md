@@ -95,6 +95,7 @@ hide:
     SBER LKOH 2020 2024
     SBER LKOH за 10 лет shorts
     YDEX OZON за 6 месяцев shorts
+    сделай шортс про SBER и LKOH за 6 месяцев для Пульса
     металлы
     черновик металлы
     госы
@@ -146,6 +147,7 @@ LKOH
 SBER LKOH 2020 2024
 SBER LKOH за 10 лет shorts
 YDEX OZON за 6 месяцев shorts
+сделай шортс про SBER и LKOH за 6 месяцев для Пульса
 /menu
 /меню
 /ideas

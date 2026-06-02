@@ -80,6 +80,7 @@ preset neweconomy duration=12 theme=studio
 SBER LKOH shorts
 SBER LKOH за 10 лет shorts
 YDEX OZON за 6 месяцев shorts
+сделай шортс про SBER и LKOH за 6 месяцев для Пульса
 AAPL global USD shorts
 BTC price duration=12 fps=24
 gold 2018-2026 USD gradient
