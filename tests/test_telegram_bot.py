@@ -174,6 +174,7 @@ def test_help_text_mentions_investments_and_themes() -> None:
 
     help_text = client.messages[0][1]
     assert "monthly=30000" in help_text
+    assert "shorts" in help_text
     assert "theme=default|aurora|studio" in help_text
     assert "SiH4 futures" in help_text
     assert "preset neweconomy" in help_text
@@ -298,6 +299,17 @@ def test_parse_telegram_video_request_accepts_investment_amounts_for_metals() ->
     assert parsed.request.render.use_gradient is True
 
 
+def test_parse_telegram_video_request_accepts_shorts_mode() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), duration=30, fps=20)
+
+    parsed = parse_telegram_video_request("lkoh sber 2020 2024 shorts", base)
+
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["LKOH", "SBER"]
+    assert parsed.request.render.duration == 16
+    assert parsed.request.render.fps == 24
+    assert parsed.request.render.use_gradient is True
+
+
 def test_parse_telegram_video_request_expands_pulse_preset() -> None:
     base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
 
@@ -316,6 +328,7 @@ def test_parse_telegram_video_request_expands_pulse_preset() -> None:
     assert parsed.request.render.initial_investment == 0
     assert parsed.request.render.monthly_investment == 30_000
     assert parsed.request.render.duration == 12
+    assert parsed.request.render.fps == 24
     assert parsed.request.render.theme == "aurora"
 
 
@@ -350,6 +363,17 @@ def test_parse_telegram_video_request_accepts_preset_alias() -> None:
     assert parsed.request.render.theme == "default"
 
 
+def test_pulse_preset_defaults_to_shorts_but_allows_overrides() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), duration=30, fps=20)
+
+    parsed = parse_telegram_video_request("preset neweconomy duration=22 fps=12", base)
+
+    assert parsed.preset_name == "neweconomy"
+    assert parsed.request.render.duration == 22
+    assert parsed.request.render.fps == 12
+    assert parsed.request.render.use_gradient is True
+
+
 def test_all_pulse_presets_are_parseable() -> None:
     base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
 
@@ -358,6 +382,9 @@ def test_all_pulse_presets_are_parseable() -> None:
 
         assert parsed.preset_name == preset.name
         assert parsed.request.ticker_specs
+        assert parsed.request.render.duration == 16
+        assert parsed.request.render.fps == 24
+        assert parsed.request.render.use_gradient is True
 
 
 def test_all_pulse_presets_have_ready_post_copy() -> None:
