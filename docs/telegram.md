@@ -17,10 +17,49 @@ TICKER [TICKER...] [period] [market/source] [currency] [metric] [options]
 ```text
 LKOH
 SBER LKOH 2020 2024
+preset metals
+preset neweconomy duration=12 theme=studio
 AAPL global USD gradient theme=studio
 gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient
 SiH4 futures 2024 close
 USD000UTSTOM selt 2024 close
+```
+
+## Готовые сценарии для Пульса
+
+Для быстрых шортсов можно не вспоминать тикеры и даты, а взять проверенный сценарий:
+
+```text
+/ideas
+preset metals
+preset neweconomy
+preset vodka
+preset mechel
+preset wagons
+preset bluechips
+preset techru
+```
+
+Команда `/ideas` показывает список сценариев прямо в Telegram. Команда `preset <name>` разворачивается в обычный запрос с тикерами, датами, валютой, инвестициями и темой.
+
+После имени можно дописать параметры, и они переопределят дефолт пресета:
+
+```text
+preset metals duration=12 theme=studio
+preset neweconomy from=2021-12-17 to=2026-06-01 fps=24
+preset vodka monthly=50000
+```
+
+Текущие сценарии:
+
+```text
+neweconomy   SMLT / SGZH / POSI, новая экономика 2021-2026
+metals       золото / серебро / палладий в RUB с monthly=30000
+vodka        BELU / ABRD / KLVZ, алкогольные акции
+mechel       MTLR / MTLRP, циклическая драма
+wagons       UWGN / IMOEX, вагоны против рынка
+bluechips    SBER / LKOH / MGNT, понятная база для широкой аудитории
+techru       YDEX / OZON / VKCO, российский технологический сюжет
 ```
 
 ## Даты

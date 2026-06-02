@@ -53,6 +53,8 @@ docker compose logs -f stock-prices-bot
 ```text
 LKOH
 SBER LKOH 2020 2024
+preset metals
+preset neweconomy duration=12 theme=studio
 AAPL global USD gradient
 BTC price duration=12 fps=24
 gold 2018-2026 USD gradient
@@ -103,6 +105,9 @@ stock-prices bot --allowed_chat_id 123456789
 Полезные сокращения в сообщениях:
 
 ```text
+/ideas                  список готовых сценариев для Пульса
+preset metals           готовый сценарий с металлами
+preset neweconomy       готовый сценарий новой экономики
 2020 2024              период
 from=2020-01-01        точная дата начала
 to=2024-12-31          точная дата окончания
