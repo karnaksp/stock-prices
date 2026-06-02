@@ -14,6 +14,7 @@ class TelegramPreset:
     tags: tuple[str, ...]
     music_mood: str
     aliases: tuple[str, ...] = ()
+    button_label: str = ""
 
 
 PRESETS: tuple[TelegramPreset, ...] = (
@@ -34,6 +35,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#инвестиции", "#акции", "#новаяэкономика"),
         music_mood="напряженный synthwave или быстрый электронный бит",
+        button_label="Новая экономика",
     ),
     TelegramPreset(
         name="metals",
@@ -52,6 +54,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#металлы", "#золото", "#инвестиции"),
         music_mood="ровный cinematic beat с нарастающим финалом",
+        button_label="Металлы",
     ),
     TelegramPreset(
         name="vodka",
@@ -70,6 +73,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#акции", "#российскийрынок", "#идеядляграфика"),
         music_mood="ироничный funk / disco beat без тяжелого драматизма",
+        button_label="Алкоголь",
     ),
     TelegramPreset(
         name="mechel",
@@ -88,6 +92,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#мечел", "#акции", "#риск"),
         music_mood="тяжелый industrial beat или драматичный trailer percussion",
+        button_label="Мечел",
     ),
     TelegramPreset(
         name="wagons",
@@ -105,6 +110,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#uwgn", "#IMOEX", "#российскиеакции"),
         music_mood="медленный dark beat с резким акцентом на просадках",
+        button_label="Вагоны",
     ),
     TelegramPreset(
         name="stateowned",
@@ -122,6 +128,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#газпром", "#аэрофлот", "#российскиеакции"),
         music_mood="сдержанный драматичный beat с ощущением длинного ожидания",
+        button_label="Госкомпании",
     ),
     TelegramPreset(
         name="exporters",
@@ -139,6 +146,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#лукойл", "#фосагро", "#нлмк"),
         music_mood="энергичный electronic groove с акцентами на смене лидера",
+        button_label="Экспортёры",
     ),
     TelegramPreset(
         name="coalminers",
@@ -156,6 +164,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#мечел", "#распадская", "#циклическиеакции"),
         music_mood="жесткий industrial / breakbeat с резкими паузами на просадках",
+        button_label="Угольщики",
     ),
     TelegramPreset(
         name="bluechips",
@@ -174,6 +183,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#сбер", "#лукойл", "#долгосрок"),
         music_mood="уверенный pop / corporate beat с чистым ритмом",
+        button_label="Голубые фишки",
     ),
     TelegramPreset(
         name="techru",
@@ -192,6 +202,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#технологии", "#ydex", "#ozon"),
         music_mood="быстрый tech house или clean electronic groove",
+        button_label="Российский тех",
     ),
 )
 
@@ -348,6 +359,10 @@ def format_pulse_post(preset: TelegramPreset) -> str:
     )
 
 
+def preset_button_label(preset: TelegramPreset) -> str:
+    return preset.button_label or preset.name
+
+
 def preset_followup_keyboard(preset_name: str) -> dict[str, list[list[dict[str, str]]]]:
     preset = get_preset(preset_name)
     return {
@@ -368,6 +383,6 @@ def preset_inline_keyboard(columns: int = 2, mode: str = "shorts") -> dict[str, 
         msg = f"Unknown preset keyboard mode: {mode}."
         raise ValueError(msg)
     suffix = ":draft" if mode == "draft" else ""
-    buttons = [{"text": preset.name, "callback_data": f"preset:{preset.name}{suffix}"} for preset in PRESETS]
+    buttons = [{"text": preset_button_label(preset), "callback_data": f"preset:{preset.name}{suffix}"} for preset in PRESETS]
     rows = [buttons[index : index + columns] for index in range(0, len(buttons), columns)]
     return {"inline_keyboard": rows}
