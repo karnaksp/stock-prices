@@ -7,7 +7,7 @@ from stock_prices._internal.core import models as core_models
 from stock_prices._internal.lib import dataset_builder
 from stock_prices._internal.lib import validators as legacy_validators
 from stock_prices._internal.market_data import validators as market_validators
-from stock_prices._internal.portfolio.calculations import calculate_capital_with_reinvest
+from stock_prices._internal.portfolio.calculations import InvestmentPlan, calculate_capital_with_reinvest
 from stock_prices._internal.rendering.filenames import safe_video_stem
 
 
@@ -47,3 +47,7 @@ def test_portfolio_calculation_preserves_monthly_investment_behavior() -> None:
 
     assert result["savings"].tolist() == [0.0, 30_000.0, 60_000.0]
     assert result["CAPITAL_REINVEST"].tolist() == [0.0, 30_000.0, 60_000.0]
+
+
+def test_portfolio_package_exports_investment_plan() -> None:
+    assert InvestmentPlan(initial=0, monthly=30_000).monthly == 30_000

@@ -6,7 +6,7 @@ from typing import Any
 
 import pandas as pd
 
-from stock_prices._internal.portfolio.calculations import calculate_capital_with_reinvest
+from stock_prices._internal.portfolio.calculations import InvestmentPlan, calculate_capital_with_reinvest
 
 
 def generate_unique_colors(n: int, palette_name: str = "tab10") -> list[str]:
@@ -52,6 +52,7 @@ def prepare_dataset(
     initial_investment: int = 10000,
     monthly_investment: int = 0,
     yearly_investment: int = 0,
+    investment_plan: InvestmentPlan | None = None,
 ) -> pd.DataFrame:
     from stock_prices._internal.lib.file_utils import load_latest_parquet, load_ticker_df
 
@@ -62,6 +63,7 @@ def prepare_dataset(
         initial_investment=initial_investment,
         monthly_investment=monthly_investment,
         yearly_investment=yearly_investment,
+        investment_plan=investment_plan,
         ticker=ticker,
     )
 
@@ -78,6 +80,7 @@ def build_data_list(args: Any, build_args: Any, start_date, end_date) -> list[di
     colors = generate_unique_colors(len(tickers))
     data_list: list[dict[str, Any]] = []
     investments_df = None
+    investment_plan = InvestmentPlan.from_args(args)
 
     for ticker, engine, market, color in zip(tickers, engines, markets, colors):
         try:
@@ -90,6 +93,7 @@ def build_data_list(args: Any, build_args: Any, start_date, end_date) -> list[di
                 getattr(args, "initial_investment", 10000),
                 getattr(args, "monthly_investment", 0),
                 getattr(args, "yearly_investment", 0),
+                investment_plan,
             )
         except Exception:
             logging.exception("Failed to prepare dataset for %s", ticker)
