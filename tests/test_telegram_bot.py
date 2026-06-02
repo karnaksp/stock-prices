@@ -428,8 +428,8 @@ def test_telegram_job_queue_status_tracks_pending_and_finished(monkeypatch) -> N
     assert "Очередь Telegram" in pending_status
     assert "Сейчас: нет активного рендера" in pending_status
     assert "Ждет: 2" in pending_status
-    assert "tg-48" in pending_status
-    assert "tg-49" in pending_status
+    assert "tg-48 - LKOH" in pending_status
+    assert "tg-49 - SBER" in pending_status
 
     started = Event()
     release = Event()
@@ -445,9 +445,9 @@ def test_telegram_job_queue_status_tracks_pending_and_finished(monkeypatch) -> N
     try:
         assert started.wait(timeout=5)
         active_status = queue.status_text()
-        assert "Сейчас: tg-48" in active_status
+        assert "Сейчас: tg-48 - LKOH" in active_status
         assert "Ждет: 1" in active_status
-        assert "tg-49" in active_status
+        assert "tg-49 - SBER" in active_status
 
         release.set()
         queue.join()
@@ -459,6 +459,27 @@ def test_telegram_job_queue_status_tracks_pending_and_finished(monkeypatch) -> N
     assert "Сейчас: нет активного рендера" in finished_status
     assert "Ждет: 0" in finished_status
     assert "Готово: 2, ошибок: 0" in finished_status
+
+
+def test_telegram_job_queue_status_truncates_long_request_preview() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+    queue = telegram_bot.TelegramJobQueue(client, settings)
+
+    queue.enqueue(
+        123,
+        "SBER LKOH GAZP NVTK YDEX OZON VKCO from=2010-01-01 to=2026-06-01 RUB capital invest monthly=30000 shorts theme=studio",
+        53,
+        notify=False,
+    )
+
+    status = queue.status_text()
+
+    assert "tg-53 - SBER LKOH GAZP NVTK YDEX OZON VKCO from=2010-01-01 to=2..." in status
+    assert "monthly=30000" not in status
 
 
 def test_run_telegram_bot_reports_queue_status(monkeypatch) -> None:

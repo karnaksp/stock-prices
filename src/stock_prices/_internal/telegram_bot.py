@@ -129,7 +129,8 @@ class TelegramJob:
 @dataclass(frozen=True)
 class TelegramQueueSnapshot:
     active_job_id: str | None
-    pending_job_ids: tuple[str, ...]
+    active_preview: str
+    pending_jobs: tuple[tuple[str, str], ...]
     completed_count: int
     failed_count: int
 
@@ -149,6 +150,13 @@ def _ru_plural(count: int, one: str, few: str, many: str) -> str:
     if count % 10 in {2, 3, 4}:
         return few
     return many
+
+
+def _job_preview(text: str, limit: int = 56) -> str:
+    preview = " ".join(text.split())
+    if len(preview) <= limit:
+        return preview
+    return f"{preview[: limit - 1]}..."
 
 
 @dataclass(frozen=True)
@@ -267,7 +275,8 @@ class TelegramJobQueue:
         with self._lock:
             return TelegramQueueSnapshot(
                 active_job_id=self._active_job.job_id if self._active_job else None,
-                pending_job_ids=tuple(job.job_id for job in self._pending_jobs),
+                active_preview=_job_preview(self._active_job.text) if self._active_job else "",
+                pending_jobs=tuple((job.job_id, _job_preview(job.text)) for job in self._pending_jobs),
                 completed_count=self._completed_count,
                 failed_count=self._failed_count,
             )
@@ -276,14 +285,14 @@ class TelegramJobQueue:
         snapshot = self.snapshot()
         lines = ["Очередь Telegram"]
         if snapshot.active_job_id:
-            lines.append(f"Сейчас: {snapshot.active_job_id}")
+            lines.append(f"Сейчас: {snapshot.active_job_id} - {snapshot.active_preview}")
         else:
             lines.append("Сейчас: нет активного рендера")
 
-        pending_count = len(snapshot.pending_job_ids)
+        pending_count = len(snapshot.pending_jobs)
         lines.append(f"Ждет: {pending_count}")
-        for index, job_id in enumerate(snapshot.pending_job_ids[:8], start=1):
-            lines.append(f"{index}. {job_id}")
+        for index, (job_id, preview) in enumerate(snapshot.pending_jobs[:8], start=1):
+            lines.append(f"{index}. {job_id} - {preview}")
         if pending_count > 8:
             lines.append(f"... еще {pending_count - 8}")
         lines.append(f"Готово: {snapshot.completed_count}, ошибок: {snapshot.failed_count}")
