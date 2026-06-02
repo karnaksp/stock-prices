@@ -156,6 +156,7 @@ random draft
 очередь
 LKOH
 SBER LKOH 2020 2024
+SBER LKOH за 10 лет shorts
 AAPL global USD gradient
 BTC price duration=12 fps=24
 gold 2018-2026 USD gradient
