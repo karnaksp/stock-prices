@@ -223,10 +223,12 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, preset metals или пресет металлы\n"
+        "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, металлы, черновик металлы\n"
         "Примеры:\n"
         "LKOH\n"
         "LKOH SBER 2020 2024\n"
+        "металлы\n"
+        "черновик металлы\n"
         "preset neweconomy duration=12\n"
         "пресет металлы draft\n"
         "/drafts\n"

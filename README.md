@@ -57,6 +57,8 @@ docker compose logs -f stock-prices-bot
 /черновики
 LKOH
 SBER LKOH 2020 2024
+металлы
+черновик металлы
 preset metals
 пресет металлы
 preset neweconomy duration=12 theme=studio
@@ -116,6 +118,8 @@ stock-prices bot --allowed_chat_id 123456789
 /drafts                 те же preset-кнопки, но в быстром черновом режиме
 /идеи                  русская команда для списка shorts-сценариев
 /черновики             русская команда для быстрых draft-прогонов
+металлы                короткий запуск preset-сценария с металлами
+черновик металлы       быстрый draft-прогон сценария с металлами
 preset metals           готовый сценарий с металлами
 пресет металлы          тот же сценарий русским текстом
 preset neweconomy       готовый сценарий новой экономики
