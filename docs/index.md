@@ -85,6 +85,8 @@ hide:
     /черновики
     top drafts
     топ черновики
+    top shorts
+    топ шортсы
     случайный черновик
     random draft
     /random_draft
@@ -149,6 +151,8 @@ SBER LKOH 2020 2024
 все черновики
 top drafts
 топ черновики
+top shorts
+топ шортсы
 случайный черновик
 random draft
 /random_draft
