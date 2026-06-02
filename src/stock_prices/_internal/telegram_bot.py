@@ -204,10 +204,19 @@ def _extract_preset_callback(update: dict[str, Any]) -> TelegramPresetCallback |
     chat_id = chat.get("id")
     if chat_id is None:
         return None
-    preset_name = data.split(":", 1)[1].strip()
+    parts = [part.strip() for part in data.split(":")]
+    if len(parts) not in {2, 3}:
+        return None
+    preset_name = parts[1]
     if not preset_name:
         return None
-    return TelegramPresetCallback(str(callback_query_id), int(chat_id), f"preset {preset_name}")
+    mode = parts[2].lower() if len(parts) == 3 else ""
+    if mode and mode != "draft":
+        return None
+    text = f"preset {preset_name}"
+    if mode == "draft":
+        text = f"{text} draft"
+    return TelegramPresetCallback(str(callback_query_id), int(chat_id), text)
 
 
 def _help_text(default_engine: str, default_market: str) -> str:
@@ -219,6 +228,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "LKOH\n"
         "LKOH SBER 2020 2024\n"
         "preset neweconomy duration=12\n"
+        "/drafts\n"
         "AAPL global USD gradient theme=studio\n"
         "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n"
         "SiH4 futures 2024 close\n"
@@ -252,9 +262,13 @@ def _is_help(text: str) -> bool:
     return text.startswith("/start") or text.startswith("/help")
 
 
-def _is_preset_list(text: str) -> bool:
+def _preset_list_mode(text: str) -> str | None:
     normalized = text.strip().lower()
-    return normalized in {"/ideas", "/presets", "/stories", "ideas", "presets", "stories"}
+    if normalized in {"/ideas", "/presets", "/stories", "ideas", "presets", "stories"}:
+        return "shorts"
+    if normalized in {"/drafts", "/previews", "drafts", "previews"}:
+        return "draft"
+    return None
 
 
 def handle_ticker_message(
@@ -270,8 +284,13 @@ def handle_ticker_message(
     if _is_help(text):
         client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
         return
-    if _is_preset_list(text):
-        client.send_message(chat_id, format_preset_list(), reply_markup=preset_inline_keyboard())
+    preset_list_mode = _preset_list_mode(text)
+    if preset_list_mode is not None:
+        client.send_message(
+            chat_id,
+            format_preset_list(preset_list_mode),
+            reply_markup=preset_inline_keyboard(mode=preset_list_mode),
+        )
         return
 
     parsed = parse_telegram_video_request(text, settings.render, settings.default_engine, settings.default_market)
@@ -313,10 +332,16 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             client.send_message(chat_id, "This chat is not allowed to use this bot.")
                         elif _is_help(text):
                             client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
-                        elif _is_preset_list(text):
-                            client.send_message(chat_id, format_preset_list(), reply_markup=preset_inline_keyboard())
                         else:
-                            job_queue.enqueue(chat_id, text, int(update["update_id"]))
+                            preset_list_mode = _preset_list_mode(text)
+                            if preset_list_mode is not None:
+                                client.send_message(
+                                    chat_id,
+                                    format_preset_list(preset_list_mode),
+                                    reply_markup=preset_inline_keyboard(mode=preset_list_mode),
+                                )
+                            else:
+                                job_queue.enqueue(chat_id, text, int(update["update_id"]))
                         continue
                     callback = _extract_preset_callback(update)
                     if callback is None:
