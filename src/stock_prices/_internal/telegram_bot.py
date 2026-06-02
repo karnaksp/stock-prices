@@ -17,6 +17,7 @@ from stock_prices._internal.models import RenderSettings
 from stock_prices._internal.pipeline import generate_video, log_event
 from stock_prices._internal.telegram_presets import (
     PRESETS,
+    format_music_list,
     format_preset_list,
     format_pulse_post,
     get_preset,
@@ -147,6 +148,7 @@ MENU_ACTIONS = {
     "example_drafts",
     "random_draft",
     "random_example",
+    "music",
     "queue",
 }
 HOT_MENU_PRESETS = (
@@ -193,6 +195,9 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             ],
             [
                 {"text": "Помощь", "callback_data": f"{MENU_CALLBACK_PREFIX}help"},
+                {"text": "Музыка", "callback_data": f"{MENU_CALLBACK_PREFIX}music"},
+            ],
+            [
                 {"text": "Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
             ],
         ]
@@ -713,7 +718,7 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
 def _main_menu_text() -> str:
     return (
         "Меню Telegram\n"
-        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, топовые shorts-сценарии, draft-прогоны, случайный draft или статус очереди."
+        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, музыка, топовые shorts-сценарии, draft-прогоны, случайный draft или статус очереди."
     )
 
 
@@ -725,7 +730,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, top drafts, top shorts, топ черновики, топ шортсы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
+        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /music, музыка, top drafts, top shorts, топ черновики, топ шортсы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -755,6 +760,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "/примеры\n"
         "черновики примеров\n"
         "случайный пример\n"
+        "/music\n"
+        "музыка\n"
         "/queue\n"
         "очередь\n"
         "AAPL global USD gradient theme=studio\n"
@@ -846,6 +853,21 @@ def _is_examples(text: str) -> bool:
         "примеры",
         "пример",
         "примеры запросов",
+    }
+
+
+def _is_music_references(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    return normalized in {
+        "/music",
+        "/tracks",
+        "/музыка",
+        "/треки",
+        "music",
+        "tracks",
+        "музыка",
+        "треки",
+        "музыкальные референсы",
     }
 
 
@@ -1119,6 +1141,9 @@ def handle_ticker_message(
     if _is_examples(text):
         client.send_message(chat_id, format_example_list(), reply_markup=example_inline_keyboard())
         return
+    if _is_music_references(text):
+        client.send_message(chat_id, format_music_list())
+        return
     if len(_batch_request_lines(text)) > 1:
         client.send_message(chat_id, "Несколько запросов одним сообщением работают в режиме Telegram-очереди.")
         return
@@ -1202,6 +1227,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             client.send_message(chat_id, job_queue.status_text(), reply_markup=queue_status_keyboard())
                         elif _is_examples(text):
                             client.send_message(chat_id, format_example_list(), reply_markup=example_inline_keyboard())
+                        elif _is_music_references(text):
+                            client.send_message(chat_id, format_music_list())
                         else:
                             preset_list_mode = _preset_list_mode(text)
                             if preset_list_mode is not None:
@@ -1264,6 +1291,9 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif menu_callback.action == "random_example":
                             client.answer_callback_query(menu_callback.callback_query_id, "Случайный пример поставлен в очередь.")
                             job_queue.enqueue_random_example_draft(menu_callback.chat_id, int(update["update_id"]))
+                        elif menu_callback.action == "music":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Музыка открыта.")
+                            client.send_message(menu_callback.chat_id, format_music_list())
                         elif menu_callback.action == "queue":
                             client.answer_callback_query(menu_callback.callback_query_id, "Статус очереди обновлен.")
                             client.send_message(
