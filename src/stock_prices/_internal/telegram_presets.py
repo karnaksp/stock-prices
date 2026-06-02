@@ -329,6 +329,7 @@ def format_preset_list(mode: str = "shorts") -> str:
         lines.append("")
     lines.append("Можно дописать параметры: preset metals duration=12 theme=studio")
     lines.append("Коротко: металлы, черновик металлы, голубые фишки duration=12")
+    lines.append("После preset-видео бот покажет кнопки: черновик 4s, шортс 16s и вариант 12s.")
     if mode == "draft":
         lines.append("Draft-кнопки ниже запустят быстрый черновик: duration=4 fps=8 без gradient.")
         lines.append("Текстом: preset metals draft")
@@ -345,6 +346,21 @@ def format_pulse_post(preset: TelegramPreset) -> str:
         f"{tags}\n\n"
         "Не является индивидуальной инвестиционной рекомендацией."
     )
+
+
+def preset_followup_keyboard(preset_name: str) -> dict[str, list[list[dict[str, str]]]]:
+    preset = get_preset(preset_name)
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "Черновик 4s", "callback_data": f"preset:{preset.name}:draft"},
+                {"text": "Шортс 16s", "callback_data": f"preset:{preset.name}:shorts"},
+            ],
+            [
+                {"text": "Вариант 12s", "callback_data": f"preset:{preset.name}:12s"},
+            ],
+        ]
+    }
 
 
 def preset_inline_keyboard(columns: int = 2, mode: str = "shorts") -> dict[str, list[list[dict[str, str]]]]:
