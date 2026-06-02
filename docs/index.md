@@ -77,6 +77,7 @@ hide:
 === "Telegram"
 
     ```text
+    /ideas
     SBER LKOH 2020 2024
     preset metals
     preset neweconomy duration=12 theme=studio
@@ -115,6 +116,7 @@ hide:
 ```text
 LKOH
 SBER LKOH 2020 2024
+/ideas
 preset metals
 preset neweconomy duration=12 theme=studio
 AAPL global USD gradient
