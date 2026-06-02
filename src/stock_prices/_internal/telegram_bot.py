@@ -134,11 +134,24 @@ class TelegramQueueSnapshot:
     failed_count: int
 
 
+QUEUE_STATUS_CALLBACK_DATA = "queue:status"
+
+
+def queue_status_keyboard() -> dict[str, list[list[dict[str, str]]]]:
+    return {"inline_keyboard": [[{"text": "Статус очереди", "callback_data": QUEUE_STATUS_CALLBACK_DATA}]]}
+
+
 @dataclass(frozen=True)
 class TelegramPresetCallback:
     callback_query_id: str
     chat_id: int
     text: str
+
+
+@dataclass(frozen=True)
+class TelegramQueueStatusCallback:
+    callback_query_id: str
+    chat_id: int
 
 
 class TelegramJobQueue:
@@ -183,7 +196,11 @@ class TelegramJobQueue:
             text_length=len(text),
         )
         if notify:
-            self.client.send_message(chat_id, f"Job {job.job_id} queued. Queue position: {queue_position}.")
+            self.client.send_message(
+                chat_id,
+                f"Задача {job.job_id} поставлена в очередь.\nПозиция: {queue_position}.",
+                reply_markup=queue_status_keyboard(),
+            )
         with self._lock:
             self._pending_jobs.append(job)
         self._jobs.put(job)
@@ -194,6 +211,7 @@ class TelegramJobQueue:
         self.client.send_message(
             chat_id,
             f"Ставлю в очередь {len(PRESETS)} черновиков: {labels}.",
+            reply_markup=queue_status_keyboard(),
         )
         jobs: list[TelegramJob] = []
         for index, preset in enumerate(PRESETS, start=1):
@@ -213,6 +231,7 @@ class TelegramJobQueue:
         self.client.send_message(
             chat_id,
             f"Случайный черновик: {preset_button_label(preset)}. Ставлю короткий draft в очередь.",
+            reply_markup=queue_status_keyboard(),
         )
         return self.enqueue(
             chat_id,
@@ -329,11 +348,26 @@ def _extract_preset_callback(update: dict[str, Any]) -> TelegramPresetCallback |
     return TelegramPresetCallback(str(callback_query_id), int(chat_id), text)
 
 
+def _extract_queue_status_callback(update: dict[str, Any]) -> TelegramQueueStatusCallback | None:
+    callback_query = update.get("callback_query") or {}
+    callback_query_id = callback_query.get("id")
+    data = (callback_query.get("data") or "").strip()
+    if not callback_query_id or data != QUEUE_STATUS_CALLBACK_DATA:
+        return None
+    message = callback_query.get("message") or {}
+    chat = message.get("chat") or {}
+    chat_id = chat.get("id")
+    if chat_id is None:
+        return None
+    return TelegramQueueStatusCallback(str(callback_query_id), int(chat_id))
+
+
 def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
         "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, все черновики, случайный черновик, /queue, металлы, черновик металлы\n"
+        "После постановки задачи будет кнопка: Статус очереди.\n"
         "После preset-видео будут кнопки: черновик 4s, шортс 16s, вариант 12s.\n"
         "Примеры:\n"
         "LKOH\n"
@@ -546,7 +580,7 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif _is_random_draft(text):
                             job_queue.enqueue_random_preset_draft(chat_id, int(update["update_id"]))
                         elif _is_queue_status(text):
-                            client.send_message(chat_id, job_queue.status_text())
+                            client.send_message(chat_id, job_queue.status_text(), reply_markup=queue_status_keyboard())
                         else:
                             preset_list_mode = _preset_list_mode(text)
                             if preset_list_mode is not None:
@@ -557,6 +591,19 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 )
                             else:
                                 job_queue.enqueue(chat_id, text, int(update["update_id"]))
+                        continue
+                    queue_callback = _extract_queue_status_callback(update)
+                    if queue_callback is not None:
+                        if settings.allowed_chat_ids and queue_callback.chat_id not in settings.allowed_chat_ids:
+                            client.answer_callback_query(queue_callback.callback_query_id, "This chat is not allowed.")
+                            client.send_message(queue_callback.chat_id, "This chat is not allowed to use this bot.")
+                        else:
+                            client.answer_callback_query(queue_callback.callback_query_id, "Статус очереди обновлен.")
+                            client.send_message(
+                                queue_callback.chat_id,
+                                job_queue.status_text(),
+                                reply_markup=queue_status_keyboard(),
+                            )
                         continue
                     callback = _extract_preset_callback(update)
                     if callback is None:

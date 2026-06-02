@@ -89,7 +89,8 @@ def test_run_telegram_bot_queues_generation_once(monkeypatch) -> None:
 
     telegram_bot.run_telegram_bot(settings)
 
-    assert any("queued" in message for _chat_id, message in client.messages)
+    assert any("поставлена в очередь" in message for _chat_id, message in client.messages)
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
     assert any("Генерирую видео: LKOH" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/LKOH.mp4"), "LKOH: 2020-01-01 - 2020-01-02")]
 
@@ -132,7 +133,8 @@ def test_run_telegram_bot_queues_preset_from_inline_button(monkeypatch) -> None:
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers == [("callback-1", "Сценарий поставлен в очередь.")]
-    assert any("queued" in message for _chat_id, message in client.messages)
+    assert any("поставлена в очередь" in message for _chat_id, message in client.messages)
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
     assert any("Текст для Пульса" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/metals.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
@@ -258,6 +260,7 @@ def test_run_telegram_bot_queues_all_preset_drafts(monkeypatch) -> None:
     assert client.messages[0][0] == 123
     assert "Ставлю в очередь" in client.messages[0][1]
     assert "Металлы" in client.messages[0][1]
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
     assert len(generated) == len(PRESETS)
     assert generated[0][0] == "tg-46-draft-1-neweconomy"
     assert generated[-1][0] == f"tg-46-draft-{len(PRESETS)}-{PRESETS[-1].name}"
@@ -306,6 +309,7 @@ def test_run_telegram_bot_queues_random_preset_draft(monkeypatch) -> None:
 
     assert client.messages[0][0] == 123
     assert preset_button_label(selected) in client.messages[0][1]
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
     assert generated == [("tg-47-random-draft-metals", 4, 8, False, ["GC=F", "SI=F", "PA=F"])]
     assert client.videos == [(123, Path("animations/tg-47-random-draft-metals.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
@@ -381,6 +385,44 @@ def test_run_telegram_bot_reports_queue_status(monkeypatch) -> None:
     telegram_bot.run_telegram_bot(settings)
 
     assert client.messages == [(123, "Очередь Telegram\nСейчас: нет активного рендера\nЖдет: 0\nГотово: 0, ошибок: 0")]
+    assert client.message_markups == [telegram_bot.queue_status_keyboard()]
+    assert client.videos == []
+
+
+def test_run_telegram_bot_reports_queue_status_from_button(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 51,
+                    "callback_query": {
+                        "id": "callback-status",
+                        "data": "queue:status",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fake_client_factory(*_args, **_kwargs):
+        return client
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-status", "Статус очереди обновлен.")]
+    assert client.messages == [(123, "Очередь Telegram\nСейчас: нет активного рендера\nЖдет: 0\nГотово: 0, ошибок: 0")]
+    assert client.message_markups == [telegram_bot.queue_status_keyboard()]
     assert client.videos == []
 
 
@@ -437,6 +479,7 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "/random_draft" in help_text
     assert "/queue" in help_text
     assert "очередь" in help_text
+    assert "Статус очереди" in help_text
     assert "черновик металлы" in help_text
     assert "пресет металлы" in help_text
     assert "вариант 12s" in help_text
