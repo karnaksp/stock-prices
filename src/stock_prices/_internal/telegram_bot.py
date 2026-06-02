@@ -146,6 +146,12 @@ MENU_ACTIONS = {
     "random_example",
     "queue",
 }
+HOT_MENU_PRESETS = (
+    ("Металлы", "metals"),
+    ("Новая экономика", "neweconomy"),
+    ("Алкоголь", "vodka"),
+    ("Мечел", "mechel"),
+)
 CUSTOM_FOLLOWUP_MODES = {
     "draft": "draft",
     "shorts": "shorts",
@@ -158,12 +164,18 @@ def queue_status_keyboard() -> dict[str, list[list[dict[str, str]]]]:
 
 
 def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
+    hot_preset_buttons = [
+        {"text": label, "callback_data": f"preset:{preset_name}"}
+        for label, preset_name in HOT_MENU_PRESETS
+    ]
     return {
         "inline_keyboard": [
             [
                 {"text": "Идеи", "callback_data": f"{MENU_CALLBACK_PREFIX}ideas"},
                 {"text": "Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}examples"},
             ],
+            hot_preset_buttons[:2],
+            hot_preset_buttons[2:],
             [
                 {"text": "Draft presets", "callback_data": f"{MENU_CALLBACK_PREFIX}drafts"},
                 {"text": "Draft examples", "callback_data": f"{MENU_CALLBACK_PREFIX}example_drafts"},
@@ -663,7 +675,7 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
 def _main_menu_text() -> str:
     return (
         "Меню Telegram\n"
-        "Выбери действие кнопкой: готовые идеи, проверенные примеры, draft-прогоны, случайный draft или статус очереди."
+        "Выбери действие кнопкой: готовые идеи, проверенные примеры, топовые shorts-сценарии, draft-прогоны, случайный draft или статус очереди."
     )
 
 

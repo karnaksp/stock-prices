@@ -961,10 +961,15 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     handle_ticker_message(client, settings, 123, "/menu")
 
     assert "Меню Telegram" in client.messages[0][1]
+    assert "топовые shorts-сценарии" in client.messages[0][1]
     assert client.message_markups[0] == telegram_bot.main_menu_keyboard()
     keyboard = client.message_markups[0]["inline_keyboard"]
     assert keyboard[0][0]["callback_data"] == "menu:ideas"
     assert keyboard[0][1]["callback_data"] == "menu:examples"
+    assert keyboard[1][0] == {"text": "Металлы", "callback_data": "preset:metals"}
+    assert keyboard[1][1] == {"text": "Новая экономика", "callback_data": "preset:neweconomy"}
+    assert keyboard[2][0] == {"text": "Алкоголь", "callback_data": "preset:vodka"}
+    assert keyboard[2][1] == {"text": "Мечел", "callback_data": "preset:mechel"}
     assert keyboard[-1][0]["callback_data"] == "menu:queue"
     assert client.videos == []
 
@@ -979,7 +984,7 @@ def test_handle_ticker_message_shows_main_menu_with_russian_command() -> None:
     handle_ticker_message(client, settings, 123, "/меню")
 
     assert "Меню Telegram" in client.messages[0][1]
-    assert client.message_markups[0]["inline_keyboard"][2][1]["callback_data"] == "menu:random_example"
+    assert client.message_markups[0]["inline_keyboard"][4][1]["callback_data"] == "menu:random_example"
     assert client.videos == []
 
 
