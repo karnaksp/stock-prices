@@ -79,6 +79,7 @@ preset neweconomy duration=12 theme=studio
 пресет голубые фишки draft
 SBER LKOH shorts
 SBER LKOH за 10 лет shorts
+YDEX OZON за 6 месяцев shorts
 AAPL global USD shorts
 BTC price duration=12 fps=24
 gold 2018-2026 USD gradient
@@ -176,6 +177,8 @@ from=2020-01-01        точная дата начала
 to=2024-12-31          точная дата окончания
 за 10 лет              период от даты по умолчанию на 10 лет назад
 last 10 years          английский вариант относительного периода
+за 6 месяцев           период от даты по умолчанию на 6 месяцев назад
+last 6 months          английский вариант относительного периода в месяцах
 USD / RUB / EUR        подпись валюты
 global / stock         источник данных
 shares / bonds / index рынок MOEX

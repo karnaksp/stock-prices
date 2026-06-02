@@ -157,6 +157,7 @@ random draft
 LKOH
 SBER LKOH 2020 2024
 SBER LKOH за 10 лет shorts
+YDEX OZON за 6 месяцев shorts
 AAPL global USD gradient
 BTC price duration=12 fps=24
 gold 2018-2026 USD gradient
@@ -180,6 +181,8 @@ SBER LKOH 2020 2024 shorts
 2018-2026              короткий диапазон лет
 from=2020-01-01        точная дата начала
 to=2024-12-31          точная дата окончания
+за 6 месяцев           период от текущей даты по умолчанию на 6 месяцев назад
+last 6 months          английский вариант относительного периода в месяцах
 USD / RUB / EUR        подпись валюты
 global / stock         источник и движок
 shares / bonds / index рынок MOEX
