@@ -19,7 +19,7 @@ class TelegramPreset:
 PRESETS: tuple[TelegramPreset, ...] = (
     TelegramPreset(
         name="neweconomy",
-        aliases=("new", "growth", "2021"),
+        aliases=("new", "growth", "2021", "новая", "новая экономика", "ipo"),
         title="Новая экономика 2021-2026",
         description="SMLT / SGZH / POSI: IPO-эйфория, ставка, длинный откат.",
         request=(
@@ -37,7 +37,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
     ),
     TelegramPreset(
         name="metals",
-        aliases=("gold", "palladium", "metal"),
+        aliases=("gold", "palladium", "metal", "металлы", "металл", "палладий", "золото"),
         title="Металлы с ежемесячным взносом",
         description="Золото / серебро / палладий в RUB: наглядный долгий DCA-сюжет.",
         request=(
@@ -55,7 +55,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
     ),
     TelegramPreset(
         name="vodka",
-        aliases=("belu", "abrd", "alcohol"),
+        aliases=("belu", "abrd", "alcohol", "водка", "алкоголь", "белуга", "абрау"),
         title="Алкогольные акции",
         description="BELU / ABRD / KLVZ: менее хайповая, но зрелищная история.",
         request=(
@@ -73,7 +73,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
     ),
     TelegramPreset(
         name="mechel",
-        aliases=("coal", "mtlr"),
+        aliases=("coal", "mtlr", "мечел", "уголь"),
         title="Мечел: драма циклической акции",
         description="MTLR / MTLRP: резкие движения и понятный риск циклического бизнеса.",
         request=(
@@ -91,7 +91,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
     ),
     TelegramPreset(
         name="wagons",
-        aliases=("uwgn", "ovk"),
+        aliases=("uwgn", "ovk", "вагоны", "овк"),
         title="Вагоны и ожидания",
         description="UWGN против индекса Мосбиржи: история хайпа, ожиданий и просадки.",
         request=(
@@ -108,7 +108,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
     ),
     TelegramPreset(
         name="bluechips",
-        aliases=("sber-lkoh", "classic"),
+        aliases=("sber-lkoh", "classic", "голубые", "голубые фишки", "классика"),
         title="Голубые фишки: скучно или эффективно",
         description="SBER / LKOH / MGNT: понятное сравнение для широкой аудитории.",
         request=(
@@ -126,7 +126,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
     ),
     TelegramPreset(
         name="techru",
-        aliases=("tech", "rutech"),
+        aliases=("tech", "rutech", "тех", "технологии", "российский тех"),
         title="Российский технологический сюжет",
         description="YDEX / OZON / VKCO: новый рынок, разные траектории и много споров.",
         request=(
@@ -145,8 +145,12 @@ PRESETS: tuple[TelegramPreset, ...] = (
 )
 
 
+_PRESET_COMMANDS = {"preset", "idea", "story", "scenario", "пресет", "идея", "история", "сценарий"}
+_PRESET_EQUALS_PREFIXES = ("preset=", "idea=", "story=", "scenario=", "пресет=", "идея=", "история=", "сценарий=")
+
+
 def _normalize_name(name: str) -> str:
-    return name.strip().lower().replace("-", "").replace("_", "")
+    return name.strip().lower().replace("-", "").replace("_", "").replace(" ", "")
 
 
 _PRESET_BY_NAME = {_normalize_name(preset.name): preset for preset in PRESETS}
@@ -163,27 +167,33 @@ def get_preset(name: str) -> TelegramPreset:
     raise ValueError(f"Unknown preset: {name}. Use one of: {options}.")
 
 
+def _match_preset_tokens(tokens: list[str]) -> tuple[TelegramPreset, list[str]]:
+    if not tokens:
+        options = ", ".join(preset.name for preset in PRESETS)
+        raise ValueError(f"Send preset name, for example: preset metals. Options: {options}.")
+    for end in range(len(tokens), 0, -1):
+        normalized = _normalize_name(" ".join(tokens[:end]))
+        if normalized in _PRESET_BY_NAME:
+            return _PRESET_BY_NAME[normalized], tokens[end:]
+    options = ", ".join(preset.name for preset in PRESETS)
+    raise ValueError(f"Unknown preset: {' '.join(tokens)}. Use one of: {options}.")
+
+
 def expand_preset_text(text: str) -> tuple[str, TelegramPreset | None]:
     tokens = text.strip().split()
     if not tokens:
         return text, None
 
     first = tokens[0].lstrip("/").lower()
-    preset_name = ""
     rest: list[str] = []
-    if first in {"preset", "idea", "story", "scenario"}:
-        if len(tokens) < 2:
-            options = ", ".join(preset.name for preset in PRESETS)
-            raise ValueError(f"Send preset name, for example: preset metals. Options: {options}.")
-        preset_name = tokens[1]
-        rest = tokens[2:]
-    elif first.startswith("preset="):
-        preset_name = first.split("=", 1)[1]
+    if first in _PRESET_COMMANDS:
+        preset, rest = _match_preset_tokens(tokens[1:])
+    elif any(first.startswith(prefix) for prefix in _PRESET_EQUALS_PREFIXES):
+        preset = get_preset(first.split("=", 1)[1])
         rest = tokens[1:]
     else:
         return text, None
 
-    preset = get_preset(preset_name)
     expanded = " ".join([preset.request, *rest]).strip()
     return expanded, preset
 

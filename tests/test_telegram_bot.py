@@ -222,6 +222,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "shorts" in help_text
     assert "draft" in help_text
     assert "/drafts" in help_text
+    assert "/черновики" in help_text
+    assert "пресет металлы" in help_text
     assert "theme=default|aurora|studio" in help_text
     assert "SiH4 futures" in help_text
     assert "preset neweconomy" in help_text
@@ -251,6 +253,20 @@ def test_handle_ticker_message_lists_pulse_presets() -> None:
     assert client.videos == []
 
 
+def test_handle_ticker_message_lists_pulse_presets_with_russian_command() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "/идеи")
+
+    assert "preset metals" in client.messages[0][1]
+    assert client.message_markups[0]["inline_keyboard"][0][1]["callback_data"] == "preset:metals"
+    assert client.videos == []
+
+
 def test_handle_ticker_message_lists_draft_presets() -> None:
     client = FakeClient()
     settings = TelegramBotSettings(
@@ -272,6 +288,20 @@ def test_handle_ticker_message_lists_draft_presets() -> None:
             [{"text": "techru", "callback_data": "preset:techru:draft"}],
         ]
     }
+    assert client.videos == []
+
+
+def test_handle_ticker_message_lists_draft_presets_with_russian_command() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "/черновики")
+
+    assert "draft" in client.messages[0][1]
+    assert client.message_markups[0]["inline_keyboard"][0][1]["callback_data"] == "preset:metals:draft"
     assert client.videos == []
 
 
@@ -412,6 +442,28 @@ def test_parse_telegram_video_request_expands_pulse_preset() -> None:
     assert parsed.request.render.duration == 12
     assert parsed.request.render.fps == 24
     assert parsed.request.render.theme == "aurora"
+
+
+def test_parse_telegram_video_request_accepts_russian_preset_command() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), duration=30, fps=20, use_gradient=True)
+
+    parsed = parse_telegram_video_request("пресет металлы draft", base)
+
+    assert parsed.preset_name == "metals"
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["GC=F", "SI=F", "PA=F"]
+    assert parsed.request.render.duration == 4
+    assert parsed.request.render.fps == 8
+    assert parsed.request.render.use_gradient is False
+
+
+def test_parse_telegram_video_request_accepts_multiword_russian_preset_alias() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request("сценарий голубые фишки duration=12", base)
+
+    assert parsed.preset_name == "bluechips"
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["SBER", "LKOH", "MGNT"]
+    assert parsed.request.render.duration == 12
 
 
 def test_handle_ticker_message_sends_pulse_copy_for_preset(monkeypatch) -> None:

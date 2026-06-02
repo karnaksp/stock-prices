@@ -53,11 +53,14 @@ docker compose logs -f stock-prices-bot
 ```text
 /ideas
 /drafts
+/идеи
+/черновики
 LKOH
 SBER LKOH 2020 2024
 preset metals
+пресет металлы
 preset neweconomy duration=12 theme=studio
-preset metals draft
+пресет голубые фишки draft
 SBER LKOH shorts
 AAPL global USD shorts
 BTC price duration=12 fps=24
@@ -111,7 +114,10 @@ stock-prices bot --allowed_chat_id 123456789
 ```text
 /ideas                  список готовых сценариев для Пульса с кнопками
 /drafts                 те же preset-кнопки, но в быстром черновом режиме
+/идеи                  русская команда для списка shorts-сценариев
+/черновики             русская команда для быстрых draft-прогонов
 preset metals           готовый сценарий с металлами
+пресет металлы          тот же сценарий русским текстом
 preset neweconomy       готовый сценарий новой экономики
 2020 2024              период
 from=2020-01-01        точная дата начала
