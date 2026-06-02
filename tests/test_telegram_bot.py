@@ -280,6 +280,89 @@ def test_run_telegram_bot_queues_example_from_inline_button(monkeypatch) -> None
     assert client.videos == [(123, Path("animations/metals-example.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-12-31")]
 
 
+def test_run_telegram_bot_queues_custom_followup_variant(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {"update_id": 53, "message": {"text": "LKOH 2020 2024 shorts", "chat": {"id": 123}}},
+                {
+                    "update_id": 54,
+                    "callback_query": {
+                        "id": "callback-custom-draft",
+                        "data": "custom:tg-53:draft",
+                        "message": {"chat": {"id": 123}},
+                    },
+                },
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+    generated: list[tuple[str | None, int, int, bool]] = []
+
+    def fake_client_factory(*_args, **_kwargs):
+        return client
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, request.render.duration, request.render.fps, request.render.use_gradient))
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-custom-draft", "Вариант поставлен в очередь.")]
+    assert generated == [
+        ("tg-53", 16, 24, True),
+        ("tg-54-variant-draft", 4, 8, False),
+    ]
+    assert telegram_bot.custom_followup_keyboard("tg-53") in client.message_markups
+    assert any("Быстрые варианты для этого запроса" in message for _chat_id, message in client.messages)
+
+
+def test_run_telegram_bot_reports_missing_custom_followup(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 55,
+                    "callback_query": {
+                        "id": "callback-custom-missing",
+                        "data": "custom:tg-404:shorts",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fake_client_factory(*_args, **_kwargs):
+        return client
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-custom-missing", "Исходный запрос уже недоступен.")]
+    assert client.messages == [(123, "Исходный запрос для кнопки уже недоступен. Отправь текст запроса еще раз.")]
+    assert client.videos == []
+
+
 def test_run_telegram_bot_queues_all_preset_drafts(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -666,6 +749,7 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "/queue" in help_text
     assert "очередь" in help_text
     assert "Статус очереди" in help_text
+    assert "После custom-видео" in help_text
     assert "несколько запросов строками" in help_text
     assert "черновик металлы" in help_text
     assert "пресет металлы" in help_text
