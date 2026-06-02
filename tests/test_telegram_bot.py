@@ -1203,6 +1203,7 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "После custom-видео" in help_text
     assert "несколько запросов строками" in help_text
     assert "сделай шортс про SBER" in help_text
+    assert "сравни SBER с LKOH" in help_text
     assert "черновик металлы" in help_text
     assert "пресет металлы" in help_text
     assert "вариант 12s" in help_text
@@ -1433,6 +1434,32 @@ def test_parse_telegram_video_request_accepts_natural_russian_phrase() -> None:
     assert [spec.ticker for spec in parsed.request.ticker_specs] == ["SBER", "LKOH"]
     assert parsed.request.render.start_date == date(2025, 12, 3)
     assert parsed.request.render.end_date == date(2026, 6, 3)
+    assert parsed.request.render.duration == 16
+    assert parsed.request.render.fps == 24
+    assert parsed.request.render.use_gradient is True
+
+
+def test_parse_telegram_video_request_accepts_compare_with_preposition() -> None:
+    base = RenderSettings(start_date=date(2010, 1, 1), end_date=date(2026, 6, 3))
+
+    parsed = parse_telegram_video_request("сравни SBER с LKOH за 6 месяцев шортс", base)
+
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["SBER", "LKOH"]
+    assert parsed.request.render.start_date == date(2025, 12, 3)
+    assert parsed.request.render.end_date == date(2026, 6, 3)
+    assert parsed.request.render.duration == 16
+    assert parsed.request.render.fps == 24
+    assert parsed.request.render.use_gradient is True
+
+
+def test_parse_telegram_video_request_keeps_russian_from_date() -> None:
+    base = RenderSettings(start_date=date(2010, 1, 1), end_date=date(2026, 6, 3))
+
+    parsed = parse_telegram_video_request("сравни SBER с LKOH с 2020 по 2024 шортс", base)
+
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["SBER", "LKOH"]
+    assert parsed.request.render.start_date == date(2020, 1, 1)
+    assert parsed.request.render.end_date == date(2024, 12, 31)
     assert parsed.request.render.duration == 16
     assert parsed.request.render.fps == 24
     assert parsed.request.render.use_gradient is True

@@ -387,9 +387,13 @@ def parse_telegram_video_request(
         elif lowered in _DATE_FROM_WORDS and idx + 1 < len(tokens):
             parsed_date = _parse_date_token(tokens[idx + 1])
             if parsed_date is None:
-                raise ValueError(f"Invalid start date: {tokens[idx + 1]}")
-            updates["start_date"] = parsed_date
-            idx += 1
+                if lowered == "с":
+                    pass
+                else:
+                    raise ValueError(f"Invalid start date: {tokens[idx + 1]}")
+            else:
+                updates["start_date"] = parsed_date
+                idx += 1
         elif lowered in _DATE_TO_WORDS and idx + 1 < len(tokens):
             parsed_date = _parse_date_token(tokens[idx + 1], end=True)
             if parsed_date is not None:
