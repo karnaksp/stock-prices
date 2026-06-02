@@ -80,8 +80,9 @@ preset neweconomy duration=12 theme=studio
 SBER LKOH shorts
 SBER LKOH за 10 лет shorts
 YDEX OZON за 6 месяцев shorts
-сделай шортс про SBER и LKOH за 6 месяцев для Пульса
-сравни SBER с LKOH за 6 месяцев шортс
+YDEX OZON за полгода shorts
+сделай шортс про SBER и LKOH за полгода для Пульса
+сравни SBER с LKOH за год шортс
 AAPL global USD shorts
 BTC price duration=12 fps=24
 gold 2018-2026 USD gradient
@@ -180,7 +181,10 @@ to=2024-12-31          точная дата окончания
 за 10 лет              период от даты по умолчанию на 10 лет назад
 last 10 years          английский вариант относительного периода
 за 6 месяцев           период от даты по умолчанию на 6 месяцев назад
+за полгода             то же, что за 6 месяцев
+за год / за месяц      короткие относительные периоды без числа
 last 6 months          английский вариант относительного периода в месяцах
+last year / last month английские короткие относительные периоды
 USD / RUB / EUR        подпись валюты
 global / stock         источник данных
 shares / bonds / index рынок MOEX
