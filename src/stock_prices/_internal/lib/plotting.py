@@ -10,7 +10,8 @@ import matplotlib.animation as animation
 import pandas as pd
 
 from stock_prices._internal.lib.dataset_builder import build_data_list
-from stock_prices._internal.models import TickerSpec, safe_video_stem
+from stock_prices._internal.models import TickerSpec
+from stock_prices._internal.rendering.filenames import safe_video_stem
 
 
 def event_color(impact: int) -> str:
