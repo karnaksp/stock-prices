@@ -112,6 +112,21 @@ def test_handle_ticker_message_respects_allowed_chat_ids() -> None:
     assert client.videos == []
 
 
+def test_help_text_mentions_investments_and_themes() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "/help")
+
+    help_text = client.messages[0][1]
+    assert "monthly=30000" in help_text
+    assert "theme=default|aurora|studio" in help_text
+    assert "SiH4 futures" in help_text
+
+
 def test_telegram_client_redacts_token_in_network_errors(monkeypatch) -> None:
     token = "123456:SECRET"
 

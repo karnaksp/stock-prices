@@ -173,13 +173,17 @@ def _extract_text_message(update: dict[str, Any]) -> tuple[int, str] | None:
 
 def _help_text(default_engine: str, default_market: str) -> str:
     return (
-        "Напиши тикер, и я верну MP4-график.\n"
+        "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
         "Примеры:\n"
         "LKOH\n"
         "LKOH SBER 2020 2024\n"
-        "AAPL global USD gradient\n"
-        "SBER duration=12 fps=24 close"
+        "AAPL global USD gradient theme=studio\n"
+        "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n"
+        "SiH4 futures 2024 close\n"
+        "USD000UTSTOM selt 2024 close\n"
+        "Параметры: from=YYYY-MM-DD to=YYYY-MM-DD close capital invest initial=0 monthly=30000 "
+        "duration=12 fps=24 theme=default|aurora|studio"
     )
 
 

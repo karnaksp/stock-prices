@@ -17,6 +17,7 @@ nav:
 - Документация:
   - Главная: index.md
   - Демонстрация: demo.md
+  - Telegram-запросы: telegram.md
   - Запуск и проверка: runbook.md
   - Docker: docker.md
 - API: reference/api.md
