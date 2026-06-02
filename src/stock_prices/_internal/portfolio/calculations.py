@@ -1,8 +1,31 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
+from typing import Any
 
 import pandas as pd
+
+
+@dataclass(frozen=True)
+class InvestmentPlan:
+    initial: int = 10000
+    monthly: int = 0
+    yearly: int = 0
+    currency: str = ""
+
+    @classmethod
+    def from_args(cls, args: Any, currency: str | None = None) -> "InvestmentPlan":
+        return cls(
+            initial=int(getattr(args, "initial_investment", 10000)),
+            monthly=int(getattr(args, "monthly_investment", 0)),
+            yearly=int(getattr(args, "yearly_investment", 0)),
+            currency=(currency or getattr(args, "currency", "") or "").upper(),
+        )
+
+    @property
+    def has_recurring_investments(self) -> bool:
+        return self.monthly > 0 or self.yearly > 0
 
 
 def calculate_capital_with_reinvest(
@@ -13,7 +36,13 @@ def calculate_capital_with_reinvest(
     price_col: str = "CLOSE",
     dividend_col: str = "DIVIDEND",
     ticker: str | None = None,
+    investment_plan: InvestmentPlan | None = None,
 ) -> pd.DataFrame:
+    plan = investment_plan or InvestmentPlan(
+        initial=initial_investment,
+        monthly=monthly_investment,
+        yearly=yearly_investment,
+    )
     data_frame = data_frame.copy()
     if data_frame.empty:
         raise ValueError("Cannot calculate capital for an empty dataset.")
@@ -42,14 +71,15 @@ def calculate_capital_with_reinvest(
                 data_frame.loc[idx:, price_col] /= old_shares / new_shares
 
     first_price = float(data_frame[price_col].iloc[0])
-    shares = initial_investment / first_price
+    shares = plan.initial / first_price
     cash_buffer = 0.0
     data_frame["shares"] = 0.0
     data_frame["cash_buffer"] = 0.0
     data_frame["savings"] = 0.0
+    data_frame["investment_currency"] = plan.currency
     data_frame["CAPITAL_REINVEST"] = 0.0
     data_frame.at[0, "shares"] = shares
-    data_frame.at[0, "savings"] = initial_investment
+    data_frame.at[0, "savings"] = plan.initial
     current_month = data_frame.loc[0, "TRADEDATE"].month
     current_year = data_frame.loc[0, "TRADEDATE"].year
 
@@ -69,13 +99,13 @@ def calculate_capital_with_reinvest(
             cash_buffer += dividend * shares
 
         savings_add = 0.0
-        if monthly_investment > 0 and date.month != current_month:
-            shares += monthly_investment / price
-            savings_add += monthly_investment
+        if plan.monthly > 0 and date.month != current_month:
+            shares += plan.monthly / price
+            savings_add += plan.monthly
             current_month = date.month
-        if yearly_investment > 0 and date.year != current_year:
-            shares += yearly_investment / price
-            savings_add += yearly_investment
+        if plan.yearly > 0 and date.year != current_year:
+            shares += plan.yearly / price
+            savings_add += plan.yearly
             current_year = date.year
 
         data_frame.loc[idx, "savings"] = previous["savings"] + savings_add
