@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from stock_prices._internal.cli import get_bot_parser
-from stock_prices._internal.env import load_env_file
+from stock_prices._internal.env import get_cleanup_retention_days, load_env_file
 
 
 def test_load_env_file_sets_missing_values(tmp_path: Path, monkeypatch) -> None:
@@ -37,3 +37,20 @@ def test_bot_parser_reads_allowed_chat_ids_from_env(monkeypatch) -> None:
     args = get_bot_parser().parse_args([])
 
     assert args.allowed_chat_id == [123, 456]
+
+
+def test_cleanup_retention_days_reads_primary_env(monkeypatch) -> None:
+    monkeypatch.setenv("STOCK_PRICES_RETENTION_DAYS", "14")
+
+    assert get_cleanup_retention_days() == 14
+
+
+def test_cleanup_retention_days_rejects_negative_values(monkeypatch) -> None:
+    monkeypatch.setenv("STOCK_PRICES_RETENTION_DAYS", "-1")
+
+    try:
+        get_cleanup_retention_days()
+    except ValueError as exc:
+        assert "non-negative integer" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError")

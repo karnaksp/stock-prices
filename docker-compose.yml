@@ -10,6 +10,7 @@ services:
       MPLBACKEND: Agg
       PYTHONPATH: /app/src
       STOCK_PRICES_OUTPUT_DIR: /app/animations
+      STOCK_PRICES_RETENTION_DAYS: ${STOCK_PRICES_RETENTION_DAYS:-0}
     command: ["python", "-m", "stock_prices", "bot"]
     init: true
     restart: unless-stopped
@@ -22,7 +23,7 @@ services:
       - ./currency:/app/currency
       - ./futures:/app/futures
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import os, stock_prices; raise SystemExit(0 if os.getenv('TELEGRAM_BOT_TOKEN') else 1)\""]
+      test: ["CMD-SHELL", "python -m stock_prices._internal.healthcheck"]
       interval: 1m
       timeout: 10s
       retries: 3

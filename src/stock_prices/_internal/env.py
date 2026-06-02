@@ -3,6 +3,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+RETENTION_DAYS_ENV = "STOCK_PRICES_RETENTION_DAYS"
+CLEANUP_RETENTION_DAYS_ENV = "STOCK_PRICES_CLEANUP_RETENTION_DAYS"
+
 
 def load_env_file(path: str | Path = ".env") -> None:
     env_path = Path(path)
@@ -18,3 +21,20 @@ def load_env_file(path: str | Path = ".env") -> None:
         value = value.strip().strip('"').strip("'")
         if key and key not in os.environ:
             os.environ[key] = value
+
+
+def get_cleanup_retention_days(default: int = 0) -> int:
+    raw_value = os.getenv(RETENTION_DAYS_ENV) or os.getenv(CLEANUP_RETENTION_DAYS_ENV)
+    if raw_value is None or not raw_value.strip():
+        return default
+
+    try:
+        retention_days = int(raw_value)
+    except ValueError:
+        msg = f"{RETENTION_DAYS_ENV} must be a non-negative integer."
+        raise ValueError(msg) from None
+
+    if retention_days < 0:
+        msg = f"{RETENTION_DAYS_ENV} must be a non-negative integer."
+        raise ValueError(msg)
+    return retention_days
