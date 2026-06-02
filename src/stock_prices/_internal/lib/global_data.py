@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+from functools import lru_cache
 import logging
 
 import pandas as pd
@@ -82,6 +84,21 @@ def save_original_values(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+@lru_cache(maxsize=1)
+def _currency_converter():
+    from currency_converter import CurrencyConverter
+
+    return CurrencyConverter(fallback_on_missing_rate=True, fallback_on_wrong_date=True)
+
+
+@lru_cache(maxsize=32768)
+def _cached_rub_rate(base_currency: str, trade_date_iso: str) -> float | None:
+    try:
+        return float(_currency_converter().convert(1, base_currency, "RUB", date=date.fromisoformat(trade_date_iso)))
+    except ValueError:
+        return None
+
+
 def convert_to_rub_if_needed(df: pd.DataFrame, ticker: str, base_currency: str, convert_to_rub: bool) -> pd.DataFrame:
     if not convert_to_rub or base_currency in {"UNKNOWN", "RUB"}:
         if convert_to_rub and base_currency == "RUB":
@@ -90,16 +107,12 @@ def convert_to_rub_if_needed(df: pd.DataFrame, ticker: str, base_currency: str, 
 
     logging.info("[%s] Converting %s to RUB", ticker, base_currency)
     try:
-        from currency_converter import CurrencyConverter
-
-        converter = CurrencyConverter(fallback_on_missing_rate=True, fallback_on_wrong_date=True)
         rates = []
         for trade_date in pd.to_datetime(df["TRADEDATE"]).dt.date.unique():
-            try:
-                rates.append({"TRADEDATE": pd.Timestamp(trade_date), "FX_RATE": converter.convert(1, base_currency, "RUB", date=trade_date)})
-            except ValueError as exc:
-                logging.warning("[%s] Missing %s/RUB rate for %s: %s", ticker, base_currency, trade_date, exc)
-                rates.append({"TRADEDATE": pd.Timestamp(trade_date), "FX_RATE": None})
+            rate = _cached_rub_rate(base_currency, trade_date.isoformat())
+            if rate is None:
+                logging.warning("[%s] Missing %s/RUB rate for %s", ticker, base_currency, trade_date)
+            rates.append({"TRADEDATE": pd.Timestamp(trade_date), "FX_RATE": rate})
         fx_df = pd.DataFrame(rates)
         df = df.merge(fx_df, on="TRADEDATE", how="left")
         df["FX_RATE"] = df["FX_RATE"].ffill().bfill()
