@@ -87,7 +87,7 @@ AAPL global USD shorts
 BTC price duration=12 fps=24
 gold 2018-2026 USD gradient
 gold silver palladium 2018-2026 RUB capital invest initial=0 monthly=30000 gradient theme=aurora
-золото серебро палладий с 2010 по 2026 в рублях капитал инвестируя каждый месяц 30к градиент шортс
+золото серебро палладий с 2010 по 2026 в рублях капитал инвестируя каждый месяц 30к₽ градиент шортс
 SiH4 futures 2024 close
 USD000UTSTOM selt 2024 close
 ```

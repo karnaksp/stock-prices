@@ -23,11 +23,14 @@ _BOOL_TRUE = {"1", "true", "yes", "y", "on", "да"}
 _BOOL_FALSE = {"0", "false", "no", "n", "off", "нет"}
 _CURRENCY_WORDS = {
     "руб": "RUB",
+    "руб.": "RUB",
     "рубль": "RUB",
     "рубля": "RUB",
     "рублей": "RUB",
     "рубли": "RUB",
     "рублях": "RUB",
+    "р": "RUB",
+    "р.": "RUB",
     "₽": "RUB",
     "доллар": "USD",
     "доллара": "USD",
@@ -43,7 +46,7 @@ _CURRENCY_WORDS = {
 _DATE_FROM_WORDS = {"с", "от"}
 _DATE_TO_WORDS = {"по", "до"}
 _RELATIVE_PERIOD_WORDS = {"за", "last", "последнее", "последний", "последние", "последних", "последнюю"}
-_MONTH_WORDS = {"month", "months", "месяц", "месяца", "месяцев", "мес"}
+_MONTH_WORDS = {"month", "months", "месяц", "месяца", "месяцев", "мес", "мес."}
 _YEAR_WORDS = {"year", "years", "год", "года", "лет"}
 _SINGLE_RELATIVE_PERIODS = {
     "month": (1, "month"),
@@ -54,7 +57,7 @@ _SINGLE_RELATIVE_PERIODS = {
     "year": (1, "year"),
     "год": (1, "year"),
 }
-_AMOUNT_SUFFIX_MULTIPLIERS = {"k": 1_000, "к": 1_000}
+_AMOUNT_SUFFIX_MULTIPLIERS = {"k": 1_000, "к": 1_000, "тыс": 1_000, "тыс.": 1_000}
 _AMOUNT_WORD_MULTIPLIERS = {
     "k": 1_000,
     "к": 1_000,
@@ -63,6 +66,14 @@ _AMOUNT_WORD_MULTIPLIERS = {
     "тысяч": 1_000,
     "тысяча": 1_000,
     "тысячи": 1_000,
+}
+_COMPACT_CURRENCY_SUFFIXES = {
+    "$": "USD",
+    "₽": "RUB",
+    "руб": "RUB",
+    "руб.": "RUB",
+    "р": "RUB",
+    "р.": "RUB",
 }
 _MONTHLY_WORDS = {"monthly", "ежемесячно", "помесячно"}
 _YEARLY_WORDS = {"yearly", "ежегодно", "ежегодный"}
@@ -212,22 +223,33 @@ def _shift_months(value: date, months: int) -> date:
     return date(year, month, day)
 
 
-def _read_first_amount_token(token: str) -> tuple[int | None, bool]:
+def _split_compact_currency_suffix(token: str) -> tuple[str, str | None]:
     normalized = token.replace("_", "").strip().lower()
+    for suffix, currency in sorted(_COMPACT_CURRENCY_SUFFIXES.items(), key=lambda item: len(item[0]), reverse=True):
+        if normalized.endswith(suffix) and normalized != suffix:
+            return normalized[: -len(suffix)], currency
+    return normalized, None
+
+
+def _read_first_amount_token(token: str) -> tuple[int | None, bool, str | None]:
+    normalized = token.replace("_", "").strip().lower()
+    normalized, currency = _split_compact_currency_suffix(normalized)
     if normalized.isdigit():
-        return int(normalized), False
-    suffixes = "".join(re.escape(suffix) for suffix in _AMOUNT_SUFFIX_MULTIPLIERS)
-    match = re.fullmatch(rf"(\d+)([{suffixes}])", normalized)
+        return int(normalized), False, currency
+    suffixes = "|".join(
+        re.escape(suffix) for suffix in sorted(_AMOUNT_SUFFIX_MULTIPLIERS, key=len, reverse=True)
+    )
+    match = re.fullmatch(rf"(\d+)({suffixes})", normalized)
     if match is None:
-        return None, False
+        return None, False, None
     multiplier = _AMOUNT_SUFFIX_MULTIPLIERS[match.group(2)]
-    return int(match.group(1)) * multiplier, True
+    return int(match.group(1)) * multiplier, True, currency
 
 
 def _read_amount(tokens: list[str], idx: int) -> tuple[int | None, int, str | None]:
     if idx >= len(tokens):
         return None, idx, None
-    first_amount, has_suffix = _read_first_amount_token(tokens[idx])
+    first_amount, has_suffix, currency = _read_first_amount_token(tokens[idx])
     if first_amount is None:
         return None, idx, None
 
@@ -236,26 +258,35 @@ def _read_amount(tokens: list[str], idx: int) -> tuple[int | None, int, str | No
     if not has_suffix and len(str(first_amount)) <= 3:
         amount_parts = [str(first_amount)]
         while idx < len(tokens):
-            group = tokens[idx].replace("_", "")
+            group, group_currency = _split_compact_currency_suffix(tokens[idx])
             if not re.fullmatch(r"\d{3}", group):
                 break
             amount_parts.append(group)
             idx += 1
+            if group_currency is not None:
+                currency = group_currency
+                break
         amount = int("".join(amount_parts))
 
-    if idx < len(tokens):
+    if currency is None and idx < len(tokens):
         multiplier = _AMOUNT_WORD_MULTIPLIERS.get(tokens[idx].strip().lower())
         if multiplier is not None:
             amount *= multiplier
             idx += 1
 
-    currency = None
-    if idx < len(tokens):
+    if currency is None and idx < len(tokens):
         currency = _CURRENCY_WORDS.get(tokens[idx].strip().lower())
         if currency is not None:
             idx += 1
 
     return amount, idx, currency
+
+
+def _parse_amount_option(value: str, name: str) -> tuple[int, str | None]:
+    amount, next_idx, currency = _read_amount([value], 0)
+    if amount is None or next_idx != 1:
+        return _parse_int(value, 0, 1_000_000_000, name), None
+    return _parse_int(str(amount), 0, 1_000_000_000, name), currency
 
 
 def _read_amount_after_optional_po(tokens: list[str], idx: int) -> tuple[int | None, int, str | None]:
@@ -283,6 +314,18 @@ def _set_investment_amount(
     updates["with_investments"] = True
     if currency is not None:
         updates["currency"] = currency
+
+
+def _set_periodic_amount(
+    updates: dict[str, object],
+    period_word: str,
+    amount: int,
+    currency: str | None,
+) -> None:
+    if period_word in _MONTH_WORDS:
+        _set_investment_amount(updates, "monthly_investment", amount, currency, "monthly")
+    else:
+        _set_investment_amount(updates, "yearly_investment", amount, currency, "yearly")
 
 
 def _looks_like_ticker(token: str) -> bool:
@@ -411,11 +454,14 @@ def parse_telegram_video_request(
         elif key == "market":
             market = value.lower()
         elif key in {"initial", "initial_investment"}:
-            updates["initial_investment"] = _parse_int(value, 0, 1_000_000_000, "initial")
+            amount, amount_currency = _parse_amount_option(value, "initial")
+            _set_investment_amount(updates, "initial_investment", amount, amount_currency, "initial")
         elif key in {"monthly", "monthly_investment", "month"}:
-            updates["monthly_investment"] = _parse_int(value, 0, 1_000_000_000, "monthly")
+            amount, amount_currency = _parse_amount_option(value, "monthly")
+            _set_investment_amount(updates, "monthly_investment", amount, amount_currency, "monthly")
         elif key in {"yearly", "yearly_investment", "year"}:
-            updates["yearly_investment"] = _parse_int(value, 0, 1_000_000_000, "yearly")
+            amount, amount_currency = _parse_amount_option(value, "yearly")
+            _set_investment_amount(updates, "yearly_investment", amount, amount_currency, "yearly")
         elif key == "gradient":
             updates["use_gradient"] = _parse_bool(value)
         elif key in {"legend", "show_legend"}:
@@ -525,16 +571,19 @@ def parse_telegram_video_request(
             amount, next_idx, amount_currency = _read_amount_after_optional_po(tokens, idx + 2)
             if amount is None:
                 raise ValueError("Investment amount is missing.")
-            if period_word in _MONTH_WORDS:
-                _set_investment_amount(updates, "monthly_investment", amount, amount_currency, "monthly")
-            else:
-                _set_investment_amount(updates, "yearly_investment", amount, amount_currency, "yearly")
+            _set_periodic_amount(updates, period_word, amount, amount_currency)
             idx = next_idx - 1
         elif lowered == "в" and idx + 1 < len(tokens) and tokens[idx + 1].strip().lower() in _CURRENCY_WORDS:
             updates["currency"] = _CURRENCY_WORDS[tokens[idx + 1].strip().lower()]
             idx += 1
         elif lowered == "в" and idx + 1 < len(tokens) and tokens[idx + 1].strip().lower() in _MONTH_WORDS | _YEAR_WORDS:
-            idx += 1
+            period_word = tokens[idx + 1].strip().lower()
+            amount, next_idx, amount_currency = _read_amount_after_optional_po(tokens, idx + 2)
+            if amount is None:
+                idx += 1
+            else:
+                _set_periodic_amount(updates, period_word, amount, amount_currency)
+                idx = next_idx - 1
         elif lowered in _CURRENCY_WORDS:
             updates["currency"] = _CURRENCY_WORDS[lowered]
         elif lowered in {"nolegend", "no_legend"}:
