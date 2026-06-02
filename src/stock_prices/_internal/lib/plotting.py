@@ -168,9 +168,7 @@ def _frame_indexes(row_count: int, target_duration: int, fps: int, final_frame_d
 
 
 def _visible_x_span_days(x_start: pd.Timestamp, frame_date: pd.Timestamp, total_span_days: int) -> int:
-    min_window_days = min(total_span_days, 45)
-    elapsed_days = max(1, (frame_date - x_start).days)
-    return max(min_window_days, elapsed_days)
+    return max(1, total_span_days)
 
 
 def _active_events(events_df: pd.DataFrame, frame_date: pd.Timestamp) -> list[tuple[pd.Timestamp, pd.Timestamp, str, int]]:

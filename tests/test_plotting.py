@@ -36,12 +36,12 @@ def test_return_summary_shows_invested_actual_amount() -> None:
     assert _return_summary("Invested", invested, invested) == "Invested: 60.0K"
 
 
-def test_visible_x_span_starts_with_readable_window() -> None:
+def test_visible_x_span_uses_full_period_to_prevent_expanding_axis() -> None:
     start = pd.Timestamp("2021-12-17")
 
-    assert _visible_x_span_days(start, start, 1627) == 45
-    assert _visible_x_span_days(start, start + pd.Timedelta(days=10), 1627) == 45
-    assert _visible_x_span_days(start, start + pd.Timedelta(days=120), 1627) == 120
+    assert _visible_x_span_days(start, start, 1627) == 1627
+    assert _visible_x_span_days(start, start + pd.Timedelta(days=10), 1627) == 1627
+    assert _visible_x_span_days(start, start + pd.Timedelta(days=120), 1627) == 1627
 
 
 def test_combine_data_handles_invested_series_without_dividends() -> None:
