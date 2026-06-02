@@ -141,6 +141,16 @@ def queue_status_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return {"inline_keyboard": [[{"text": "Статус очереди", "callback_data": QUEUE_STATUS_CALLBACK_DATA}]]}
 
 
+def _ru_plural(count: int, one: str, few: str, many: str) -> str:
+    if count % 100 in {11, 12, 13, 14}:
+        return many
+    if count % 10 == 1:
+        return one
+    if count % 10 in {2, 3, 4}:
+        return few
+    return many
+
+
 @dataclass(frozen=True)
 class TelegramPresetCallback:
     callback_query_id: str
@@ -240,6 +250,18 @@ class TelegramJobQueue:
             job_suffix=f"random-draft-{preset.name}",
             notify=False,
         )
+
+    def enqueue_batch(self, chat_id: int, texts: list[str], update_id: int) -> list[TelegramJob]:
+        jobs: list[TelegramJob] = []
+        for index, text in enumerate(texts, start=1):
+            jobs.append(self.enqueue(chat_id, text, update_id, job_suffix=f"batch-{index}", notify=False))
+        task_word = _ru_plural(len(jobs), "задачу", "задачи", "задач")
+        self.client.send_message(
+            chat_id,
+            f"Поставил в очередь {len(jobs)} {task_word} из одного сообщения.",
+            reply_markup=queue_status_keyboard(),
+        )
+        return jobs
 
     def snapshot(self) -> TelegramQueueSnapshot:
         with self._lock:
@@ -367,6 +389,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
         "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, все черновики, случайный черновик, /queue, металлы, черновик металлы\n"
+        "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
         "После preset-видео будут кнопки: черновик 4s, шортс 16s, вариант 12s.\n"
         "Примеры:\n"
@@ -499,6 +522,10 @@ def _is_queue_status(text: str) -> bool:
     }
 
 
+def _batch_request_lines(text: str) -> list[str]:
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+
 def handle_ticker_message(
     client: TelegramClient,
     settings: TelegramBotSettings,
@@ -520,6 +547,9 @@ def handle_ticker_message(
         return
     if _is_queue_status(text):
         client.send_message(chat_id, "Статус очереди доступен в режиме Telegram-бота.")
+        return
+    if len(_batch_request_lines(text)) > 1:
+        client.send_message(chat_id, "Несколько запросов одним сообщением работают в режиме Telegram-очереди.")
         return
     preset_list_mode = _preset_list_mode(text)
     if preset_list_mode is not None:
@@ -590,7 +620,11 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                     reply_markup=preset_inline_keyboard(mode=preset_list_mode),
                                 )
                             else:
-                                job_queue.enqueue(chat_id, text, int(update["update_id"]))
+                                batch_lines = _batch_request_lines(text)
+                                if len(batch_lines) > 1:
+                                    job_queue.enqueue_batch(chat_id, batch_lines, int(update["update_id"]))
+                                else:
+                                    job_queue.enqueue(chat_id, text, int(update["update_id"]))
                         continue
                     queue_callback = _extract_queue_status_callback(update)
                     if queue_callback is not None:
