@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from calendar import monthrange
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 
@@ -42,7 +43,7 @@ _CURRENCY_WORDS = {
 _DATE_FROM_WORDS = {"с", "от"}
 _DATE_TO_WORDS = {"по", "до"}
 _RELATIVE_PERIOD_WORDS = {"за", "last", "последние", "последних"}
-_MONTH_WORDS = {"месяц", "месяца", "месяцев", "мес"}
+_MONTH_WORDS = {"month", "months", "месяц", "месяца", "месяцев", "мес"}
 _YEAR_WORDS = {"year", "years", "год", "года", "лет"}
 _MONTHLY_WORDS = {"monthly", "ежемесячно", "помесячно"}
 _YEARLY_WORDS = {"yearly", "ежегодно", "ежегодный"}
@@ -141,6 +142,14 @@ def _shift_years(value: date, years: int) -> date:
         return value.replace(year=value.year - years)
     except ValueError:
         return value.replace(year=value.year - years, day=28)
+
+
+def _shift_months(value: date, months: int) -> date:
+    target_month_index = value.year * 12 + value.month - 1 - months
+    year = target_month_index // 12
+    month = target_month_index % 12 + 1
+    day = min(value.day, monthrange(year, month)[1])
+    return date(year, month, day)
 
 
 def _read_amount(tokens: list[str], idx: int) -> tuple[int | None, int, str | None]:
@@ -354,11 +363,15 @@ def parse_telegram_video_request(
         elif lowered in _RELATIVE_PERIOD_WORDS and idx + 2 < len(tokens):
             amount = tokens[idx + 1].strip().replace("_", "")
             period_word = tokens[idx + 2].strip().lower()
-            if not amount.isdigit() or period_word not in _YEAR_WORDS:
+            if not amount.isdigit() or period_word not in _MONTH_WORDS | _YEAR_WORDS:
                 raise ValueError(f"Cannot parse token: {token}")
-            years = _parse_int(amount, 1, 100, "years")
             updates["end_date"] = base_render.end_date
-            updates["start_date"] = _shift_years(base_render.end_date, years)
+            if period_word in _MONTH_WORDS:
+                months = _parse_int(amount, 1, 1200, "months")
+                updates["start_date"] = _shift_months(base_render.end_date, months)
+            else:
+                years = _parse_int(amount, 1, 100, "years")
+                updates["start_date"] = _shift_years(base_render.end_date, years)
             idx += 2
         elif (parsed_date := _parse_date_token(token, end=len(positional_dates) == 1)) is not None:
             positional_dates.append(parsed_date)
