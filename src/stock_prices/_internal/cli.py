@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from stock_prices._internal import debug
-from stock_prices._internal.env import load_env_file
+from stock_prices._internal.env import get_cleanup_retention_days, load_env_file
 from stock_prices._internal.models import RenderSettings, VideoRequest, parse_ticker_spec
 from stock_prices._internal.pipeline import generate_video
 from stock_prices._internal.rendering.theme import get_theme_names
@@ -93,6 +93,7 @@ def get_bot_parser() -> argparse.ArgumentParser:
     parser.add_argument("--currency", default=os.getenv("STOCK_PRICES_CURRENCY", "RUB"))
     parser.add_argument("--theme", default=os.getenv("STOCK_PRICES_THEME", "default"), choices=get_theme_names())
     parser.add_argument("--output_dir", default=os.getenv("STOCK_PRICES_OUTPUT_DIR", "animations"))
+    parser.add_argument("--retention_days", type=int, default=get_cleanup_retention_days(), help="Delete generated MP4 files older than this many days. 0 disables cleanup.")
     parser.add_argument("--poll_timeout", type=int, default=30)
     parser.add_argument("--once", action="store_true", help="Process currently available updates once and exit.")
     return parser
@@ -160,6 +161,7 @@ def _run_bot(argv: Sequence[str]) -> int:
         default_market=args.default_market,
         poll_timeout=args.poll_timeout,
         once=args.once,
+        cleanup_retention_days=args.retention_days,
         render=RenderSettings(
             start_date=args.start_date,
             end_date=args.end_date,
