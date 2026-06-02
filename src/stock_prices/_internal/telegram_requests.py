@@ -20,6 +20,8 @@ _CURRENCIES = {"RUB", "USD", "EUR", "CNY", "GBP", "JPY", "CHF"}
 _ENGINES = {"stock", "global", "currency"}
 _BOOL_TRUE = {"1", "true", "yes", "y", "on", "да"}
 _BOOL_FALSE = {"0", "false", "no", "n", "off", "нет"}
+SHORTS_DURATION = 16
+SHORTS_FPS = 24
 _GLOBAL_ALIASES = {
     "BTC": ("BTC-USD", "crypto"),
     "БИТКОИН": ("BTC-USD", "crypto"),
@@ -218,6 +220,10 @@ def parse_telegram_video_request(
             updates["use_gradient"] = True
         elif lowered in {"nogradient", "no_gradient", "line", "линия"}:
             updates["use_gradient"] = False
+        elif lowered in {"short", "shorts", "reels", "шорт", "шортс", "шортсы"}:
+            updates["duration"] = SHORTS_DURATION
+            updates["fps"] = SHORTS_FPS
+            updates["use_gradient"] = True
         elif lowered in {"close", "price", "цена"}:
             updates["value_col"] = "CLOSE"
         elif lowered in {"capital", "reinvest", "капитал"}:

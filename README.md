@@ -56,7 +56,8 @@ LKOH
 SBER LKOH 2020 2024
 preset metals
 preset neweconomy duration=12 theme=studio
-AAPL global USD gradient
+SBER LKOH shorts
+AAPL global USD shorts
 BTC price duration=12 fps=24
 gold 2018-2026 USD gradient
 gold silver palladium 2018-2026 RUB capital invest initial=0 monthly=30000 gradient theme=aurora
@@ -119,6 +120,7 @@ futures / selt         MOEX futures или currency
 close / price          цена закрытия
 capital / reinvest     капитал с реинвестированием
 gradient               градиентная линия
+shorts                 короткий режим: duration=16 fps=24 gradient
 theme=aurora           визуальная тема: default, aurora или studio
 duration=12 fps=24     настройки видео
 ```
