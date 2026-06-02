@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
+from threading import Event
 import time
 
 import pytest
@@ -309,6 +310,80 @@ def test_run_telegram_bot_queues_random_preset_draft(monkeypatch) -> None:
     assert client.videos == [(123, Path("animations/tg-47-random-draft-metals.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 
+def test_telegram_job_queue_status_tracks_pending_and_finished(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+    queue = telegram_bot.TelegramJobQueue(client, settings)
+
+    queue.enqueue(123, "LKOH", 48, notify=False)
+    queue.enqueue(123, "SBER", 49, notify=False)
+    pending_status = queue.status_text()
+
+    assert "Очередь Telegram" in pending_status
+    assert "Сейчас: нет активного рендера" in pending_status
+    assert "Ждет: 2" in pending_status
+    assert "tg-48" in pending_status
+    assert "tg-49" in pending_status
+
+    started = Event()
+    release = Event()
+
+    def fake_generate(_request, job_id=None):
+        started.set()
+        assert release.wait(timeout=5)
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    queue.start()
+    try:
+        assert started.wait(timeout=5)
+        active_status = queue.status_text()
+        assert "Сейчас: tg-48" in active_status
+        assert "Ждет: 1" in active_status
+        assert "tg-49" in active_status
+
+        release.set()
+        queue.join()
+        finished_status = queue.status_text()
+    finally:
+        release.set()
+        queue.stop()
+
+    assert "Сейчас: нет активного рендера" in finished_status
+    assert "Ждет: 0" in finished_status
+    assert "Готово: 2, ошибок: 0" in finished_status
+
+
+def test_run_telegram_bot_reports_queue_status(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 50, "message": {"text": "/queue", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fake_client_factory(*_args, **_kwargs):
+        return client
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.messages == [(123, "Очередь Telegram\nСейчас: нет активного рендера\nЖдет: 0\nГотово: 0, ошибок: 0")]
+    assert client.videos == []
+
+
 def test_cleanup_old_outputs_removes_old_mp4_but_keeps_current(tmp_path: Path) -> None:
     old_video = tmp_path / "old.mp4"
     current_video = tmp_path / "current.mp4"
@@ -360,6 +435,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "все черновики" in help_text
     assert "случайный черновик" in help_text
     assert "/random_draft" in help_text
+    assert "/queue" in help_text
+    assert "очередь" in help_text
     assert "черновик металлы" in help_text
     assert "пресет металлы" in help_text
     assert "вариант 12s" in help_text
@@ -383,6 +460,7 @@ def test_handle_ticker_message_lists_pulse_presets() -> None:
     assert "preset neweconomy" in preset_text
     assert "preset exporters" in preset_text
     assert "preset coalminers" in preset_text
+    assert "/queue" in preset_text
     assert "вариант 12s" in preset_text
     assert client.message_markups[0] == _expected_preset_keyboard()
     assert client.videos == []
@@ -417,6 +495,7 @@ def test_handle_ticker_message_lists_draft_presets() -> None:
     assert "preset metals" in preset_text
     assert "preset neweconomy" in preset_text
     assert "preset stateowned" in preset_text
+    assert "/queue" in preset_text
     assert client.message_markups[0] == _expected_preset_keyboard("draft")
     assert client.videos == []
 
