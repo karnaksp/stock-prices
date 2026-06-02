@@ -99,7 +99,7 @@ hide:
   </a>
   <a class="sp-card" href="telegram/">
     <strong>Telegram-запросы</strong>
-    <span>Синтаксис сообщений, рынки, инвестиции, темы и проверенные примеры.</span>
+    <span>Синтаксис сообщений, preset-кнопки, рынки, инвестиции, темы и готовый текст для Пульса.</span>
   </a>
   <a class="sp-card" href="docker/">
     <strong>Docker</strong>
