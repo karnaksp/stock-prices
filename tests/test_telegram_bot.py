@@ -226,6 +226,45 @@ def test_run_telegram_bot_queues_12s_preset_from_followup_button(monkeypatch) ->
     assert client.videos == [(123, Path("animations/metals-12s.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 
+def test_run_telegram_bot_queues_all_preset_drafts(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 46, "message": {"text": "все черновики", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), use_gradient=True),
+    )
+    generated: list[tuple[str | None, int, int, bool]] = []
+
+    def fake_client_factory(*_args, **_kwargs):
+        return client
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, request.render.duration, request.render.fps, request.render.use_gradient))
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.messages[0][0] == 123
+    assert "Ставлю в очередь" in client.messages[0][1]
+    assert "Металлы" in client.messages[0][1]
+    assert len(generated) == len(PRESETS)
+    assert generated[0][0] == "tg-46-draft-1-neweconomy"
+    assert generated[-1][0] == f"tg-46-draft-{len(PRESETS)}-{PRESETS[-1].name}"
+    assert len({job_id for job_id, *_rest in generated}) == len(PRESETS)
+    assert all((duration, fps, gradient) == (4, 8, False) for _job_id, duration, fps, gradient in generated)
+    assert len(client.videos) == len(PRESETS)
+
+
 def test_cleanup_old_outputs_removes_old_mp4_but_keeps_current(tmp_path: Path) -> None:
     old_video = tmp_path / "old.mp4"
     current_video = tmp_path / "current.mp4"
@@ -274,6 +313,7 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "draft" in help_text
     assert "/drafts" in help_text
     assert "/черновики" in help_text
+    assert "все черновики" in help_text
     assert "черновик металлы" in help_text
     assert "пресет металлы" in help_text
     assert "вариант 12s" in help_text

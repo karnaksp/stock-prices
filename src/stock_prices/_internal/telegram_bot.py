@@ -15,9 +15,11 @@ from stock_prices._internal.env import get_cleanup_retention_days
 from stock_prices._internal.models import RenderSettings
 from stock_prices._internal.pipeline import generate_video, log_event
 from stock_prices._internal.telegram_presets import (
+    PRESETS,
     format_preset_list,
     format_pulse_post,
     get_preset,
+    preset_button_label,
     preset_followup_keyboard,
     preset_inline_keyboard,
 )
@@ -153,8 +155,9 @@ class TelegramJobQueue:
     def join(self) -> None:
         self._jobs.join()
 
-    def enqueue(self, chat_id: int, text: str, update_id: int) -> TelegramJob:
-        job = TelegramJob(job_id=f"tg-{update_id}", chat_id=chat_id, text=text, queued_at=time.monotonic())
+    def enqueue(self, chat_id: int, text: str, update_id: int, job_suffix: str = "", notify: bool = True) -> TelegramJob:
+        suffix = f"-{job_suffix}" if job_suffix else ""
+        job = TelegramJob(job_id=f"tg-{update_id}{suffix}", chat_id=chat_id, text=text, queued_at=time.monotonic())
         queue_position = self._jobs.qsize() + 1
         log_event(
             "request",
@@ -164,9 +167,29 @@ class TelegramJobQueue:
             queue_position=queue_position,
             text_length=len(text),
         )
-        self.client.send_message(chat_id, f"Job {job.job_id} queued. Queue position: {queue_position}.")
+        if notify:
+            self.client.send_message(chat_id, f"Job {job.job_id} queued. Queue position: {queue_position}.")
         self._jobs.put(job)
         return job
+
+    def enqueue_preset_drafts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
+        labels = ", ".join(preset_button_label(preset) for preset in PRESETS)
+        self.client.send_message(
+            chat_id,
+            f"Ставлю в очередь {len(PRESETS)} черновиков: {labels}.",
+        )
+        jobs: list[TelegramJob] = []
+        for index, preset in enumerate(PRESETS, start=1):
+            jobs.append(
+                self.enqueue(
+                    chat_id,
+                    f"preset {preset.name} draft",
+                    update_id,
+                    job_suffix=f"draft-{index}-{preset.name}",
+                    notify=False,
+                )
+            )
+        return jobs
 
     def _run_worker(self) -> None:
         while True:
@@ -233,7 +256,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, металлы, черновик металлы\n"
+        "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, все черновики, металлы, черновик металлы\n"
         "После preset-видео будут кнопки: черновик 4s, шортс 16s, вариант 12s.\n"
         "Примеры:\n"
         "LKOH\n"
@@ -244,6 +267,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "пресет металлы draft\n"
         "/drafts\n"
         "/черновики\n"
+        "все черновики\n"
         "AAPL global USD gradient theme=studio\n"
         "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n"
         "SiH4 futures 2024 close\n"
@@ -314,6 +338,22 @@ def _preset_list_mode(text: str) -> str | None:
     return None
 
 
+def _is_draft_batch(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    return normalized in {
+        "/drafts_all",
+        "/all_drafts",
+        "/черновики_все",
+        "drafts all",
+        "all drafts",
+        "draft batch",
+        "batch drafts",
+        "черновики все",
+        "все черновики",
+        "пакет черновиков",
+    }
+
+
 def handle_ticker_message(
     client: TelegramClient,
     settings: TelegramBotSettings,
@@ -326,6 +366,9 @@ def handle_ticker_message(
         return
     if _is_help(text):
         client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
+        return
+    if _is_draft_batch(text):
+        client.send_message(chat_id, "Команда пакетных черновиков работает в режиме Telegram-очереди.")
         return
     preset_list_mode = _preset_list_mode(text)
     if preset_list_mode is not None:
@@ -381,6 +424,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             client.send_message(chat_id, "This chat is not allowed to use this bot.")
                         elif _is_help(text):
                             client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
+                        elif _is_draft_batch(text):
+                            job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
                         else:
                             preset_list_mode = _preset_list_mode(text)
                             if preset_list_mode is not None:
