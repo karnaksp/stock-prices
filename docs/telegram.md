@@ -32,6 +32,7 @@ preset metals
 preset neweconomy duration=12 theme=studio
 AAPL global USD gradient theme=studio
 gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient
+золото серебро палладий с 2010 по 2026 в рублях капитал инвестируя каждый месяц 30000 градиент шортс
 SiH4 futures 2024 close
 USD000UTSTOM selt 2024 close
 ```
@@ -159,6 +160,9 @@ invest                 добавить линию Invested
 initial=0              стартовое вложение
 monthly=30000          ежемесячное вложение
 yearly=120000          ежегодное вложение
+с 2020 по 2024         русский вариант периода
+каждый месяц 30000     русский вариант monthly=30000
+по 30 000 рублей в месяц русский вариант monthly=30000 и RUB
 ```
 
 Если глобальный актив строится в `RUB`, цены сначала конвертируются в рубли, а `initial`, `monthly` и `yearly` считаются рублевыми взносами. Если график строится в `USD`, взносы считаются в долларах.
