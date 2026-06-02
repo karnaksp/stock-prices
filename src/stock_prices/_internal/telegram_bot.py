@@ -142,6 +142,7 @@ MENU_ACTIONS = {
     "examples",
     "drafts",
     "hot_drafts",
+    "hot_shorts",
     "example_drafts",
     "random_draft",
     "random_example",
@@ -179,9 +180,10 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             hot_preset_buttons[2:],
             [
                 {"text": "Hot drafts", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_drafts"},
-                {"text": "Draft presets", "callback_data": f"{MENU_CALLBACK_PREFIX}drafts"},
+                {"text": "Hot shorts", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_shorts"},
             ],
             [
+                {"text": "Draft presets", "callback_data": f"{MENU_CALLBACK_PREFIX}drafts"},
                 {"text": "Draft examples", "callback_data": f"{MENU_CALLBACK_PREFIX}example_drafts"},
             ],
             [
@@ -427,11 +429,15 @@ class TelegramJobQueue:
             )
         return jobs
 
-    def enqueue_hot_preset_drafts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
+    def _enqueue_hot_presets(self, chat_id: int, update_id: int, mode: str) -> list[TelegramJob]:
+        if mode not in {"draft", "shorts"}:
+            msg = f"Unsupported hot preset mode: {mode}"
+            raise ValueError(msg)
         labels = ", ".join(label for label, _preset_name in HOT_MENU_PRESETS)
+        mode_label = "top-draft" if mode == "draft" else "top-shorts"
         self.client.send_message(
             chat_id,
-            f"Ставлю в очередь {len(HOT_MENU_PRESETS)} top-draft: {labels}.",
+            f"Ставлю в очередь {len(HOT_MENU_PRESETS)} {mode_label}: {labels}.",
             reply_markup=queue_status_keyboard(),
         )
         jobs: list[TelegramJob] = []
@@ -439,13 +445,19 @@ class TelegramJobQueue:
             jobs.append(
                 self.enqueue(
                     chat_id,
-                    f"preset {preset_name} draft",
+                    f"preset {preset_name} {mode}",
                     update_id,
-                    job_suffix=f"hot-draft-{index}-{preset_name}",
+                    job_suffix=f"hot-{mode}-{index}-{preset_name}",
                     notify=False,
                 )
             )
         return jobs
+
+    def enqueue_hot_preset_drafts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
+        return self._enqueue_hot_presets(chat_id, update_id, "draft")
+
+    def enqueue_hot_preset_shorts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
+        return self._enqueue_hot_presets(chat_id, update_id, "shorts")
 
     def enqueue_random_preset_draft(self, chat_id: int, update_id: int) -> TelegramJob:
         preset = random.choice(PRESETS)
@@ -711,7 +723,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, top drafts, топ черновики, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
+        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, top drafts, top shorts, топ черновики, топ шортсы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
         "После preset-видео будут кнопки: черновик 4s, шортс 16s, вариант 12s.\n"
@@ -729,6 +741,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "/черновики\n"
         "top drafts\n"
         "топ черновики\n"
+        "top shorts\n"
+        "топ шортсы\n"
         "все черновики\n"
         "случайный черновик\n"
         "/random_draft\n"
@@ -863,6 +877,23 @@ def _is_hot_draft_batch(text: str) -> bool:
         "топовые черновики",
         "горячие черновики",
         "черновики топ",
+    }
+
+
+def _is_hot_shorts_batch(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    return normalized in {
+        "/hot_shorts",
+        "/top_shorts",
+        "/топ_шортсы",
+        "hot shorts",
+        "top shorts",
+        "hot short",
+        "top short",
+        "топ шортсы",
+        "топовые шортсы",
+        "горячие шортсы",
+        "шортсы топ",
     }
 
 
@@ -1065,6 +1096,9 @@ def handle_ticker_message(
     if _is_hot_draft_batch(text):
         client.send_message(chat_id, "Команда top-draft черновиков работает в режиме Telegram-очереди.")
         return
+    if _is_hot_shorts_batch(text):
+        client.send_message(chat_id, "Команда top-shorts роликов работает в режиме Telegram-очереди.")
+        return
     if _is_random_draft(text):
         client.send_message(chat_id, "Команда случайного черновика работает в режиме Telegram-очереди.")
         return
@@ -1151,6 +1185,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
                         elif _is_hot_draft_batch(text):
                             job_queue.enqueue_hot_preset_drafts(chat_id, int(update["update_id"]))
+                        elif _is_hot_shorts_batch(text):
+                            job_queue.enqueue_hot_preset_shorts(chat_id, int(update["update_id"]))
                         elif _is_random_draft(text):
                             job_queue.enqueue_random_preset_draft(chat_id, int(update["update_id"]))
                         elif _is_example_draft_batch(text):
@@ -1205,6 +1241,9 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif menu_callback.action == "hot_drafts":
                             client.answer_callback_query(menu_callback.callback_query_id, "Top-draft поставлены в очередь.")
                             job_queue.enqueue_hot_preset_drafts(menu_callback.chat_id, int(update["update_id"]))
+                        elif menu_callback.action == "hot_shorts":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Top-shorts поставлены в очередь.")
+                            job_queue.enqueue_hot_preset_shorts(menu_callback.chat_id, int(update["update_id"]))
                         elif menu_callback.action == "example_drafts":
                             client.answer_callback_query(menu_callback.callback_query_id, "Draft-примеры поставлены в очередь.")
                             job_queue.enqueue_example_drafts(menu_callback.chat_id, int(update["update_id"]))
