@@ -141,6 +141,7 @@ MENU_ACTIONS = {
     "ideas",
     "examples",
     "drafts",
+    "hot_drafts",
     "example_drafts",
     "random_draft",
     "random_example",
@@ -177,7 +178,10 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             hot_preset_buttons[:2],
             hot_preset_buttons[2:],
             [
+                {"text": "Hot drafts", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_drafts"},
                 {"text": "Draft presets", "callback_data": f"{MENU_CALLBACK_PREFIX}drafts"},
+            ],
+            [
                 {"text": "Draft examples", "callback_data": f"{MENU_CALLBACK_PREFIX}example_drafts"},
             ],
             [
@@ -418,6 +422,26 @@ class TelegramJobQueue:
                     f"preset {preset.name} draft",
                     update_id,
                     job_suffix=f"draft-{index}-{preset.name}",
+                    notify=False,
+                )
+            )
+        return jobs
+
+    def enqueue_hot_preset_drafts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
+        labels = ", ".join(label for label, _preset_name in HOT_MENU_PRESETS)
+        self.client.send_message(
+            chat_id,
+            f"Ставлю в очередь {len(HOT_MENU_PRESETS)} top-draft: {labels}.",
+            reply_markup=queue_status_keyboard(),
+        )
+        jobs: list[TelegramJob] = []
+        for index, (_label, preset_name) in enumerate(HOT_MENU_PRESETS, start=1):
+            jobs.append(
+                self.enqueue(
+                    chat_id,
+                    f"preset {preset_name} draft",
+                    update_id,
+                    job_suffix=f"hot-draft-{index}-{preset_name}",
                     notify=False,
                 )
             )
@@ -687,7 +711,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
+        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, top drafts, топ черновики, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
         "После preset-видео будут кнопки: черновик 4s, шортс 16s, вариант 12s.\n"
@@ -703,6 +727,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "пресет металлы draft\n"
         "/drafts\n"
         "/черновики\n"
+        "top drafts\n"
+        "топ черновики\n"
         "все черновики\n"
         "случайный черновик\n"
         "/random_draft\n"
@@ -820,6 +846,23 @@ def _is_example_draft_batch(text: str) -> bool:
         "примеры черновики",
         "все примеры",
         "пакет примеров",
+    }
+
+
+def _is_hot_draft_batch(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    return normalized in {
+        "/hot_drafts",
+        "/top_drafts",
+        "/топ_черновики",
+        "hot drafts",
+        "top drafts",
+        "hot draft",
+        "top draft",
+        "топ черновики",
+        "топовые черновики",
+        "горячие черновики",
+        "черновики топ",
     }
 
 
@@ -1019,6 +1062,9 @@ def handle_ticker_message(
     if _is_draft_batch(text):
         client.send_message(chat_id, "Команда пакетных черновиков работает в режиме Telegram-очереди.")
         return
+    if _is_hot_draft_batch(text):
+        client.send_message(chat_id, "Команда top-draft черновиков работает в режиме Telegram-очереди.")
+        return
     if _is_random_draft(text):
         client.send_message(chat_id, "Команда случайного черновика работает в режиме Telegram-очереди.")
         return
@@ -1103,6 +1149,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             _send_main_menu(client, chat_id)
                         elif _is_draft_batch(text):
                             job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
+                        elif _is_hot_draft_batch(text):
+                            job_queue.enqueue_hot_preset_drafts(chat_id, int(update["update_id"]))
                         elif _is_random_draft(text):
                             job_queue.enqueue_random_preset_draft(chat_id, int(update["update_id"]))
                         elif _is_example_draft_batch(text):
@@ -1154,6 +1202,9 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 format_preset_list("draft"),
                                 reply_markup=preset_inline_keyboard(mode="draft"),
                             )
+                        elif menu_callback.action == "hot_drafts":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Top-draft поставлены в очередь.")
+                            job_queue.enqueue_hot_preset_drafts(menu_callback.chat_id, int(update["update_id"]))
                         elif menu_callback.action == "example_drafts":
                             client.answer_callback_query(menu_callback.callback_query_id, "Draft-примеры поставлены в очередь.")
                             job_queue.enqueue_example_drafts(menu_callback.chat_id, int(update["update_id"]))
