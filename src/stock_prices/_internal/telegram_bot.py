@@ -387,6 +387,41 @@ class TelegramJobQueue:
             notify=False,
         )
 
+    def enqueue_example_drafts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
+        labels = ", ".join(example.button_label for example in _TELEGRAM_EXAMPLES)
+        self.client.send_message(
+            chat_id,
+            f"Ставлю в очередь {len(_TELEGRAM_EXAMPLES)} draft-примеров: {labels}.",
+            reply_markup=queue_status_keyboard(),
+        )
+        jobs: list[TelegramJob] = []
+        for index, example in enumerate(_TELEGRAM_EXAMPLES, start=1):
+            jobs.append(
+                self.enqueue(
+                    chat_id,
+                    f"{example.request} draft",
+                    update_id,
+                    job_suffix=f"example-draft-{index}-{example.name}",
+                    notify=False,
+                )
+            )
+        return jobs
+
+    def enqueue_random_example_draft(self, chat_id: int, update_id: int) -> TelegramJob:
+        example = random.choice(_TELEGRAM_EXAMPLES)
+        self.client.send_message(
+            chat_id,
+            f"Случайный пример: {example.button_label}. Ставлю короткий draft в очередь.",
+            reply_markup=queue_status_keyboard(),
+        )
+        return self.enqueue(
+            chat_id,
+            f"{example.request} draft",
+            update_id,
+            job_suffix=f"random-example-{example.name}",
+            notify=False,
+        )
+
     def enqueue_batch(self, chat_id: int, texts: list[str], update_id: int) -> list[TelegramJob]:
         jobs: list[TelegramJob] = []
         for index, text in enumerate(texts, start=1):
@@ -573,7 +608,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, /examples, /примеры, все черновики, случайный черновик, /queue, металлы, черновик металлы\n"
+        "Готовые сценарии: /ideas, /идеи, /drafts, /черновики, /examples, /примеры, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
         "После preset-видео будут кнопки: черновик 4s, шортс 16s, вариант 12s.\n"
@@ -592,6 +627,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "/random_draft\n"
         "/examples\n"
         "/примеры\n"
+        "черновики примеров\n"
+        "случайный пример\n"
         "/queue\n"
         "очередь\n"
         "AAPL global USD gradient theme=studio\n"
@@ -678,6 +715,40 @@ def _is_examples(text: str) -> bool:
         "примеры",
         "пример",
         "примеры запросов",
+    }
+
+
+def _is_example_draft_batch(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    return normalized in {
+        "/example_drafts",
+        "/examples_drafts",
+        "/draft_examples",
+        "/all_examples",
+        "/примеры_черновики",
+        "example drafts",
+        "examples drafts",
+        "draft examples",
+        "all examples",
+        "черновики примеров",
+        "примеры черновики",
+        "все примеры",
+        "пакет примеров",
+    }
+
+
+def _is_random_example_draft(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    return normalized in {
+        "/random_example",
+        "/random_example_draft",
+        "/случайный_пример",
+        "random example",
+        "random example draft",
+        "example random",
+        "случайный пример",
+        "случайный черновик примера",
+        "пример случайный",
     }
 
 
@@ -862,6 +933,12 @@ def handle_ticker_message(
     if _is_random_draft(text):
         client.send_message(chat_id, "Команда случайного черновика работает в режиме Telegram-очереди.")
         return
+    if _is_example_draft_batch(text):
+        client.send_message(chat_id, "Команда пакетных draft-примеров работает в режиме Telegram-очереди.")
+        return
+    if _is_random_example_draft(text):
+        client.send_message(chat_id, "Команда случайного draft-примера работает в режиме Telegram-очереди.")
+        return
     if _is_queue_status(text):
         client.send_message(chat_id, "Статус очереди доступен в режиме Telegram-бота.")
         return
@@ -937,6 +1014,10 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
                         elif _is_random_draft(text):
                             job_queue.enqueue_random_preset_draft(chat_id, int(update["update_id"]))
+                        elif _is_example_draft_batch(text):
+                            job_queue.enqueue_example_drafts(chat_id, int(update["update_id"]))
+                        elif _is_random_example_draft(text):
+                            job_queue.enqueue_random_example_draft(chat_id, int(update["update_id"]))
                         elif _is_queue_status(text):
                             client.send_message(chat_id, job_queue.status_text(), reply_markup=queue_status_keyboard())
                         elif _is_examples(text):
