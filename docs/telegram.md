@@ -19,6 +19,9 @@ LKOH
 SBER LKOH 2020 2024
 металлы
 черновик металлы
+госы
+экспортёры
+черновик угольщики
 preset metals
 пресет металлы
 preset neweconomy duration=12 theme=studio
@@ -43,6 +46,9 @@ preset metals
 пресет металлы
 металлы
 черновик металлы
+госы
+экспортёры
+черновик угольщики
 preset neweconomy
 preset vodka
 preset mechel
@@ -60,6 +66,9 @@ preset metals duration=12 theme=studio
 металлы
 черновик металлы
 голубые фишки duration=12
+госы
+экспортёры duration=12
+черновик угольщики
 пресет металлы draft
 сценарий голубые фишки duration=12
 preset neweconomy from=2021-12-17 to=2026-06-01 fps=24
@@ -77,6 +86,9 @@ metals       золото / серебро / палладий в RUB с monthly=
 vodka        BELU / ABRD / KLVZ, алкогольные акции
 mechel       MTLR / MTLRP, циклическая драма
 wagons       UWGN / IMOEX, вагоны против рынка
+stateowned   GAZP / AFLT / SNGS, госкомпании и длинная дистанция ожиданий
+exporters    LKOH / PHOR / NLMK, экспортеры, рубль и сырьевые циклы
+coalminers   MTLR / RASP, угольщики и циклическая волатильность
 bluechips    SBER / LKOH / MGNT, понятная база для широкой аудитории
 techru       YDEX / OZON / VKCO, российский технологический сюжет
 ```
