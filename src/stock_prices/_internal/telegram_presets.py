@@ -272,6 +272,20 @@ _DIRECT_MODE_PREFIXES = {
     "черновик": "draft",
     "превью": "draft",
 }
+_DIRECT_THEME_ALIASES = {
+    "aurora": "theme=aurora",
+    "аурора": "theme=aurora",
+    "studio": "theme=studio",
+    "студио": "theme=studio",
+    "студия": "theme=studio",
+    "default": "theme=default",
+    "дефолт": "theme=default",
+    "база": "theme=default",
+}
+
+
+def _expand_direct_theme_aliases(tokens: list[str]) -> list[str]:
+    return [_DIRECT_THEME_ALIASES.get(token.lower(), token) for token in tokens]
 
 
 def _normalize_name(name: str) -> str:
@@ -315,16 +329,28 @@ def _match_direct_preset_tokens(tokens: list[str]) -> tuple[TelegramPreset, list
     rest_prefix: list[str] = []
     candidate_tokens = tokens
     first = tokens[0].lstrip("/").lower()
-    if first in _DIRECT_MODE_PREFIXES:
-        rest_prefix = [_DIRECT_MODE_PREFIXES[first]]
+    if first in _DIRECT_THEME_ALIASES:
+        rest_prefix.append(_DIRECT_THEME_ALIASES[first])
         candidate_tokens = tokens[1:]
+        if not candidate_tokens:
+            return None
+        first = candidate_tokens[0].lstrip("/").lower()
+    if first in _DIRECT_MODE_PREFIXES:
+        rest_prefix.append(_DIRECT_MODE_PREFIXES[first])
+        candidate_tokens = candidate_tokens[1:]
+        if candidate_tokens:
+            first = candidate_tokens[0].lstrip("/").lower()
+            if first in _DIRECT_THEME_ALIASES:
+                rest_prefix.append(_DIRECT_THEME_ALIASES[first])
+                candidate_tokens = candidate_tokens[1:]
     if not candidate_tokens:
         return None
 
     for end in range(len(candidate_tokens), 0, -1):
         normalized = _normalize_name(" ".join(candidate_tokens[:end]))
         if normalized in _DIRECT_PRESET_BY_NAME:
-            return _DIRECT_PRESET_BY_NAME[normalized], [*rest_prefix, *candidate_tokens[end:]]
+            rest = _expand_direct_theme_aliases(candidate_tokens[end:])
+            return _DIRECT_PRESET_BY_NAME[normalized], [*rest_prefix, *rest]
     return None
 
 
@@ -361,7 +387,7 @@ def format_preset_list(mode: str = "shorts") -> str:
         lines.append(f"{preset.title} — {preset.description}")
         lines.append("")
     lines.append("Можно дописать параметры: preset metals duration=12 theme=studio")
-    lines.append("Коротко: металлы, черновик металлы, голубые фишки duration=12")
+    lines.append("Коротко: металлы, металлы студио, studio metals, черновик металлы")
     lines.append("Для отбора идей: все черновики - поставить в очередь draft-прогоны всех сценариев.")
     lines.append("Статус очереди: /queue или очередь.")
     lines.append("После preset-видео бот покажет кнопки: черновик 4s, шортс 16s и вариант 12s.")

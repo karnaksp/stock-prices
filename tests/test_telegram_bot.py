@@ -1672,6 +1672,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "сравни SBER с LKOH за год" in help_text
     assert "черновик металлы" in help_text
     assert "пресет металлы" in help_text
+    assert "металлы студио" in help_text
+    assert "studio metals" in help_text
     assert "вариант 12s" in help_text
     assert "theme=default|aurora|studio" in help_text
     assert "SiH4 futures" in help_text
@@ -2429,6 +2431,50 @@ def test_parse_telegram_video_request_accepts_direct_draft_preset_shortcut() -> 
     assert parsed.request.render.duration == 4
     assert parsed.request.render.fps == 8
     assert parsed.request.render.use_gradient is False
+
+
+def test_parse_telegram_video_request_accepts_direct_preset_theme_suffix() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), theme="default")
+
+    parsed = parse_telegram_video_request("металлы студио", base)
+
+    assert parsed.preset_name == "metals"
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["GC=F", "SI=F", "PA=F"]
+    assert parsed.request.render.theme == "studio"
+    assert parsed.request.render.duration == 16
+    assert parsed.request.render.use_gradient is True
+
+
+def test_parse_telegram_video_request_accepts_direct_preset_theme_prefix() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), theme="default")
+
+    parsed = parse_telegram_video_request("aurora голубые фишки", base)
+
+    assert parsed.preset_name == "bluechips"
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["SBER", "LKOH", "MGNT"]
+    assert parsed.request.render.theme == "aurora"
+
+
+def test_parse_telegram_video_request_accepts_direct_draft_preset_theme_prefix() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), theme="default")
+
+    parsed = parse_telegram_video_request("студио черновик металлы", base)
+
+    assert parsed.preset_name == "metals"
+    assert parsed.request.render.theme == "studio"
+    assert parsed.request.render.duration == 4
+    assert parsed.request.render.fps == 8
+    assert parsed.request.render.use_gradient is False
+
+
+def test_parse_telegram_video_request_accepts_direct_preset_theme_before_options() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), theme="default")
+
+    parsed = parse_telegram_video_request("металлы студио duration=12", base)
+
+    assert parsed.preset_name == "metals"
+    assert parsed.request.render.theme == "studio"
+    assert parsed.request.render.duration == 12
 
 
 def test_parse_telegram_video_request_direct_shortcut_allows_multiword_alias_and_overrides() -> None:
