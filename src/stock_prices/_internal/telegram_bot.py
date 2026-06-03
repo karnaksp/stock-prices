@@ -170,6 +170,23 @@ CUSTOM_FOLLOWUP_MODES = {
     "aurora": "theme=aurora",
     "studio": "theme=studio",
 }
+THEME_VARIANTS = ("default", "aurora", "studio")
+PRESET_THEME_VARIANT_PREFIXES = (
+    "/theme_variants",
+    "/themes",
+    "/variants",
+    "theme variants",
+    "themes",
+    "variants",
+    "style variants",
+    "styles",
+    "series",
+    "варианты",
+    "варианты тем",
+    "все темы",
+    "серия",
+    "стили",
+)
 HOT_BATCH_THEME_ALIASES = {
     "aurora": "aurora",
     "аурора": "aurora",
@@ -439,6 +456,13 @@ class TelegramPresetCallback:
 
 
 @dataclass(frozen=True)
+class TelegramPresetThemeVariantsCallback:
+    callback_query_id: str
+    chat_id: int
+    preset_name: str
+
+
+@dataclass(frozen=True)
 class TelegramExampleCallback:
     callback_query_id: str
     chat_id: int
@@ -596,6 +620,28 @@ class TelegramJobQueue:
 
     def enqueue_hot_preset_shorts_with_theme(self, chat_id: int, update_id: int, theme: str) -> list[TelegramJob]:
         return self._enqueue_hot_presets(chat_id, update_id, "shorts", theme=theme)
+
+    def enqueue_preset_theme_variants(self, chat_id: int, update_id: int, preset_name: str) -> list[TelegramJob]:
+        preset = get_preset(preset_name)
+        label = preset_button_label(preset)
+        themes = ", ".join(THEME_VARIANTS)
+        self.client.send_message(
+            chat_id,
+            f"Ставлю в очередь {len(THEME_VARIANTS)} визуальных варианта для {label}: {themes}.",
+            reply_markup=queue_status_keyboard(),
+        )
+        jobs: list[TelegramJob] = []
+        for index, theme in enumerate(THEME_VARIANTS, start=1):
+            jobs.append(
+                self.enqueue(
+                    chat_id,
+                    f"preset {preset.name} shorts theme={theme}",
+                    update_id,
+                    job_suffix=f"theme-{index}-{theme}-{preset.name}",
+                    notify=False,
+                )
+            )
+        return jobs
 
     def enqueue_random_preset_draft(self, chat_id: int, update_id: int) -> TelegramJob:
         preset = random.choice(PRESETS)
@@ -776,6 +822,27 @@ def _extract_preset_callback(update: dict[str, Any]) -> TelegramPresetCallback |
     return TelegramPresetCallback(str(callback_query_id), int(chat_id), text)
 
 
+def _extract_preset_theme_variants_callback(update: dict[str, Any]) -> TelegramPresetThemeVariantsCallback | None:
+    callback_query = update.get("callback_query") or {}
+    callback_query_id = callback_query.get("id")
+    data = (callback_query.get("data") or "").strip()
+    if not callback_query_id or not data.startswith("preset:"):
+        return None
+    message = callback_query.get("message") or {}
+    chat = message.get("chat") or {}
+    chat_id = chat.get("id")
+    if chat_id is None:
+        return None
+    parts = [part.strip() for part in data.split(":")]
+    if len(parts) != 3 or parts[2].lower() != "themes":
+        return None
+    try:
+        preset = get_preset(parts[1])
+    except ValueError:
+        return None
+    return TelegramPresetThemeVariantsCallback(str(callback_query_id), int(chat_id), preset.name)
+
+
 def _extract_example_callback(update: dict[str, Any]) -> TelegramExampleCallback | None:
     callback_query = update.get("callback_query") or {}
     callback_query_id = callback_query.get("id")
@@ -884,11 +951,12 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
+        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
-        "После preset-видео будут кнопки: черновик 4s, шортс 16s, вариант 12s.\n"
+        "После preset-видео будут кнопки: черновик 4s, шортс 16s, вариант 12s, Все темы.\n"
+        "Все темы и variants metals ставят один preset сразу в default, aurora и studio.\n"
         "После custom-видео будут такие же быстрые варианты для этого запроса.\n"
         "Примеры:\n"
         "/menu\n"
@@ -901,6 +969,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "металлы студио\n"
         "металлы студио 12с\n"
         "studio metals\n"
+        "variants metals\n"
+        "варианты металлы\n"
         "черновик металлы\n"
         "preset neweconomy duration=12\n"
         "пресет металлы draft\n"
@@ -1157,6 +1227,21 @@ def _hot_batch_mode_and_theme(text: str) -> tuple[str, str | None] | None:
                 f"{alias}-{theme_alias}",
             }:
                 return ("shorts", theme)
+    return None
+
+
+def _preset_theme_variants_name(text: str) -> str | None:
+    normalized = " ".join(text.strip().lower().replace("ё", "е").split())
+    for prefix in sorted(PRESET_THEME_VARIANT_PREFIXES, key=len, reverse=True):
+        if not normalized.startswith(f"{prefix} "):
+            continue
+        candidate = normalized.removeprefix(prefix).strip()
+        if not candidate:
+            return None
+        try:
+            return get_preset(candidate).name
+        except ValueError:
+            return None
     return None
 
 
@@ -1506,6 +1591,7 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                     if extracted is not None:
                         chat_id, text = extracted
                         hot_batch = _hot_batch_mode_and_theme(text)
+                        preset_theme_variants_name = _preset_theme_variants_name(text)
                         if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
                             client.send_message(chat_id, "This chat is not allowed to use this bot.")
                         elif _is_help(text):
@@ -1522,6 +1608,12 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 job_queue.enqueue_hot_preset_shorts_with_theme(chat_id, int(update["update_id"]), theme)
                             else:
                                 job_queue.enqueue_hot_preset_shorts(chat_id, int(update["update_id"]))
+                        elif preset_theme_variants_name is not None:
+                            job_queue.enqueue_preset_theme_variants(
+                                chat_id,
+                                int(update["update_id"]),
+                                preset_theme_variants_name,
+                            )
                         elif _is_random_draft(text):
                             job_queue.enqueue_random_preset_draft(chat_id, int(update["update_id"]))
                         elif _is_example_draft_batch(text):
@@ -1704,6 +1796,28 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                     int(update["update_id"]),
                                     job_suffix=f"variant-{custom_callback.mode}",
                                 )
+                        continue
+                    preset_theme_variants_callback = _extract_preset_theme_variants_callback(update)
+                    if preset_theme_variants_callback is not None:
+                        if settings.allowed_chat_ids and preset_theme_variants_callback.chat_id not in settings.allowed_chat_ids:
+                            client.answer_callback_query(
+                                preset_theme_variants_callback.callback_query_id,
+                                "This chat is not allowed.",
+                            )
+                            client.send_message(
+                                preset_theme_variants_callback.chat_id,
+                                "This chat is not allowed to use this bot.",
+                            )
+                        else:
+                            client.answer_callback_query(
+                                preset_theme_variants_callback.callback_query_id,
+                                "Варианты по темам поставлены в очередь.",
+                            )
+                            job_queue.enqueue_preset_theme_variants(
+                                preset_theme_variants_callback.chat_id,
+                                int(update["update_id"]),
+                                preset_theme_variants_callback.preset_name,
+                            )
                         continue
                     callback = _extract_preset_callback(update)
                     if callback is None:
