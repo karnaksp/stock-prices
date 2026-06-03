@@ -141,6 +141,7 @@ QUEUE_STATUS_CALLBACK_DATA = "queue:status"
 MENU_CALLBACK_PREFIX = "menu:"
 MENU_ACTIONS = {
     "help",
+    "content_plan",
     "ideas",
     "examples",
     "pack",
@@ -167,6 +168,15 @@ HOT_MENU_PRESETS = (
     ("Новая экономика", "neweconomy"),
     ("Алкоголь", "vodka"),
     ("Мечел", "mechel"),
+)
+CONTENT_PLAN_PRESETS = (
+    "neweconomy",
+    "metals",
+    "banks",
+    "dividends",
+    "vodka",
+    "mechel",
+    "bluechips",
 )
 CUSTOM_FOLLOWUP_MODES = {
     "draft": "draft",
@@ -297,6 +307,9 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             [
                 {"text": "Пакет Пульса", "callback_data": f"{MENU_CALLBACK_PREFIX}pack"},
                 {"text": "Пакеты", "callback_data": f"{MENU_CALLBACK_PREFIX}kits"},
+            ],
+            [
+                {"text": "Контент-план", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
             ],
             [
                 {"text": "Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
@@ -448,6 +461,51 @@ def post_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]
         for preset in PRESETS
     ]
     rows = [buttons[index : index + columns] for index in range(0, len(buttons), columns)]
+    return {"inline_keyboard": rows}
+
+
+def _content_plan_preset_list() -> tuple:
+    return tuple(get_preset(name) for name in CONTENT_PLAN_PRESETS)
+
+
+def format_content_plan() -> str:
+    lines = [
+        "Контент-план для Пульса:",
+        "",
+        "7 выпусков без LLM и автопридумывания идей. Можно выпускать по одному ролику в день или нажимать кнопки ниже, когда нужен готовый shorts.",
+        "",
+    ]
+    for index, preset in enumerate(_content_plan_preset_list(), start=1):
+        cover = preset.cover_texts[0] if preset.cover_texts else preset.title
+        track = preset.music_tracks[0] if preset.music_tracks else preset.music_mood
+        lines.append(f"День {index}: {preset.title}")
+        lines.append(f"Шортс: preset {preset.name}")
+        lines.append(f"Пост: post {preset.name}")
+        lines.append(f"Обложка: {cover}")
+        lines.append(f"Музыка: {track}")
+        lines.append("")
+    lines.append("Кнопки ниже запускают shorts для конкретного дня. Тексты постов отдельно: /posts или post <name>.")
+    return "\n".join(lines).strip()
+
+
+def content_plan_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
+    buttons = [
+        {"text": f"Д{index} {preset_button_label(preset)}", "callback_data": f"preset:{preset.name}:shorts"}
+        for index, preset in enumerate(_content_plan_preset_list(), start=1)
+    ]
+    rows = [buttons[index : index + columns] for index in range(0, len(buttons), columns)]
+    rows.append(
+        [
+            {"text": "Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
+            {"text": "Музыка", "callback_data": f"{MENU_CALLBACK_PREFIX}music"},
+        ]
+    )
+    rows.append(
+        [
+            {"text": "Обложки", "callback_data": f"{MENU_CALLBACK_PREFIX}covers"},
+            {"text": "Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
+        ]
+    )
     return {"inline_keyboard": rows}
 
 
@@ -1119,7 +1177,7 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
 def _main_menu_text() -> str:
     return (
         "Меню Telegram\n"
-        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, пакет для Пульса, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, полный пакет shorts, draft-прогоны, случайный шортс, случайный draft или статус очереди."
+        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, пакет для Пульса, контент-план, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, полный пакет shorts, draft-прогоны, случайный шортс, случайный draft или статус очереди."
     )
 
 
@@ -1131,7 +1189,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все шортсы, все шортсы студио, all shorts aurora, /all_shorts, все черновики, черновики примеров, случайный шортс, /random_shorts, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
+        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /plan, план пульса, контент-план, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все шортсы, все шортсы студио, all shorts aurora, /all_shorts, все черновики, черновики примеров, случайный шортс, /random_shorts, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -1179,6 +1237,9 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "/примеры\n"
         "/pack\n"
         "пакет пульса\n"
+        "/plan\n"
+        "план пульса\n"
+        "контент-план\n"
         "/kits\n"
         "пакеты\n"
         "kit metals\n"
@@ -1368,6 +1429,32 @@ def _is_pulse_pack(text: str) -> bool:
         "контент пакет",
         "контент-пакет",
         "шортс пакет",
+    }
+
+
+def _is_content_plan(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    return normalized in {
+        "/plan",
+        "/content_plan",
+        "/content-plan",
+        "/calendar",
+        "/план",
+        "/контент_план",
+        "/контент-план",
+        "plan",
+        "calendar",
+        "content plan",
+        "content-plan",
+        "контент план",
+        "контент-план",
+        "план",
+        "план пульса",
+        "план для пульса",
+        "план публикаций",
+        "сетка",
+        "сетка пульса",
+        "сетка публикаций",
     }
 
 
@@ -1835,6 +1922,9 @@ def handle_ticker_message(
     if _is_cover_texts(text):
         client.send_message(chat_id, format_cover_list())
         return
+    if _is_content_plan(text):
+        client.send_message(chat_id, format_content_plan(), reply_markup=content_plan_keyboard())
+        return
     if _is_preset_kits(text):
         client.send_message(chat_id, format_preset_kit_list(), reply_markup=preset_kit_inline_keyboard())
         return
@@ -1976,6 +2066,12 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 client.send_message(chat_id, format_music_list())
                             elif _is_cover_texts(text):
                                 client.send_message(chat_id, format_cover_list())
+                            elif _is_content_plan(text):
+                                client.send_message(
+                                    chat_id,
+                                    format_content_plan(),
+                                    reply_markup=content_plan_keyboard(),
+                                )
                             elif _is_preset_kits(text):
                                 client.send_message(
                                     chat_id,
@@ -2049,6 +2145,13 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 menu_callback.chat_id,
                                 format_pulse_pack(),
                                 reply_markup=pulse_pack_keyboard(),
+                            )
+                        elif menu_callback.action == "content_plan":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Контент-план открыт.")
+                            client.send_message(
+                                menu_callback.chat_id,
+                                format_content_plan(),
+                                reply_markup=content_plan_keyboard(),
                             )
                         elif menu_callback.action == "kits":
                             client.answer_callback_query(menu_callback.callback_query_id, "Пакеты открыты.")
