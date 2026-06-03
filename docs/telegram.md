@@ -26,6 +26,7 @@ YDEX OZON за полгода shorts
 сравни SBER с LKOH за год шортс
 металлы
 металлы студио
+металлы студио 12с
 studio metals
 черновик металлы
 госы
@@ -153,6 +154,7 @@ preset techru
 preset metals duration=12 theme=studio
 металлы
 металлы студио
+металлы студио 12с
 studio metals
 aurora голубые фишки
 черновик металлы
@@ -279,6 +281,7 @@ gradient               градиентный хвост линии
 nogradient             обычная линия
 nolegend               скрыть легенду
 duration=12            длительность основной анимации
+12s / 12с              короткая запись duration=12
 fps=24                 кадров в секунду
 shorts                 короткий режим: duration=16 fps=24 gradient
 draft                  быстрый черновик: duration=4 fps=8 без gradient

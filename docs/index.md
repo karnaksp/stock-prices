@@ -105,6 +105,7 @@ hide:
     сравни SBER с LKOH за год шортс
     металлы
     металлы студио
+    металлы студио 12с
     studio metals
     черновик металлы
     госы
@@ -195,6 +196,7 @@ top shorts studio и top shorts aurora запускают всю top-серию 
 follow-up кнопки после preset/custom-видео: черновик 4s / шортс 16s / вариант 12s / Aurora / Studio
 металлы
 металлы студио
+металлы студио 12с
 studio metals
 черновик металлы
 госы
