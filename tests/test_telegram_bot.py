@@ -771,6 +771,32 @@ def test_run_telegram_bot_menu_callback_opens_cover_texts(monkeypatch) -> None:
     assert client.videos == []
 
 
+def test_run_telegram_bot_opens_preset_post_without_queue(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 67, "message": {"text": "post metals", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert "Текст для Пульса" in client.messages[0][1]
+    assert "Металлы часто воспринимают как защиту" in client.messages[0][1]
+    assert "Текст на обложку" in client.messages[0][1]
+    assert client.message_markups == [None]
+    assert client.videos == []
+
+
 def test_run_telegram_bot_menu_callback_queues_hot_preset_drafts(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1272,6 +1298,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "музыка" in help_text
     assert "/covers" in help_text
     assert "обложки" in help_text
+    assert "post metals" in help_text
+    assert "пост металлы" in help_text
     assert "черновики примеров" in help_text
     assert "случайный пример" in help_text
     assert "/queue" in help_text
@@ -1367,6 +1395,38 @@ def test_handle_ticker_message_shows_cover_texts() -> None:
     assert "IPO-эйфория vs реальность" in cover_text
     assert "30 000 ₽/мес в металлы" in cover_text
     assert "вертикального ролика" in cover_text
+    assert client.message_markups == [None]
+    assert client.videos == []
+
+
+def test_handle_ticker_message_shows_preset_post_without_rendering() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "пост металлы")
+
+    post_text = client.messages[0][1]
+    assert "Текст для Пульса" in post_text
+    assert "Что было бы, если 16 лет подряд" in post_text
+    assert "Текст на обложку" in post_text
+    assert "Треки-референсы" in post_text
+    assert client.message_markups == [None]
+    assert client.videos == []
+
+
+def test_handle_ticker_message_asks_for_preset_name_for_empty_post_command() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "/post")
+
+    assert client.messages == [(123, "Напиши название сценария, например: пост металлы")]
     assert client.message_markups == [None]
     assert client.videos == []
 

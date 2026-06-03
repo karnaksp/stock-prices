@@ -733,7 +733,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /music, музыка, /covers, обложки, top drafts, top shorts, топ черновики, топ шортсы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
+        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /music, музыка, /covers, обложки, post metals, пост металлы, top drafts, top shorts, топ черновики, топ шортсы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -767,6 +767,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "музыка\n"
         "/covers\n"
         "обложки\n"
+        "post metals\n"
+        "пост металлы\n"
         "/queue\n"
         "очередь\n"
         "AAPL global USD gradient theme=studio\n"
@@ -890,6 +892,24 @@ def _is_cover_texts(text: str) -> bool:
         "тексты обложек",
         "тексты для обложек",
     }
+
+
+def _preset_post_name(text: str) -> str | None:
+    tokens = text.strip().split()
+    if not tokens:
+        return None
+    command = tokens[0].lstrip("/").lower()
+    if command not in {"post", "copy", "pulse", "пост", "текст", "пульс"}:
+        return None
+    return " ".join(tokens[1:]).strip()
+
+
+def _send_preset_post(client: TelegramClient, chat_id: int, preset_name: str) -> None:
+    if not preset_name:
+        client.send_message(chat_id, "Напиши название сценария, например: пост металлы")
+        return
+    preset = get_preset(preset_name)
+    client.send_message(chat_id, format_pulse_post(preset))
 
 
 def _is_example_draft_batch(text: str) -> bool:
@@ -1168,6 +1188,10 @@ def handle_ticker_message(
     if _is_cover_texts(text):
         client.send_message(chat_id, format_cover_list())
         return
+    preset_post_name = _preset_post_name(text)
+    if preset_post_name is not None:
+        _send_preset_post(client, chat_id, preset_post_name)
+        return
     if len(_batch_request_lines(text)) > 1:
         client.send_message(chat_id, "Несколько запросов одним сообщением работают в режиме Telegram-очереди.")
         return
@@ -1256,6 +1280,10 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif _is_cover_texts(text):
                             client.send_message(chat_id, format_cover_list())
                         else:
+                            preset_post_name = _preset_post_name(text)
+                            if preset_post_name is not None:
+                                _send_preset_post(client, chat_id, preset_post_name)
+                                continue
                             preset_list_mode = _preset_list_mode(text)
                             if preset_list_mode is not None:
                                 client.send_message(
