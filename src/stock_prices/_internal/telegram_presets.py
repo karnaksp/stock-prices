@@ -462,6 +462,9 @@ def preset_followup_keyboard(preset_name: str) -> dict[str, list[list[dict[str, 
                 {"text": "Aurora", "callback_data": f"preset:{preset.name}:aurora"},
                 {"text": "Studio", "callback_data": f"preset:{preset.name}:studio"},
             ],
+            [
+                {"text": "Все темы", "callback_data": f"preset:{preset.name}:themes"},
+            ],
         ]
     }
 
