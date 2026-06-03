@@ -143,6 +143,7 @@ MENU_ACTIONS = {
     "help",
     "ideas",
     "examples",
+    "posts",
     "drafts",
     "hot_drafts",
     "hot_shorts",
@@ -196,12 +197,15 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
                 {"text": "Случайный пример", "callback_data": f"{MENU_CALLBACK_PREFIX}random_example"},
             ],
             [
-                {"text": "Помощь", "callback_data": f"{MENU_CALLBACK_PREFIX}help"},
-                {"text": "Музыка", "callback_data": f"{MENU_CALLBACK_PREFIX}music"},
+                {"text": "Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
+                {"text": "Обложки", "callback_data": f"{MENU_CALLBACK_PREFIX}covers"},
             ],
             [
-                {"text": "Обложки", "callback_data": f"{MENU_CALLBACK_PREFIX}covers"},
+                {"text": "Музыка", "callback_data": f"{MENU_CALLBACK_PREFIX}music"},
                 {"text": "Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
+            ],
+            [
+                {"text": "Помощь", "callback_data": f"{MENU_CALLBACK_PREFIX}help"},
             ],
         ]
     }
@@ -316,6 +320,29 @@ def example_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, s
     return {"inline_keyboard": rows}
 
 
+def format_post_list() -> str:
+    lines = [
+        "Текстовые пакеты для Пульса:",
+        "",
+    ]
+    for preset in PRESETS:
+        lines.append(f"{preset_button_label(preset)}: post {preset.name}")
+        lines.append(preset.description)
+        lines.append("")
+    lines.append("Кнопки ниже возвращают готовый текст, обложки, хэштеги, музыку и дисклеймер без рендера.")
+    lines.append("Для произвольного запроса: post LKOH SBER 2020 2024 или текст SBER LKOH за год.")
+    return "\n".join(lines).strip()
+
+
+def post_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
+    buttons = [
+        {"text": preset_button_label(preset), "callback_data": f"post:{preset.name}"}
+        for preset in PRESETS
+    ]
+    rows = [buttons[index : index + columns] for index in range(0, len(buttons), columns)]
+    return {"inline_keyboard": rows}
+
+
 @dataclass(frozen=True)
 class TelegramPresetCallback:
     callback_query_id: str
@@ -329,6 +356,13 @@ class TelegramExampleCallback:
     chat_id: int
     text: str
     name: str
+
+
+@dataclass(frozen=True)
+class TelegramPostCallback:
+    callback_query_id: str
+    chat_id: int
+    preset_name: str
 
 
 @dataclass(frozen=True)
@@ -666,6 +700,27 @@ def _extract_example_callback(update: dict[str, Any]) -> TelegramExampleCallback
     return TelegramExampleCallback(str(callback_query_id), int(chat_id), example.request, example.name)
 
 
+def _extract_post_callback(update: dict[str, Any]) -> TelegramPostCallback | None:
+    callback_query = update.get("callback_query") or {}
+    callback_query_id = callback_query.get("id")
+    data = (callback_query.get("data") or "").strip()
+    if not callback_query_id or not data.startswith("post:"):
+        return None
+    message = callback_query.get("message") or {}
+    chat = message.get("chat") or {}
+    chat_id = chat.get("id")
+    if chat_id is None:
+        return None
+    parts = [part.strip() for part in data.split(":")]
+    if len(parts) != 2:
+        return None
+    try:
+        preset = get_preset(parts[1])
+    except ValueError:
+        return None
+    return TelegramPostCallback(str(callback_query_id), int(chat_id), preset.name)
+
+
 def _extract_custom_followup_callback(update: dict[str, Any]) -> TelegramCustomFollowupCallback | None:
     callback_query = update.get("callback_query") or {}
     callback_query_id = callback_query.get("id")
@@ -721,7 +776,7 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
 def _main_menu_text() -> str:
     return (
         "Меню Telegram\n"
-        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, музыка, обложки, топовые shorts-сценарии, draft-прогоны, случайный draft или статус очереди."
+        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, посты, музыка, обложки, топовые shorts-сценарии, draft-прогоны, случайный draft или статус очереди."
     )
 
 
@@ -733,7 +788,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, топ черновики, топ шортсы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
+        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, топ черновики, топ шортсы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -761,6 +816,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "/random_draft\n"
         "/examples\n"
         "/примеры\n"
+        "/posts\n"
+        "посты\n"
         "черновики примеров\n"
         "случайный пример\n"
         "/music\n"
@@ -893,6 +950,24 @@ def _is_cover_texts(text: str) -> bool:
         "обложка",
         "тексты обложек",
         "тексты для обложек",
+    }
+
+
+def _is_pulse_posts(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    return normalized in {
+        "/posts",
+        "/post_list",
+        "/copy_posts",
+        "/посты",
+        "/тексты",
+        "posts",
+        "post list",
+        "copy posts",
+        "посты",
+        "тексты",
+        "тексты для пульса",
+        "пакеты для пульса",
     }
 
 
@@ -1220,6 +1295,9 @@ def handle_ticker_message(
     if _is_cover_texts(text):
         client.send_message(chat_id, format_cover_list())
         return
+    if _is_pulse_posts(text):
+        client.send_message(chat_id, format_post_list(), reply_markup=post_inline_keyboard())
+        return
     preset_post_name = _preset_post_name(text)
     if preset_post_name is not None:
         _send_pulse_post(client, settings, chat_id, preset_post_name)
@@ -1311,6 +1389,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             client.send_message(chat_id, format_music_list())
                         elif _is_cover_texts(text):
                             client.send_message(chat_id, format_cover_list())
+                        elif _is_pulse_posts(text):
+                            client.send_message(chat_id, format_post_list(), reply_markup=post_inline_keyboard())
                         else:
                             preset_post_name = _preset_post_name(text)
                             if preset_post_name is not None:
@@ -1354,6 +1434,13 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 menu_callback.chat_id,
                                 format_example_list(),
                                 reply_markup=example_inline_keyboard(),
+                            )
+                        elif menu_callback.action == "posts":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Посты открыты.")
+                            client.send_message(
+                                menu_callback.chat_id,
+                                format_post_list(),
+                                reply_markup=post_inline_keyboard(),
                             )
                         elif menu_callback.action == "drafts":
                             client.answer_callback_query(menu_callback.callback_query_id, "Меню обновлено.")
@@ -1417,6 +1504,16 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 int(update["update_id"]),
                                 job_suffix=f"example-{example_callback.name}",
                             )
+                        continue
+                    post_callback = _extract_post_callback(update)
+                    if post_callback is not None:
+                        if settings.allowed_chat_ids and post_callback.chat_id not in settings.allowed_chat_ids:
+                            client.answer_callback_query(post_callback.callback_query_id, "This chat is not allowed.")
+                            client.send_message(post_callback.chat_id, "This chat is not allowed to use this bot.")
+                        else:
+                            preset = get_preset(post_callback.preset_name)
+                            client.answer_callback_query(post_callback.callback_query_id, "Пост открыт.")
+                            client.send_message(post_callback.chat_id, format_pulse_post(preset))
                         continue
                     custom_callback = _extract_custom_followup_callback(update)
                     if custom_callback is not None:
