@@ -148,6 +148,7 @@ MENU_ACTIONS = {
     "daily_kit",
     "daily_short",
     "publication_day",
+    "publication_week",
     "ideas",
     "examples",
     "pack",
@@ -320,10 +321,13 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             ],
             [
                 {"text": "Контент-план", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
-                {"text": "Публикация дня", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
+                {"text": "Неделя публикаций", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_week"},
             ],
             [
+                {"text": "Публикация дня", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
                 {"text": "Шортс дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_short"},
+            ],
+            [
                 {"text": "Пакет дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_kit"},
             ],
             [
@@ -584,6 +588,44 @@ def format_daily_content_kit(today: date | None = None) -> str:
 def daily_content_kit_keyboard(today: date | None = None) -> dict[str, list[list[dict[str, str]]]]:
     _day_index, preset = _daily_content_plan_preset(today)
     return preset_kit_keyboard(preset.name)
+
+
+def format_weekly_publication_pack() -> str:
+    lines = [
+        "Недельный выпуск для Пульса:",
+        "",
+        "Ставлю 7 shorts в очередь и даю компактный чеклист публикаций.",
+        "",
+    ]
+    for index, preset in enumerate(_content_plan_preset_list(), start=1):
+        cover = preset.cover_texts[0] if preset.cover_texts else preset.title
+        track = preset.music_tracks[0] if preset.music_tracks else preset.music_mood
+        lines.append(f"Д{index}: {preset.title}")
+        lines.append(f"Шортс: preset {preset.name}")
+        lines.append(f"Пост: post {preset.name}")
+        lines.append(f"Обложка: {cover}")
+        lines.append(f"Музыка: {track}")
+        lines.append("")
+    lines.append("Для деталей по дню: kit <name> или пакет дня. Статус рендера: /queue.")
+    return "\n".join(lines).strip()
+
+
+def weekly_publication_pack_keyboard() -> dict[str, list[list[dict[str, str]]]]:
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
+                {"text": "Контент-план", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
+            ],
+            [
+                {"text": "Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
+                {"text": "Музыка", "callback_data": f"{MENU_CALLBACK_PREFIX}music"},
+            ],
+            [
+                {"text": "Обложки", "callback_data": f"{MENU_CALLBACK_PREFIX}covers"},
+            ],
+        ]
+    }
 
 
 def format_preset_kit_list() -> str:
@@ -877,6 +919,32 @@ class TelegramJobQueue:
             job_suffix=f"publication-day-{day_index}-{preset.name}",
             notify=False,
         )
+
+    def enqueue_weekly_publication_pack(self, chat_id: int, update_id: int) -> list[TelegramJob]:
+        presets = _content_plan_preset_list()
+        labels = ", ".join(f"Д{index} {preset_button_label(preset)}" for index, preset in enumerate(presets, start=1))
+        self.client.send_message(
+            chat_id,
+            f"Недельный выпуск: ставлю в очередь {len(presets)} shorts-роликов контент-плана: {labels}.",
+            reply_markup=queue_status_keyboard(),
+        )
+        self.client.send_message(
+            chat_id,
+            format_weekly_publication_pack(),
+            reply_markup=weekly_publication_pack_keyboard(),
+        )
+        jobs: list[TelegramJob] = []
+        for index, preset in enumerate(presets, start=1):
+            jobs.append(
+                self.enqueue(
+                    chat_id,
+                    f"preset {preset.name} shorts",
+                    update_id,
+                    job_suffix=f"publication-week-{index}-{preset.name}",
+                    notify=False,
+                )
+            )
+        return jobs
 
     def _enqueue_hot_presets(self, chat_id: int, update_id: int, mode: str, theme: str | None = None) -> list[TelegramJob]:
         if mode not in {"draft", "shorts"}:
@@ -1268,7 +1336,7 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
 def _main_menu_text() -> str:
     return (
         "Меню Telegram\n"
-        "Выбери действие кнопкой: шпаргалка производства, помощь по синтаксису, готовые идеи, проверенные примеры, пакет для Пульса, контент-план, публикация дня, шортс дня, пакет дня, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, полный пакет shorts, draft-прогоны, случайный шортс, случайный draft или статус очереди."
+        "Выбери действие кнопкой: шпаргалка производства, помощь по синтаксису, готовые идеи, проверенные примеры, пакет для Пульса, контент-план, неделя публикаций, публикация дня, шортс дня, пакет дня, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, полный пакет shorts, draft-прогоны, случайный шортс, случайный draft или статус очереди."
     )
 
 
@@ -1281,6 +1349,7 @@ def production_guide_keyboard() -> dict[str, list[list[dict[str, str]]]]:
         "inline_keyboard": [
             [
                 {"text": "Публикация дня", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
+                {"text": "Неделя публикаций", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_week"},
             ],
             [
                 {"text": "Пакет дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_kit"},
@@ -1317,6 +1386,8 @@ def format_production_guide() -> str:
         "2. Взять пост, обложку и музыкальный референс из пакета.\n"
         "3. /queue или кнопка Очередь - проверить, что рендер дошел до MP4.\n"
         "Если нужен только пакет без рендера: /today_kit или пакет дня.\n\n"
+        "Быстрый недельный процесс:\n"
+        "/publish_week или снять неделю - поставить 7 shorts в очередь и получить чеклист постов, обложек и музыки.\n\n"
         "Когда нужен выбор сюжета:\n"
         "top drafts - быстро проверить top-сценарии.\n"
         "top shorts studio - снять top-серию в теме Studio.\n"
@@ -1338,7 +1409,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
         "Для производства контента: /guide или шпаргалка. Там короткий workflow с кнопками.\n"
-        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /examples, /pack, /plan, /publish_day, /today, /today_kit, /kits, /posts, /music, /covers, top drafts, top shorts, top shorts studio, top shorts aurora, все шортсы, /all_shorts, случайный шортс, /random_shorts, /queue.\n"
+        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /examples, /pack, /plan, /publish_week, /publish_day, /today, /today_kit, /kits, /posts, /music, /covers, top drafts, top shorts, top shorts studio, top shorts aurora, все шортсы, /all_shorts, случайный шортс, /random_shorts, /queue.\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -1393,6 +1464,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "контент-план\n"
         "/plan_shorts\n"
         "снять план\n"
+        "/publish_week\n"
+        "снять неделю\n"
         "/publish_day\n"
         "снять день\n"
         "/today\n"
@@ -1723,6 +1796,33 @@ def _is_daily_publication_day(text: str) -> bool:
         "запусти день",
         "запустить день",
         "выпустить день",
+    }
+
+
+def _is_weekly_publication_pack(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().replace("ё", "е").replace("_", " ").replace("-", " ").split())
+    return normalized in {
+        "/publish week",
+        "/publication week",
+        "/weekly publish",
+        "/week pack",
+        "/shoot week",
+        "/снять неделю",
+        "/неделя публикаций",
+        "publish week",
+        "publication week",
+        "weekly publish",
+        "week pack",
+        "shoot week",
+        "снять неделю",
+        "снять недельный план",
+        "снять неделю публикаций",
+        "неделя публикаций",
+        "недельный выпуск",
+        "недельный пакет",
+        "запусти неделю",
+        "запустить неделю",
+        "выпустить неделю",
     }
 
 
@@ -2222,6 +2322,9 @@ def handle_ticker_message(
     if _is_content_plan_shorts(text):
         client.send_message(chat_id, "Команда запуска контент-плана работает в режиме Telegram-очереди.")
         return
+    if _is_weekly_publication_pack(text):
+        client.send_message(chat_id, "Команда недельного выпуска работает в режиме Telegram-очереди.")
+        return
     if _is_daily_publication_day(text):
         client.send_message(chat_id, "Команда публикационного дня работает в режиме Telegram-очереди.")
         return
@@ -2347,7 +2450,9 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             shorts_batch = _shorts_batch_theme(text)
                             preset_theme_variants_name = _preset_theme_variants_name(text)
                             preset_kit_name = _preset_kit_name(text)
-                            if _is_daily_publication_day(text):
+                            if _is_weekly_publication_pack(text):
+                                job_queue.enqueue_weekly_publication_pack(chat_id, int(update["update_id"]))
+                            elif _is_daily_publication_day(text):
                                 job_queue.enqueue_daily_publication_day(chat_id, int(update["update_id"]))
                             elif _is_daily_content_kit(text):
                                 client.send_message(
@@ -2490,6 +2595,9 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif menu_callback.action == "content_plan_shorts":
                             client.answer_callback_query(menu_callback.callback_query_id, "Контент-план поставлен в очередь.")
                             job_queue.enqueue_content_plan_shorts(menu_callback.chat_id, int(update["update_id"]))
+                        elif menu_callback.action == "publication_week":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Недельный выпуск поставлен в очередь.")
+                            job_queue.enqueue_weekly_publication_pack(menu_callback.chat_id, int(update["update_id"]))
                         elif menu_callback.action == "daily_short":
                             client.answer_callback_query(menu_callback.callback_query_id, "Шортс дня поставлен в очередь.")
                             job_queue.enqueue_daily_content_plan_short(menu_callback.chat_id, int(update["update_id"]))
