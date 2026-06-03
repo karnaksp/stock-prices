@@ -5,6 +5,7 @@ import logging
 import random
 import time
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from queue import Queue
 from threading import Lock, Thread
@@ -143,6 +144,7 @@ MENU_ACTIONS = {
     "help",
     "content_plan",
     "content_plan_shorts",
+    "daily_short",
     "ideas",
     "examples",
     "pack",
@@ -311,6 +313,7 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             ],
             [
                 {"text": "Контент-план", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
+                {"text": "Шортс дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_short"},
             ],
             [
                 {"text": "Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
@@ -467,6 +470,17 @@ def post_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]
 
 def _content_plan_preset_list() -> tuple:
     return tuple(get_preset(name) for name in CONTENT_PLAN_PRESETS)
+
+
+def _today() -> date:
+    return date.today()
+
+
+def _daily_content_plan_preset(today: date | None = None) -> tuple[int, Any]:
+    presets = _content_plan_preset_list()
+    day = today or _today()
+    index = (day.isoweekday() - 1) % len(presets)
+    return index + 1, presets[index]
 
 
 def format_content_plan() -> str:
@@ -809,6 +823,21 @@ class TelegramJobQueue:
                 )
             )
         return jobs
+
+    def enqueue_daily_content_plan_short(self, chat_id: int, update_id: int) -> TelegramJob:
+        day_index, preset = _daily_content_plan_preset()
+        self.client.send_message(
+            chat_id,
+            f"Шортс дня: Д{day_index} {preset_button_label(preset)}. Ставлю готовый shorts-ролик в очередь.",
+            reply_markup=queue_status_keyboard(),
+        )
+        return self.enqueue(
+            chat_id,
+            f"preset {preset.name} shorts",
+            update_id,
+            job_suffix=f"daily-short-{day_index}-{preset.name}",
+            notify=False,
+        )
 
     def _enqueue_hot_presets(self, chat_id: int, update_id: int, mode: str, theme: str | None = None) -> list[TelegramJob]:
         if mode not in {"draft", "shorts"}:
@@ -1200,7 +1229,7 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
 def _main_menu_text() -> str:
     return (
         "Меню Telegram\n"
-        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, пакет для Пульса, контент-план, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, полный пакет shorts, draft-прогоны, случайный шортс, случайный draft или статус очереди."
+        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, пакет для Пульса, контент-план, шортс дня, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, полный пакет shorts, draft-прогоны, случайный шортс, случайный draft или статус очереди."
     )
 
 
@@ -1212,7 +1241,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /plan, план пульса, контент-план, /plan_shorts, снять план, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все шортсы, все шортсы студио, all shorts aurora, /all_shorts, все черновики, черновики примеров, случайный шортс, /random_shorts, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
+        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /plan, план пульса, контент-план, /plan_shorts, снять план, /today, шортс дня, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все шортсы, все шортсы студио, all shorts aurora, /all_shorts, все черновики, черновики примеров, случайный шортс, /random_shorts, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -1265,6 +1294,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "контент-план\n"
         "/plan_shorts\n"
         "снять план\n"
+        "/today\n"
+        "шортс дня\n"
         "/kits\n"
         "пакеты\n"
         "kit metals\n"
@@ -1506,6 +1537,35 @@ def _is_content_plan_shorts(text: str) -> bool:
         "контент план шортсы",
         "шортсы плана",
         "шортсы контент плана",
+    }
+
+
+def _is_daily_content_plan_short(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().replace("ё", "е").replace("_", " ").replace("-", " ").split())
+    return normalized in {
+        "/today",
+        "/daily",
+        "/daily short",
+        "/daily shorts",
+        "/short of day",
+        "/shorts of day",
+        "/ролик дня",
+        "/шортс дня",
+        "/сегодня",
+        "today",
+        "daily",
+        "daily short",
+        "daily shorts",
+        "short of day",
+        "shorts of day",
+        "ролик дня",
+        "шортс дня",
+        "шорт дня",
+        "шортсы дня",
+        "сегодня",
+        "снять сегодня",
+        "выпуск дня",
+        "сценарий дня",
     }
 
 
@@ -1976,6 +2036,9 @@ def handle_ticker_message(
     if _is_content_plan_shorts(text):
         client.send_message(chat_id, "Команда запуска контент-плана работает в режиме Telegram-очереди.")
         return
+    if _is_daily_content_plan_short(text):
+        client.send_message(chat_id, "Команда шортса дня работает в режиме Telegram-очереди.")
+        return
     if _is_content_plan(text):
         client.send_message(chat_id, format_content_plan(), reply_markup=content_plan_keyboard())
         return
@@ -2088,6 +2151,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             preset_kit_name = _preset_kit_name(text)
                             if _is_draft_batch(text):
                                 job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
+                            elif _is_daily_content_plan_short(text):
+                                job_queue.enqueue_daily_content_plan_short(chat_id, int(update["update_id"]))
                             elif _is_content_plan_shorts(text):
                                 job_queue.enqueue_content_plan_shorts(chat_id, int(update["update_id"]))
                             elif shorts_batch[0]:
@@ -2212,6 +2277,9 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif menu_callback.action == "content_plan_shorts":
                             client.answer_callback_query(menu_callback.callback_query_id, "Контент-план поставлен в очередь.")
                             job_queue.enqueue_content_plan_shorts(menu_callback.chat_id, int(update["update_id"]))
+                        elif menu_callback.action == "daily_short":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Шортс дня поставлен в очередь.")
+                            job_queue.enqueue_daily_content_plan_short(menu_callback.chat_id, int(update["update_id"]))
                         elif menu_callback.action == "kits":
                             client.answer_callback_query(menu_callback.callback_query_id, "Пакеты открыты.")
                             client.send_message(
