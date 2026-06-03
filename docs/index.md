@@ -97,6 +97,8 @@ hide:
     очередь
     /pack
     пакет пульса
+    /kits
+    пакеты
     SBER LKOH 2020 2024
     SBER LKOH за 10 лет shorts
     YDEX OZON за 6 месяцев shorts
@@ -109,6 +111,8 @@ hide:
     studio metals
     variants metals
     варианты металлы
+    /kits
+    пакеты
     kit metals
     пакет металлы
     черновик металлы
@@ -170,10 +174,12 @@ YDEX OZON за полгода shorts
 /drafts
 /posts
 /pack
+/kits
 /идеи
 /черновики
 посты
 пакет пульса
+пакеты
 все черновики
 top drafts
 топ черновики
@@ -182,6 +188,8 @@ top shorts studio
 top shorts aurora
 variants metals
 варианты металлы
+/kits
+пакеты
 kit metals
 пакет металлы
 топ шортсы
@@ -198,6 +206,7 @@ random draft
 post LKOH SBER 2020 2024 без рендера дает skeleton текста для Пульса
 /posts открывает кнопки готовых текстовых пакетов без рендера
 /pack показывает top-сценарии сразу в трех форматах: шортс, черновик, пост без рендера
+/kits и пакеты открывают кнопочный список публикационных пакетов всех preset-сценариев без рендера
 top shorts studio и top shorts aurora запускают всю top-серию в выбранной теме
 variants metals и варианты металлы запускают один preset сразу в default, aurora и studio
 kit metals и пакет металлы открывают action-пакет одного preset: шортс, черновик, все темы, 12s, пост
@@ -210,6 +219,8 @@ follow-up кнопки после preset/custom-видео: черновик 4s 
 studio metals
 variants metals
 варианты металлы
+/kits
+пакеты
 kit metals
 пакет металлы
 черновик металлы
