@@ -152,6 +152,8 @@ MENU_ACTIONS = {
     "hot_shorts_aurora",
     "hot_shorts_studio",
     "all_shorts",
+    "all_shorts_aurora",
+    "all_shorts_studio",
     "example_drafts",
     "random_shorts",
     "random_draft",
@@ -240,6 +242,20 @@ HOT_SHORTS_BATCH_ALIASES = {
     "топовые шортсы",
     "горячие шортсы",
     "шортсы топ",
+}
+SHORTS_BATCH_ALIASES = {
+    "/all shorts",
+    "/shorts all",
+    "/shorts batch",
+    "/все шортсы",
+    "all shorts",
+    "shorts all",
+    "shorts batch",
+    "batch shorts",
+    "все шортсы",
+    "шортсы все",
+    "пакет шортсов",
+    "полный пакет шортсов",
 }
 
 
@@ -510,7 +526,7 @@ def format_pulse_pack() -> str:
         lines.append(f"Пост без рендера: post {preset_name}")
         lines.append("")
     lines.append("Пакетный запуск видео: top shorts, top drafts или все шортсы.")
-    lines.append("Стильная серия одной командой: top shorts studio или top shorts aurora.")
+    lines.append("Стильная серия одной командой: top shorts studio, top shorts aurora, все шортсы студио или все шортсы аурора.")
     lines.append("Только текст до рендера: post <name> или кнопка Посты.")
     lines.append("Это фиксированный пакет без LLM и без автопридумывания идей.")
     return "\n".join(lines).strip()
@@ -529,6 +545,10 @@ def pulse_pack_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             ],
             [
                 {"text": "Все шортсы", "callback_data": f"{MENU_CALLBACK_PREFIX}all_shorts"},
+                {"text": "Все Studio", "callback_data": f"{MENU_CALLBACK_PREFIX}all_shorts_studio"},
+            ],
+            [
+                {"text": "Все Aurora", "callback_data": f"{MENU_CALLBACK_PREFIX}all_shorts_aurora"},
             ],
             [
                 {"text": "Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
@@ -686,21 +706,24 @@ class TelegramJobQueue:
             )
         return jobs
 
-    def enqueue_preset_shorts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
+    def enqueue_preset_shorts(self, chat_id: int, update_id: int, theme: str | None = None) -> list[TelegramJob]:
         labels = ", ".join(preset_button_label(preset) for preset in PRESETS)
+        theme_suffix = f" theme={theme}" if theme else ""
+        theme_label = f" в теме {theme}" if theme else ""
         self.client.send_message(
             chat_id,
-            f"Ставлю в очередь {len(PRESETS)} shorts-роликов: {labels}.",
+            f"Ставлю в очередь {len(PRESETS)} shorts-роликов{theme_label}: {labels}.",
             reply_markup=queue_status_keyboard(),
         )
         jobs: list[TelegramJob] = []
         for index, preset in enumerate(PRESETS, start=1):
+            job_suffix_theme = f"-{theme}" if theme else ""
             jobs.append(
                 self.enqueue(
                     chat_id,
-                    f"preset {preset.name} shorts",
+                    f"preset {preset.name} shorts{theme_suffix}",
                     update_id,
-                    job_suffix=f"shorts-{index}-{preset.name}",
+                    job_suffix=f"shorts{job_suffix_theme}-{index}-{preset.name}",
                     notify=False,
                 )
             )
@@ -1108,7 +1131,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все шортсы, /all_shorts, все черновики, черновики примеров, случайный шортс, /random_shorts, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
+        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все шортсы, все шортсы студио, all shorts aurora, /all_shorts, все черновики, черновики примеров, случайный шортс, /random_shorts, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -1144,6 +1167,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "топ шортсы\n"
         "топ шортсы студио\n"
         "все шортсы\n"
+        "все шортсы студио\n"
+        "all shorts aurora\n"
         "/all_shorts\n"
         "все черновики\n"
         "случайный шортс\n"
@@ -1516,22 +1541,22 @@ def _is_draft_batch(text: str) -> bool:
     }
 
 
-def _is_shorts_batch(text: str) -> bool:
+def _shorts_batch_theme(text: str) -> tuple[bool, str | None]:
     normalized = " ".join(text.strip().lower().replace("_", " ").replace("-", " ").split())
-    return normalized in {
-        "/all shorts",
-        "/shorts all",
-        "/shorts batch",
-        "/все шортсы",
-        "all shorts",
-        "shorts all",
-        "shorts batch",
-        "batch shorts",
-        "все шортсы",
-        "шортсы все",
-        "пакет шортсов",
-        "полный пакет шортсов",
-    }
+    if normalized in SHORTS_BATCH_ALIASES:
+        return (True, None)
+    for alias in SHORTS_BATCH_ALIASES:
+        for theme_alias, theme in HOT_BATCH_THEME_ALIASES.items():
+            if normalized in {
+                f"{alias} {theme_alias}",
+                f"{theme_alias} {alias}",
+            }:
+                return (True, theme)
+    return (False, None)
+
+
+def _is_shorts_batch(text: str) -> bool:
+    return _shorts_batch_theme(text)[0]
 
 
 def _is_random_shorts(text: str) -> bool:
@@ -1774,8 +1799,10 @@ def handle_ticker_message(
     if _is_draft_batch(text):
         client.send_message(chat_id, "Команда пакетных черновиков работает в режиме Telegram-очереди.")
         return
-    if _is_shorts_batch(text):
-        client.send_message(chat_id, "Команда полного пакета shorts-роликов работает в режиме Telegram-очереди.")
+    shorts_batch = _shorts_batch_theme(text)
+    if shorts_batch[0]:
+        theme_label = f" в теме {shorts_batch[1]}" if shorts_batch[1] else ""
+        client.send_message(chat_id, f"Команда полного пакета shorts-роликов{theme_label} работает в режиме Telegram-очереди.")
         return
     hot_batch = _hot_batch_mode_and_theme(text)
     if hot_batch is not None:
@@ -1912,12 +1939,13 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                     continue
                                 text = shortcut_text
                             hot_batch = _hot_batch_mode_and_theme(text)
+                            shorts_batch = _shorts_batch_theme(text)
                             preset_theme_variants_name = _preset_theme_variants_name(text)
                             preset_kit_name = _preset_kit_name(text)
                             if _is_draft_batch(text):
                                 job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
-                            elif _is_shorts_batch(text):
-                                job_queue.enqueue_preset_shorts(chat_id, int(update["update_id"]))
+                            elif shorts_batch[0]:
+                                job_queue.enqueue_preset_shorts(chat_id, int(update["update_id"]), theme=shorts_batch[1])
                             elif hot_batch is not None:
                                 mode, theme = hot_batch
                                 if mode == "draft":
@@ -2051,6 +2079,12 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif menu_callback.action == "all_shorts":
                             client.answer_callback_query(menu_callback.callback_query_id, "Все shorts поставлены в очередь.")
                             job_queue.enqueue_preset_shorts(menu_callback.chat_id, int(update["update_id"]))
+                        elif menu_callback.action == "all_shorts_studio":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Все shorts Studio поставлены в очередь.")
+                            job_queue.enqueue_preset_shorts(menu_callback.chat_id, int(update["update_id"]), theme="studio")
+                        elif menu_callback.action == "all_shorts_aurora":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Все shorts Aurora поставлены в очередь.")
+                            job_queue.enqueue_preset_shorts(menu_callback.chat_id, int(update["update_id"]), theme="aurora")
                         elif menu_callback.action == "example_drafts":
                             client.answer_callback_query(menu_callback.callback_query_id, "Draft-примеры поставлены в очередь.")
                             job_queue.enqueue_example_drafts(menu_callback.chat_id, int(update["update_id"]))
