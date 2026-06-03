@@ -797,6 +797,56 @@ def test_run_telegram_bot_opens_preset_post_without_queue(monkeypatch) -> None:
     assert client.videos == []
 
 
+def test_run_telegram_bot_opens_custom_post_without_queue(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 68, "message": {"text": "post LKOH SBER 2020 2024", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2019, 1, 1), end_date=date(2026, 1, 1)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("post command must not render video")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.videos == []
+    assert client.message_markups == [None]
+    assert "Текст для Пульса" in client.messages[0][1]
+    assert "Заголовок: LKOH / SBER" in client.messages[0][1]
+    assert "Период: 01.01.2020 - 31.12.2024" in client.messages[0][1]
+    assert "Текст на обложку" in client.messages[0][1]
+
+
+def test_handle_ticker_message_opens_custom_post_without_render(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2019, 1, 1), end_date=date(2026, 1, 1)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("post command must not render video")
+
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    handle_ticker_message(client, settings, 123, "текст SBER LKOH за год шортс")
+
+    assert client.videos == []
+    assert "Текст для Пульса" in client.messages[0][1]
+    assert "SBER / LKOH" in client.messages[0][1]
+
+
 def test_run_telegram_bot_menu_callback_queues_hot_preset_drafts(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1428,7 +1478,7 @@ def test_handle_ticker_message_asks_for_preset_name_for_empty_post_command() -> 
 
     handle_ticker_message(client, settings, 123, "/post")
 
-    assert client.messages == [(123, "Напиши название сценария, например: пост металлы")]
+    assert client.messages == [(123, "Напиши название сценария или запрос, например: пост металлы")]
     assert client.message_markups == [None]
     assert client.videos == []
 
