@@ -152,6 +152,7 @@ MENU_ACTIONS = {
     "hot_shorts_aurora",
     "hot_shorts_studio",
     "example_drafts",
+    "random_shorts",
     "random_draft",
     "random_example",
     "music",
@@ -267,7 +268,10 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
                 {"text": "Черновики примеров", "callback_data": f"{MENU_CALLBACK_PREFIX}example_drafts"},
             ],
             [
-                {"text": "Случайный сценарий", "callback_data": f"{MENU_CALLBACK_PREFIX}random_draft"},
+                {"text": "Случайный шортс", "callback_data": f"{MENU_CALLBACK_PREFIX}random_shorts"},
+                {"text": "Случайный draft", "callback_data": f"{MENU_CALLBACK_PREFIX}random_draft"},
+            ],
+            [
                 {"text": "Случайный пример", "callback_data": f"{MENU_CALLBACK_PREFIX}random_example"},
             ],
             [
@@ -733,6 +737,21 @@ class TelegramJobQueue:
             )
         return jobs
 
+    def enqueue_random_preset_shorts(self, chat_id: int, update_id: int) -> TelegramJob:
+        preset = random.choice(PRESETS)
+        self.client.send_message(
+            chat_id,
+            f"Случайный шортс: {preset_button_label(preset)}. Ставлю готовый shorts-ролик в очередь.",
+            reply_markup=queue_status_keyboard(),
+        )
+        return self.enqueue(
+            chat_id,
+            f"preset {preset.name} shorts",
+            update_id,
+            job_suffix=f"random-shorts-{preset.name}",
+            notify=False,
+        )
+
     def enqueue_random_preset_draft(self, chat_id: int, update_id: int) -> TelegramJob:
         preset = random.choice(PRESETS)
         self.client.send_message(
@@ -1050,7 +1069,7 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
 def _main_menu_text() -> str:
     return (
         "Меню Telegram\n"
-        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, пакет для Пульса, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, draft-прогоны, случайный draft или статус очереди."
+        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, пакет для Пульса, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, draft-прогоны, случайный шортс, случайный draft или статус очереди."
     )
 
 
@@ -1062,7 +1081,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
+        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все черновики, черновики примеров, случайный шортс, /random_shorts, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -1098,6 +1117,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "топ шортсы\n"
         "топ шортсы студио\n"
         "все черновики\n"
+        "случайный шортс\n"
+        "/random_shorts\n"
         "случайный черновик\n"
         "/random_draft\n"
         "/examples\n"
@@ -1466,6 +1487,26 @@ def _is_draft_batch(text: str) -> bool:
     }
 
 
+def _is_random_shorts(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().replace("_", " ").replace("-", " ").split())
+    return normalized in {
+        "/random shorts",
+        "/random short",
+        "/случайный шортс",
+        "/случайный шорт",
+        "random shorts",
+        "random short",
+        "shorts random",
+        "short random",
+        "случайный шортс",
+        "случайный шорт",
+        "шортс случайный",
+        "шорт случайный",
+        "случайный ролик",
+        "случайное видео",
+    }
+
+
 def _is_random_draft(text: str) -> bool:
     normalized = " ".join(text.strip().lower().split())
     return normalized in {
@@ -1693,6 +1734,9 @@ def handle_ticker_message(
         theme_label = f" в теме {theme}" if theme else ""
         client.send_message(chat_id, f"Команда {mode_label}{theme_label} работает в режиме Telegram-очереди.")
         return
+    if _is_random_shorts(text):
+        client.send_message(chat_id, "Команда случайного shorts-ролика работает в режиме Telegram-очереди.")
+        return
     if _is_random_draft(text):
         client.send_message(chat_id, "Команда случайного черновика работает в режиме Telegram-очереди.")
         return
@@ -1836,6 +1880,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                     int(update["update_id"]),
                                     preset_theme_variants_name,
                                 )
+                            elif _is_random_shorts(text):
+                                job_queue.enqueue_random_preset_shorts(chat_id, int(update["update_id"]))
                             elif _is_random_draft(text):
                                 job_queue.enqueue_random_preset_draft(chat_id, int(update["update_id"]))
                             elif _is_example_draft_batch(text):
@@ -1953,6 +1999,9 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif menu_callback.action == "example_drafts":
                             client.answer_callback_query(menu_callback.callback_query_id, "Draft-примеры поставлены в очередь.")
                             job_queue.enqueue_example_drafts(menu_callback.chat_id, int(update["update_id"]))
+                        elif menu_callback.action == "random_shorts":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Случайный шортс поставлен в очередь.")
+                            job_queue.enqueue_random_preset_shorts(menu_callback.chat_id, int(update["update_id"]))
                         elif menu_callback.action == "random_draft":
                             client.answer_callback_query(menu_callback.callback_query_id, "Случайный draft поставлен в очередь.")
                             job_queue.enqueue_random_preset_draft(menu_callback.chat_id, int(update["update_id"]))
