@@ -233,6 +233,47 @@ def test_run_telegram_bot_queues_12s_preset_from_followup_button(monkeypatch) ->
     assert client.videos == [(123, Path("animations/metals-12s.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 
+def test_run_telegram_bot_queues_theme_preset_from_followup_button(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 46,
+                    "callback_query": {
+                        "id": "callback-preset-studio",
+                        "data": "preset:metals:studio",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), theme="default"),
+    )
+
+    def fake_generate(request, job_id=None):
+        assert job_id == "tg-46"
+        assert [spec.ticker for spec in request.ticker_specs] == ["GC=F", "SI=F", "PA=F"]
+        assert request.render.theme == "studio"
+        assert request.render.duration == 16
+        assert request.render.fps == 24
+        return Path("animations/metals-studio.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-preset-studio", "Сценарий поставлен в очередь.")]
+    assert client.videos == [(123, Path("animations/metals-studio.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
+
+
 def test_run_telegram_bot_queues_example_from_inline_button(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -325,6 +366,49 @@ def test_run_telegram_bot_queues_custom_followup_variant(monkeypatch) -> None:
     ]
     assert telegram_bot.custom_followup_keyboard("tg-53") in client.message_markups
     assert any("Быстрые варианты для этого запроса" in message for _chat_id, message in client.messages)
+
+
+def test_run_telegram_bot_queues_custom_theme_variant(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {"update_id": 55, "message": {"text": "LKOH 2020 2024 shorts theme=aurora", "chat": {"id": 123}}},
+                {
+                    "update_id": 56,
+                    "callback_query": {
+                        "id": "callback-custom-studio",
+                        "data": "custom:tg-55:studio",
+                        "message": {"chat": {"id": 123}},
+                    },
+                },
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+    generated: list[tuple[str | None, str]] = []
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, request.render.theme))
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-custom-studio", "Вариант поставлен в очередь.")]
+    assert generated == [
+        ("tg-55", "aurora"),
+        ("tg-56-variant-studio", "studio"),
+    ]
+    assert telegram_bot.custom_followup_keyboard("tg-55") in client.message_markups
 
 
 def test_run_telegram_bot_reports_missing_custom_followup(monkeypatch) -> None:
