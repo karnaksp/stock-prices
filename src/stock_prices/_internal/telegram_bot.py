@@ -1133,6 +1133,25 @@ def _metric_label(value_col: str) -> str:
     return "капитал с реинвестированием"
 
 
+def _render_summary(render: RenderSettings) -> str:
+    parts = [
+        f"Тема: {render.theme}",
+        f"Метрика: {_metric_label(render.value_col)}",
+        f"Валюта: {render.currency}",
+        f"Градиент: {'да' if render.use_gradient else 'нет'}",
+    ]
+    if render.with_investments:
+        investment_parts: list[str] = []
+        if render.initial_investment:
+            investment_parts.append(f"старт {_format_amount(render.initial_investment, render.currency)}")
+        if render.monthly_investment:
+            investment_parts.append(f"ежемесячно {_format_amount(render.monthly_investment, render.currency)}")
+        if render.yearly_investment:
+            investment_parts.append(f"ежегодно {_format_amount(render.yearly_investment, render.currency)}")
+        parts.append(f"Инвестиции: {', '.join(investment_parts) if investment_parts else 'включены'}")
+    return ". ".join(parts) + "."
+
+
 def _market_tags(parsed: ParsedTelegramRequest) -> str:
     tags = ["#пульс", "#инвестиции", "#график"]
     markets = {spec.market for spec in parsed.request.ticker_specs}
@@ -1327,7 +1346,8 @@ def handle_ticker_message(
     client.send_message(
         chat_id,
         f"Генерирую видео: {parsed.display_name}\n"
-        f"{render.start_date} - {render.end_date}, {render.duration}s/{render.fps}fps",
+        f"{render.start_date} - {render.end_date}, {render.duration}s/{render.fps}fps\n"
+        f"{_render_summary(render)}",
     )
     output_path = generate_video(parsed.request, job_id=job_id)
     send_started_at = time.monotonic()
