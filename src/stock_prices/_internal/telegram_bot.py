@@ -147,6 +147,7 @@ MENU_ACTIONS = {
     "content_plan_shorts",
     "daily_kit",
     "daily_short",
+    "publication_day",
     "ideas",
     "examples",
     "pack",
@@ -319,9 +320,10 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             ],
             [
                 {"text": "Контент-план", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
-                {"text": "Шортс дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_short"},
+                {"text": "Публикация дня", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
             ],
             [
+                {"text": "Шортс дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_short"},
                 {"text": "Пакет дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_kit"},
             ],
             [
@@ -859,6 +861,23 @@ class TelegramJobQueue:
             notify=False,
         )
 
+    def enqueue_daily_publication_day(self, chat_id: int, update_id: int) -> TelegramJob:
+        day_index, preset = _daily_content_plan_preset()
+        self.client.send_message(
+            chat_id,
+            f"Публикационный день: Д{day_index} {preset_button_label(preset)}. "
+            "Ставлю shorts-ролик в очередь и отправляю пакет для поста.",
+            reply_markup=queue_status_keyboard(),
+        )
+        self.client.send_message(chat_id, format_daily_content_kit(), reply_markup=daily_content_kit_keyboard())
+        return self.enqueue(
+            chat_id,
+            f"preset {preset.name} shorts",
+            update_id,
+            job_suffix=f"publication-day-{day_index}-{preset.name}",
+            notify=False,
+        )
+
     def _enqueue_hot_presets(self, chat_id: int, update_id: int, mode: str, theme: str | None = None) -> list[TelegramJob]:
         if mode not in {"draft", "shorts"}:
             msg = f"Unsupported hot preset mode: {mode}"
@@ -1249,7 +1268,7 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
 def _main_menu_text() -> str:
     return (
         "Меню Telegram\n"
-        "Выбери действие кнопкой: шпаргалка производства, помощь по синтаксису, готовые идеи, проверенные примеры, пакет для Пульса, контент-план, шортс дня, пакет дня, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, полный пакет shorts, draft-прогоны, случайный шортс, случайный draft или статус очереди."
+        "Выбери действие кнопкой: шпаргалка производства, помощь по синтаксису, готовые идеи, проверенные примеры, пакет для Пульса, контент-план, публикация дня, шортс дня, пакет дня, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, полный пакет shorts, draft-прогоны, случайный шортс, случайный draft или статус очереди."
     )
 
 
@@ -1260,6 +1279,9 @@ def _send_main_menu(client: TelegramClient, chat_id: int) -> None:
 def production_guide_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return {
         "inline_keyboard": [
+            [
+                {"text": "Публикация дня", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
+            ],
             [
                 {"text": "Пакет дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_kit"},
                 {"text": "Шортс дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_short"},
@@ -1291,10 +1313,10 @@ def format_production_guide() -> str:
     return (
         "Шпаргалка производства шортсов для Пульса\n\n"
         "Быстрый дневной процесс:\n"
-        "1. /today_kit или пакет дня - открыть сценарий, пост, обложки и музыку без рендера.\n"
-        "2. Нажать Шортс 16s или отправить /today - поставить ролик дня в очередь.\n"
-        "3. Взять пост, обложку и музыкальный референс из пакета.\n"
-        "4. /queue или кнопка Очередь - проверить, что рендер дошел до MP4.\n\n"
+        "1. /publish_day или снять день - поставить шортс дня в очередь и сразу получить пакет для поста.\n"
+        "2. Взять пост, обложку и музыкальный референс из пакета.\n"
+        "3. /queue или кнопка Очередь - проверить, что рендер дошел до MP4.\n"
+        "Если нужен только пакет без рендера: /today_kit или пакет дня.\n\n"
         "Когда нужен выбор сюжета:\n"
         "top drafts - быстро проверить top-сценарии.\n"
         "top shorts studio - снять top-серию в теме Studio.\n"
@@ -1316,7 +1338,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
         "Для производства контента: /guide или шпаргалка. Там короткий workflow с кнопками.\n"
-        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /examples, /pack, /plan, /today, /today_kit, /kits, /posts, /music, /covers, top drafts, top shorts, top shorts studio, top shorts aurora, все шортсы, /all_shorts, случайный шортс, /random_shorts, /queue.\n"
+        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /examples, /pack, /plan, /publish_day, /today, /today_kit, /kits, /posts, /music, /covers, top drafts, top shorts, top shorts studio, top shorts aurora, все шортсы, /all_shorts, случайный шортс, /random_shorts, /queue.\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -1371,6 +1393,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "контент-план\n"
         "/plan_shorts\n"
         "снять план\n"
+        "/publish_day\n"
+        "снять день\n"
         "/today\n"
         "шортс дня\n"
         "/today_kit\n"
@@ -1673,6 +1697,32 @@ def _is_daily_content_plan_short(text: str) -> bool:
         "снять сегодня",
         "выпуск дня",
         "сценарий дня",
+    }
+
+
+def _is_daily_publication_day(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().replace("ё", "е").replace("_", " ").replace("-", " ").split())
+    return normalized in {
+        "/publish day",
+        "/publication day",
+        "/today publish",
+        "/daily publish",
+        "/shoot day",
+        "/снять день",
+        "/день публикации",
+        "publish day",
+        "publication day",
+        "today publish",
+        "daily publish",
+        "shoot day",
+        "снять день",
+        "снять публикацию",
+        "снять выпуск дня",
+        "день публикации",
+        "публикационный день",
+        "запусти день",
+        "запустить день",
+        "выпустить день",
     }
 
 
@@ -2172,6 +2222,9 @@ def handle_ticker_message(
     if _is_content_plan_shorts(text):
         client.send_message(chat_id, "Команда запуска контент-плана работает в режиме Telegram-очереди.")
         return
+    if _is_daily_publication_day(text):
+        client.send_message(chat_id, "Команда публикационного дня работает в режиме Telegram-очереди.")
+        return
     if _is_daily_content_plan_short(text):
         client.send_message(chat_id, "Команда шортса дня работает в режиме Telegram-очереди.")
         return
@@ -2294,7 +2347,9 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             shorts_batch = _shorts_batch_theme(text)
                             preset_theme_variants_name = _preset_theme_variants_name(text)
                             preset_kit_name = _preset_kit_name(text)
-                            if _is_daily_content_kit(text):
+                            if _is_daily_publication_day(text):
+                                job_queue.enqueue_daily_publication_day(chat_id, int(update["update_id"]))
+                            elif _is_daily_content_kit(text):
                                 client.send_message(
                                     chat_id,
                                     format_daily_content_kit(),
@@ -2438,6 +2493,9 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif menu_callback.action == "daily_short":
                             client.answer_callback_query(menu_callback.callback_query_id, "Шортс дня поставлен в очередь.")
                             job_queue.enqueue_daily_content_plan_short(menu_callback.chat_id, int(update["update_id"]))
+                        elif menu_callback.action == "publication_day":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Публикационный день поставлен в очередь.")
+                            job_queue.enqueue_daily_publication_day(menu_callback.chat_id, int(update["update_id"]))
                         elif menu_callback.action == "daily_kit":
                             client.answer_callback_query(menu_callback.callback_query_id, "Пакет дня открыт.")
                             client.send_message(
