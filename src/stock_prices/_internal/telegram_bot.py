@@ -1090,6 +1090,27 @@ def _custom_pulse_hook(parsed: ParsedTelegramRequest) -> str:
     return f"На одном графике {parsed.display_name}: где была спокойная траектория, а где началась настоящая драма?"
 
 
+def _custom_cover_texts(parsed: ParsedTelegramRequest) -> tuple[str, ...]:
+    render = parsed.request.render
+    if render.with_investments and render.monthly_investment:
+        return (
+            f"{_format_amount(render.monthly_investment, render.currency)}/мес: кто выиграл?",
+            f"{parsed.display_name}: регулярные покупки",
+            "Что показал долгий DCA?",
+        )
+    if len(parsed.request.ticker_specs) == 1:
+        return (
+            f"{parsed.display_name}: график без лишних слов",
+            "Возможность или ловушка?",
+            f"{render.start_date:%Y} - {render.end_date:%Y}",
+        )
+    return (
+        f"{parsed.display_name}: кто сильнее?",
+        "Сравнение без эмоций",
+        "Где была главная драма?",
+    )
+
+
 def _custom_pulse_question(parsed: ParsedTelegramRequest) -> str:
     render = parsed.request.render
     if render.with_investments:
@@ -1118,6 +1139,7 @@ def format_generic_pulse_post(parsed: ParsedTelegramRequest) -> str:
         "Текст для Пульса:",
         f"Заголовок: {parsed.display_name} - {story_label}",
         f"Хук: {_custom_pulse_hook(parsed)}",
+        f"Текст на обложку: {' / '.join(_custom_cover_texts(parsed))}.",
         "",
         f"Период: {period}. Валюта: {render.currency}. Метрика: {_metric_label(render.value_col)}.",
     ]

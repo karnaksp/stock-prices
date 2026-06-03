@@ -1080,6 +1080,7 @@ def test_handle_ticker_message_sends_generic_pulse_copy_for_investment_request(m
     assert "Текст для Пульса" in pulse_text
     assert "Заголовок: GC=F / SI=F / PA=F - ежемесячные покупки против разных активов" in pulse_text
     assert "Хук: Если каждый месяц откладывать 30 000 RUB" in pulse_text
+    assert "Текст на обложку: 30 000 RUB/мес: кто выиграл?" in pulse_text
     assert "Вопрос для обсуждения: вы бы выдержали такую регулярную стратегию" in pulse_text
     assert "Музыка/монтаж: плотный драматичный бит" in pulse_text
     assert "GC=F / SI=F / PA=F" in pulse_text
@@ -1096,6 +1097,7 @@ def test_format_generic_pulse_post_uses_single_asset_hook() -> None:
 
     assert "Заголовок: LKOH - один актив на истории" in pulse_text
     assert "Хук: Один график, который быстро показывает характер LKOH" in pulse_text
+    assert "Текст на обложку: LKOH: график без лишних слов" in pulse_text
     assert "Вопрос для обсуждения: это больше похоже на возможность" in pulse_text
     assert "Музыка/монтаж: минималистичный бит" in pulse_text
     assert "#акции" in pulse_text
