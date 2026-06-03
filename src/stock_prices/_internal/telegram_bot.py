@@ -143,6 +143,8 @@ MENU_CALLBACK_PREFIX = "menu:"
 MENU_ACTIONS = {
     "guide",
     "help",
+    "main_menu",
+    "quick_launch",
     "content_plan",
     "content_plan_shorts",
     "daily_kit",
@@ -294,6 +296,9 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
                 {"text": "Помощь", "callback_data": f"{MENU_CALLBACK_PREFIX}help"},
             ],
             [
+                {"text": "Быстрый запуск", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
+            ],
+            [
                 {"text": "Идеи", "callback_data": f"{MENU_CALLBACK_PREFIX}ideas"},
                 {"text": "Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}examples"},
             ],
@@ -342,6 +347,29 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             ],
             [
                 {"text": "Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
+            ],
+        ]
+    }
+
+
+def quick_launch_keyboard() -> dict[str, list[list[dict[str, str]]]]:
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "Снять день", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
+                {"text": "Снять неделю", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_week"},
+            ],
+            [
+                {"text": "Top Studio", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_shorts_studio"},
+                {"text": "Случайный шортс", "callback_data": f"{MENU_CALLBACK_PREFIX}random_shorts"},
+            ],
+            [
+                {"text": "Контент-план", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
+                {"text": "Посты недели", "callback_data": f"{MENU_CALLBACK_PREFIX}weekly_posts"},
+            ],
+            [
+                {"text": "Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
+                {"text": "Полное меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
             ],
         ]
     }
@@ -1406,12 +1434,28 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
 def _main_menu_text() -> str:
     return (
         "Меню Telegram\n"
-        "Выбери действие кнопкой: шпаргалка производства, помощь по синтаксису, готовые идеи, проверенные примеры, пакет для Пульса, контент-план, неделя публикаций, публикация дня, шортс дня, пост дня, пакет дня, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, полный пакет shorts, draft-прогоны, случайный шортс, случайный draft или статус очереди."
+        "Выбери действие кнопкой: быстрый запуск, шпаргалка производства, помощь по синтаксису, готовые идеи, проверенные примеры, пакет для Пульса, контент-план, неделя публикаций, публикация дня, шортс дня, пост дня, пакет дня, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, полный пакет shorts, draft-прогоны, случайный шортс, случайный draft или статус очереди."
     )
 
 
 def _send_main_menu(client: TelegramClient, chat_id: int) -> None:
     client.send_message(chat_id, _main_menu_text(), reply_markup=main_menu_keyboard())
+
+
+def format_quick_launch() -> str:
+    return (
+        "Быстрый запуск shorts для Пульса\n\n"
+        "Выбери кнопку ниже, если нужно сразу поставить готовый ролик в очередь без чтения полного меню.\n"
+        "Снять день - один актуальный выпуск с пакетом поста.\n"
+        "Снять неделю - 7 shorts недельного плана и чеклист публикаций.\n"
+        "Top Studio - top-сценарии в едином стиле Studio.\n"
+        "Случайный шортс - один готовый preset без выбора.\n\n"
+        "Текстом можно написать: /publish_day, /publish_week, top shorts studio или random shorts."
+    )
+
+
+def _send_quick_launch(client: TelegramClient, chat_id: int) -> None:
+    client.send_message(chat_id, format_quick_launch(), reply_markup=quick_launch_keyboard())
 
 
 def production_guide_keyboard() -> dict[str, list[list[dict[str, str]]]]:
@@ -1457,6 +1501,7 @@ def production_guide_keyboard() -> dict[str, list[list[dict[str, str]]]]:
 def format_production_guide() -> str:
     return (
         "Шпаргалка производства шортсов для Пульса\n\n"
+        "Самый короткий вход: /quick или быстрый запуск - компактный пульт с частыми действиями.\n\n"
         "Быстрый дневной процесс:\n"
         "1. /publish_day или снять день - поставить шортс дня в очередь и сразу получить пакет для поста.\n"
         "2. /today_post или пост дня - взять готовый текст публикации без рендера.\n"
@@ -1484,8 +1529,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Для производства контента: /guide или шпаргалка. Там короткий workflow с кнопками.\n"
-        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /examples, /pack, /plan, /week_posts, /publish_week, /publish_day, /today, /today_post, /today_kit, /kits, /posts, /music, /covers, top drafts, top shorts, top shorts studio, top shorts aurora, все шортсы, /all_shorts, случайный шортс, /random_shorts, /queue.\n"
+        "Для производства контента: /quick или быстрый запуск - компактный пульт, /guide или шпаргалка - workflow с кнопками.\n"
+        "Готовые сценарии: /start, /menu, /меню, /quick, /shorts SBER LKOH за год, /draft metals, /ideas, /examples, /pack, /plan, /week_posts, /publish_week, /publish_day, /today, /today_post, /today_kit, /kits, /posts, /music, /covers, top drafts, top shorts, top shorts studio, top shorts aurora, все шортсы, /all_shorts, случайный шортс, /random_shorts, /queue.\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -1496,6 +1541,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "/start\n"
         "/menu\n"
         "/меню\n"
+        "/quick\n"
+        "быстрый запуск\n"
         "/guide\n"
         "шпаргалка\n"
         "/shorts SBER LKOH за год\n"
@@ -1623,6 +1670,30 @@ def _is_help(text: str) -> bool:
         return command[0] in {"/help", "/помощь"}
     normalized = text.strip().lower()
     return normalized in {"помощь", "help"}
+
+
+def _is_quick_launch(text: str) -> bool:
+    command = _slash_command_and_payload(text)
+    if command is not None:
+        return command[0] in {
+            "/quick",
+            "/fast",
+            "/launch",
+            "/быстро",
+            "/быстрый_запуск",
+            "/запуск",
+        }
+    normalized = " ".join(text.strip().lower().replace("ё", "е").split())
+    return normalized in {
+        "quick",
+        "fast",
+        "launch",
+        "быстро",
+        "быстрый запуск",
+        "запуск",
+        "снять быстро",
+        "быстрый пульт",
+    }
 
 
 def _is_production_guide(text: str) -> bool:
@@ -2389,6 +2460,9 @@ def handle_ticker_message(
     if _is_help(text):
         client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
         return
+    if _is_quick_launch(text):
+        _send_quick_launch(client, chat_id)
+        return
     if _is_production_guide(text):
         client.send_message(chat_id, format_production_guide(), reply_markup=production_guide_keyboard())
         return
@@ -2558,6 +2632,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             _send_main_menu(client, chat_id)
                         elif _is_help(text):
                             client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
+                        elif _is_quick_launch(text):
+                            _send_quick_launch(client, chat_id)
                         elif _is_production_guide(text):
                             client.send_message(
                                 chat_id,
@@ -2684,6 +2760,12 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         if settings.allowed_chat_ids and menu_callback.chat_id not in settings.allowed_chat_ids:
                             client.answer_callback_query(menu_callback.callback_query_id, "This chat is not allowed.")
                             client.send_message(menu_callback.chat_id, "This chat is not allowed to use this bot.")
+                        elif menu_callback.action == "main_menu":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Меню открыто.")
+                            _send_main_menu(client, menu_callback.chat_id)
+                        elif menu_callback.action == "quick_launch":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Быстрый запуск открыт.")
+                            _send_quick_launch(client, menu_callback.chat_id)
                         elif menu_callback.action == "help":
                             client.answer_callback_query(menu_callback.callback_query_id, "Помощь открыта.")
                             client.send_message(
