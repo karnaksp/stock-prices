@@ -1062,7 +1062,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
+        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -1070,8 +1070,11 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "Все темы и variants metals ставят один preset сразу в default, aurora и studio.\n"
         "После custom-видео будут такие же быстрые варианты для этого запроса.\n"
         "Примеры:\n"
+        "/start\n"
         "/menu\n"
         "/меню\n"
+        "/shorts SBER LKOH за год\n"
+        "/draft metals\n"
         "LKOH\n"
         "LKOH SBER 2020 2024\n"
         "сделай шортс про SBER и LKOH за полгода для Пульса\n"
@@ -1150,19 +1153,48 @@ def cleanup_old_outputs(output_dir: Path, retention_days: int, keep: set[Path] |
     return removed
 
 
+def _slash_command_and_payload(text: str) -> tuple[str, str] | None:
+    stripped = text.strip()
+    if not stripped.startswith("/"):
+        return None
+    command, _separator, payload = stripped.partition(" ")
+    command = command.split("@", 1)[0].lower()
+    return command, payload.strip()
+
+
+def _is_start(text: str) -> bool:
+    command = _slash_command_and_payload(text)
+    if command is None:
+        return False
+    return command[0] in {"/start", "/старт"}
+
+
 def _is_help(text: str) -> bool:
+    command = _slash_command_and_payload(text)
+    if command is not None:
+        return command[0] in {"/help", "/помощь"}
     normalized = text.strip().lower()
-    return (
-        normalized.startswith("/start")
-        or normalized.startswith("/help")
-        or normalized.startswith("/старт")
-        or normalized in {"/помощь", "помощь", "help"}
-    )
+    return normalized in {"помощь", "help"}
 
 
 def _is_menu(text: str) -> bool:
+    command = _slash_command_and_payload(text)
+    if command is not None:
+        return command[0] in {"/menu", "/меню"}
     normalized = " ".join(text.strip().lower().split())
-    return normalized in {"/menu", "/меню", "menu", "меню"}
+    return normalized in {"menu", "меню"}
+
+
+def _shortcut_mode_and_text(text: str) -> tuple[str, str] | None:
+    command = _slash_command_and_payload(text)
+    if command is None:
+        return None
+    command_name, payload = command
+    if command_name in {"/shorts", "/short", "/reels", "/шортс", "/шортсы", "/шорт"}:
+        return "shorts", f"{payload} shorts".strip() if payload else ""
+    if command_name in {"/draft", "/preview", "/черновик", "/превью"}:
+        return "draft", f"{payload} draft".strip() if payload else ""
+    return None
 
 
 def _preset_list_mode(text: str) -> str | None:
@@ -1631,12 +1663,26 @@ def handle_ticker_message(
     if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
         client.send_message(chat_id, "This chat is not allowed to use this bot.")
         return
+    if _is_start(text):
+        _send_main_menu(client, chat_id)
+        return
     if _is_help(text):
         client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
         return
     if _is_menu(text):
         _send_main_menu(client, chat_id)
         return
+    shortcut = _shortcut_mode_and_text(text)
+    if shortcut is not None:
+        mode, shortcut_text = shortcut
+        if not shortcut_text:
+            client.send_message(
+                chat_id,
+                format_preset_list(mode),
+                reply_markup=preset_inline_keyboard(mode=mode),
+            )
+            return
+        text = shortcut_text
     if _is_draft_batch(text):
         client.send_message(chat_id, "Команда пакетных черновиков работает в режиме Telegram-очереди.")
         return
@@ -1751,79 +1797,93 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                     extracted = _extract_text_message(update)
                     if extracted is not None:
                         chat_id, text = extracted
-                        hot_batch = _hot_batch_mode_and_theme(text)
-                        preset_theme_variants_name = _preset_theme_variants_name(text)
-                        preset_kit_name = _preset_kit_name(text)
                         if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
                             client.send_message(chat_id, "This chat is not allowed to use this bot.")
+                        elif _is_start(text):
+                            _send_main_menu(client, chat_id)
                         elif _is_help(text):
                             client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market))
                         elif _is_menu(text):
                             _send_main_menu(client, chat_id)
-                        elif _is_draft_batch(text):
-                            job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
-                        elif hot_batch is not None:
-                            mode, theme = hot_batch
-                            if mode == "draft":
-                                job_queue.enqueue_hot_preset_drafts(chat_id, int(update["update_id"]))
-                            elif theme:
-                                job_queue.enqueue_hot_preset_shorts_with_theme(chat_id, int(update["update_id"]), theme)
-                            else:
-                                job_queue.enqueue_hot_preset_shorts(chat_id, int(update["update_id"]))
-                        elif preset_theme_variants_name is not None:
-                            job_queue.enqueue_preset_theme_variants(
-                                chat_id,
-                                int(update["update_id"]),
-                                preset_theme_variants_name,
-                            )
-                        elif _is_random_draft(text):
-                            job_queue.enqueue_random_preset_draft(chat_id, int(update["update_id"]))
-                        elif _is_example_draft_batch(text):
-                            job_queue.enqueue_example_drafts(chat_id, int(update["update_id"]))
-                        elif _is_random_example_draft(text):
-                            job_queue.enqueue_random_example_draft(chat_id, int(update["update_id"]))
-                        elif _is_queue_status(text):
-                            client.send_message(chat_id, job_queue.status_text(), reply_markup=queue_status_keyboard())
-                        elif _is_examples(text):
-                            client.send_message(chat_id, format_example_list(), reply_markup=example_inline_keyboard())
-                        elif _is_music_references(text):
-                            client.send_message(chat_id, format_music_list())
-                        elif _is_cover_texts(text):
-                            client.send_message(chat_id, format_cover_list())
-                        elif _is_preset_kits(text):
-                            client.send_message(
-                                chat_id,
-                                format_preset_kit_list(),
-                                reply_markup=preset_kit_inline_keyboard(),
-                            )
-                        elif preset_kit_name is not None:
-                            client.send_message(
-                                chat_id,
-                                format_preset_kit(preset_kit_name),
-                                reply_markup=preset_kit_keyboard(preset_kit_name),
-                            )
-                        elif _is_pulse_pack(text):
-                            client.send_message(chat_id, format_pulse_pack(), reply_markup=pulse_pack_keyboard())
-                        elif _is_pulse_posts(text):
-                            client.send_message(chat_id, format_post_list(), reply_markup=post_inline_keyboard())
                         else:
-                            preset_post_name = _preset_post_name(text)
-                            if preset_post_name is not None:
-                                _send_pulse_post(client, settings, chat_id, preset_post_name)
-                                continue
-                            preset_list_mode = _preset_list_mode(text)
-                            if preset_list_mode is not None:
+                            shortcut = _shortcut_mode_and_text(text)
+                            if shortcut is not None:
+                                shortcut_mode, shortcut_text = shortcut
+                                if not shortcut_text:
+                                    client.send_message(
+                                        chat_id,
+                                        format_preset_list(shortcut_mode),
+                                        reply_markup=preset_inline_keyboard(mode=shortcut_mode),
+                                    )
+                                    continue
+                                text = shortcut_text
+                            hot_batch = _hot_batch_mode_and_theme(text)
+                            preset_theme_variants_name = _preset_theme_variants_name(text)
+                            preset_kit_name = _preset_kit_name(text)
+                            if _is_draft_batch(text):
+                                job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
+                            elif hot_batch is not None:
+                                mode, theme = hot_batch
+                                if mode == "draft":
+                                    job_queue.enqueue_hot_preset_drafts(chat_id, int(update["update_id"]))
+                                elif theme:
+                                    job_queue.enqueue_hot_preset_shorts_with_theme(chat_id, int(update["update_id"]), theme)
+                                else:
+                                    job_queue.enqueue_hot_preset_shorts(chat_id, int(update["update_id"]))
+                            elif preset_theme_variants_name is not None:
+                                job_queue.enqueue_preset_theme_variants(
+                                    chat_id,
+                                    int(update["update_id"]),
+                                    preset_theme_variants_name,
+                                )
+                            elif _is_random_draft(text):
+                                job_queue.enqueue_random_preset_draft(chat_id, int(update["update_id"]))
+                            elif _is_example_draft_batch(text):
+                                job_queue.enqueue_example_drafts(chat_id, int(update["update_id"]))
+                            elif _is_random_example_draft(text):
+                                job_queue.enqueue_random_example_draft(chat_id, int(update["update_id"]))
+                            elif _is_queue_status(text):
+                                client.send_message(chat_id, job_queue.status_text(), reply_markup=queue_status_keyboard())
+                            elif _is_examples(text):
+                                client.send_message(chat_id, format_example_list(), reply_markup=example_inline_keyboard())
+                            elif _is_music_references(text):
+                                client.send_message(chat_id, format_music_list())
+                            elif _is_cover_texts(text):
+                                client.send_message(chat_id, format_cover_list())
+                            elif _is_preset_kits(text):
                                 client.send_message(
                                     chat_id,
-                                    format_preset_list(preset_list_mode),
-                                    reply_markup=preset_inline_keyboard(mode=preset_list_mode),
+                                    format_preset_kit_list(),
+                                    reply_markup=preset_kit_inline_keyboard(),
                                 )
+                            elif preset_kit_name is not None:
+                                client.send_message(
+                                    chat_id,
+                                    format_preset_kit(preset_kit_name),
+                                    reply_markup=preset_kit_keyboard(preset_kit_name),
+                                )
+                            elif _is_pulse_pack(text):
+                                client.send_message(chat_id, format_pulse_pack(), reply_markup=pulse_pack_keyboard())
+                            elif _is_pulse_posts(text):
+                                client.send_message(chat_id, format_post_list(), reply_markup=post_inline_keyboard())
                             else:
-                                batch_lines = _batch_request_lines(text)
-                                if len(batch_lines) > 1:
-                                    job_queue.enqueue_batch(chat_id, batch_lines, int(update["update_id"]))
+                                preset_post_name = _preset_post_name(text)
+                                if preset_post_name is not None:
+                                    _send_pulse_post(client, settings, chat_id, preset_post_name)
+                                    continue
+                                preset_list_mode = _preset_list_mode(text)
+                                if preset_list_mode is not None:
+                                    client.send_message(
+                                        chat_id,
+                                        format_preset_list(preset_list_mode),
+                                        reply_markup=preset_inline_keyboard(mode=preset_list_mode),
+                                    )
                                 else:
-                                    job_queue.enqueue(chat_id, text, int(update["update_id"]))
+                                    batch_lines = _batch_request_lines(text)
+                                    if len(batch_lines) > 1:
+                                        job_queue.enqueue_batch(chat_id, batch_lines, int(update["update_id"]))
+                                    else:
+                                        job_queue.enqueue(chat_id, text, int(update["update_id"]))
                         continue
                     menu_callback = _extract_menu_callback(update)
                     if menu_callback is not None:
