@@ -93,6 +93,9 @@ hide:
     top shorts aurora
     топ шортсы
     топ шортсы студио
+    случайный шортс
+    random shorts
+    /random_shorts
     случайный черновик
     random draft
     /random_draft
@@ -202,6 +205,9 @@ kit metals
 пакет металлы
 топ шортсы
 топ шортсы студио
+случайный шортс
+random shorts
+/random_shorts
 случайный черновик
 random draft
 /random_draft

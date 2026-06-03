@@ -756,6 +756,49 @@ def test_run_telegram_bot_queues_random_preset_draft(monkeypatch) -> None:
     assert client.videos == [(123, Path("animations/tg-47-random-draft-metals.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 
+def test_run_telegram_bot_queues_random_preset_shorts(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 48, "message": {"text": "случайный шортс", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    selected = PRESETS[1]
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), use_gradient=False),
+    )
+    generated: list[tuple[str | None, int, int, bool, list[str]]] = []
+
+    def fake_generate(request, job_id=None):
+        generated.append(
+            (
+                job_id,
+                request.render.duration,
+                request.render.fps,
+                request.render.use_gradient,
+                [spec.ticker for spec in request.ticker_specs],
+            )
+        )
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot.random, "choice", lambda presets: selected)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.messages[0][0] == 123
+    assert preset_button_label(selected) in client.messages[0][1]
+    assert "shorts-ролик" in client.messages[0][1]
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
+    assert generated == [("tg-48-random-shorts-metals", 16, 24, True, ["GC=F", "SI=F", "PA=F"])]
+    assert client.videos == [(123, Path("animations/tg-48-random-shorts-metals.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
+
+
 def test_run_telegram_bot_queues_all_example_drafts(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1593,6 +1636,56 @@ def test_run_telegram_bot_menu_callback_queues_random_example(monkeypatch) -> No
     assert client.videos == [(123, Path("animations/tg-59-random-example-metals-dca.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-12-31")]
 
 
+def test_run_telegram_bot_menu_callback_queues_random_preset_shorts(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 60,
+                    "callback_query": {
+                        "id": "callback-menu-random-shorts",
+                        "data": "menu:random_shorts",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), use_gradient=False),
+    )
+    generated: list[tuple[str | None, int, int, bool, list[str]]] = []
+    selected = PRESETS[1]
+
+    def fake_generate(request, job_id=None):
+        generated.append(
+            (
+                job_id,
+                request.render.duration,
+                request.render.fps,
+                request.render.use_gradient,
+                [spec.ticker for spec in request.ticker_specs],
+            )
+        )
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+    monkeypatch.setattr(telegram_bot.random, "choice", lambda presets: selected)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-random-shorts", "Случайный шортс поставлен в очередь.")]
+    assert telegram_bot.queue_status_keyboard() in client.message_markups
+    assert generated == [("tg-60-random-shorts-metals", 16, 24, True, ["GC=F", "SI=F", "PA=F"])]
+    assert client.videos == [(123, Path("animations/tg-60-random-shorts-metals.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
+
+
 def test_run_telegram_bot_queues_multiline_batch(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1708,6 +1801,19 @@ def test_handle_ticker_message_mentions_queue_mode_for_styled_hot_shorts() -> No
     handle_ticker_message(client, settings, 123, "топ шортсы студио")
 
     assert client.messages == [(123, "Команда top-shorts роликов в теме studio работает в режиме Telegram-очереди.")]
+    assert client.videos == []
+
+
+def test_handle_ticker_message_mentions_queue_mode_for_random_shorts() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "случайный шортс")
+
+    assert client.messages == [(123, "Команда случайного shorts-ролика работает в режиме Telegram-очереди.")]
     assert client.videos == []
 
 
@@ -1969,6 +2075,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "топ шортсы" in help_text
     assert "топ шортсы студио" in help_text
     assert "все черновики" in help_text
+    assert "случайный шортс" in help_text
+    assert "/random_shorts" in help_text
     assert "случайный черновик" in help_text
     assert "/random_draft" in help_text
     assert "/examples" in help_text
@@ -2035,13 +2143,15 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     assert keyboard[3][1] == {"text": "Топ шортсы", "callback_data": "menu:hot_shorts"}
     assert keyboard[4][0] == {"text": "Черновики", "callback_data": "menu:drafts"}
     assert keyboard[4][1] == {"text": "Черновики примеров", "callback_data": "menu:example_drafts"}
-    assert keyboard[5][0] == {"text": "Случайный сценарий", "callback_data": "menu:random_draft"}
-    assert keyboard[6][0] == {"text": "Пакет Пульса", "callback_data": "menu:pack"}
-    assert keyboard[6][1] == {"text": "Пакеты", "callback_data": "menu:kits"}
-    assert keyboard[7][0] == {"text": "Посты", "callback_data": "menu:posts"}
-    assert keyboard[7][1] == {"text": "Музыка", "callback_data": "menu:music"}
-    assert keyboard[8][0] == {"text": "Обложки", "callback_data": "menu:covers"}
-    assert keyboard[9][0] == {"text": "Очередь", "callback_data": "menu:queue"}
+    assert keyboard[5][0] == {"text": "Случайный шортс", "callback_data": "menu:random_shorts"}
+    assert keyboard[5][1] == {"text": "Случайный draft", "callback_data": "menu:random_draft"}
+    assert keyboard[6][0] == {"text": "Случайный пример", "callback_data": "menu:random_example"}
+    assert keyboard[7][0] == {"text": "Пакет Пульса", "callback_data": "menu:pack"}
+    assert keyboard[7][1] == {"text": "Пакеты", "callback_data": "menu:kits"}
+    assert keyboard[8][0] == {"text": "Посты", "callback_data": "menu:posts"}
+    assert keyboard[8][1] == {"text": "Музыка", "callback_data": "menu:music"}
+    assert keyboard[9][0] == {"text": "Обложки", "callback_data": "menu:covers"}
+    assert keyboard[10][0] == {"text": "Очередь", "callback_data": "menu:queue"}
     assert keyboard[-1][0]["callback_data"] == "menu:help"
     assert client.videos == []
 
@@ -2110,7 +2220,7 @@ def test_handle_ticker_message_shows_main_menu_with_russian_command() -> None:
     handle_ticker_message(client, settings, 123, "/меню")
 
     assert "Меню Telegram" in client.messages[0][1]
-    assert client.message_markups[0]["inline_keyboard"][5][1]["callback_data"] == "menu:random_example"
+    assert client.message_markups[0]["inline_keyboard"][6][0]["callback_data"] == "menu:random_example"
     assert client.videos == []
 
 
