@@ -660,6 +660,21 @@ def test_format_weekly_publication_pack_lists_publication_assets() -> None:
     assert telegram_bot.weekly_publication_pack_keyboard()["inline_keyboard"][0][0]["callback_data"] == telegram_bot.QUEUE_STATUS_CALLBACK_DATA
 
 
+def test_format_weekly_posts_lists_full_publication_texts() -> None:
+    intro = telegram_bot.format_weekly_post_intro()
+    first_post = telegram_bot.format_weekly_post(1, "neweconomy")
+    keyboard = telegram_bot.weekly_posts_keyboard()
+
+    assert "Посты недели для Пульса" in intro
+    assert "7 готовых текстов" in intro
+    assert "Пост недели: Д1 Новая экономика 2021-2026" in first_post
+    assert "Текст для Пульса" in first_post
+    assert "IPO-эйфория" in first_post
+    assert keyboard["inline_keyboard"][0][0]["callback_data"] == "menu:content_plan"
+    assert keyboard["inline_keyboard"][0][1]["callback_data"] == "menu:publication_week"
+    assert keyboard["inline_keyboard"][1][0]["callback_data"] == telegram_bot.QUEUE_STATUS_CALLBACK_DATA
+
+
 def test_run_telegram_bot_queues_weekly_publication_pack(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -703,6 +718,39 @@ def test_run_telegram_bot_queues_weekly_publication_pack(monkeypatch) -> None:
     assert generated[-1][0] == f"tg-110-publication-week-{len(telegram_bot.CONTENT_PLAN_PRESETS)}-{telegram_bot.CONTENT_PLAN_PRESETS[-1]}"
     assert len({job_id for job_id, *_rest in generated}) == len(telegram_bot.CONTENT_PLAN_PRESETS)
     assert len(client.videos) == len(telegram_bot.CONTENT_PLAN_PRESETS)
+
+
+def test_run_telegram_bot_opens_weekly_posts_without_render(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 114, "message": {"text": "/week_posts", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("weekly posts command must not render video")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert len(client.messages) == len(telegram_bot.CONTENT_PLAN_PRESETS) + 1
+    assert "Посты недели для Пульса" in client.messages[0][1]
+    assert "Пост недели: Д1 Новая экономика 2021-2026" in client.messages[1][1]
+    assert "Текст для Пульса" in client.messages[1][1]
+    assert f"Пост недели: Д{len(telegram_bot.CONTENT_PLAN_PRESETS)} Голубые фишки" in client.messages[-1][1]
+    assert client.message_markups[0] == telegram_bot.weekly_posts_keyboard()
+    assert all(markup is None for markup in client.message_markups[1:])
+    assert client.videos == []
 
 
 def test_daily_content_plan_preset_uses_weekday() -> None:
@@ -1315,6 +1363,7 @@ def test_handle_ticker_message_shows_production_guide_without_render(monkeypatch
     assert "снять неделю" in guide_text
     assert "/today_post" in guide_text
     assert "пост дня" in guide_text
+    assert "/week_posts" in guide_text
     assert "/today_kit" in guide_text
     assert "top drafts" in guide_text
     assert "post metals" in guide_text
@@ -1323,7 +1372,8 @@ def test_handle_ticker_message_shows_production_guide_without_render(monkeypatch
     assert client.message_markups[0]["inline_keyboard"][0][1]["callback_data"] == "menu:publication_week"
     assert client.message_markups[0]["inline_keyboard"][1][0]["callback_data"] == "menu:daily_post"
     assert client.message_markups[0]["inline_keyboard"][1][1]["callback_data"] == "menu:daily_kit"
-    assert client.message_markups[0]["inline_keyboard"][2][0]["callback_data"] == "menu:daily_short"
+    assert client.message_markups[0]["inline_keyboard"][2][0]["callback_data"] == "menu:weekly_posts"
+    assert client.message_markups[0]["inline_keyboard"][3][0]["callback_data"] == "menu:daily_short"
     assert client.videos == []
 
 
@@ -1656,6 +1706,47 @@ def test_run_telegram_bot_menu_callback_queues_weekly_publication_pack(monkeypat
     assert generated[0] == ("tg-111-publication-week-1-neweconomy", 16, 24, True, "studio")
     assert generated[-1][0] == f"tg-111-publication-week-{len(telegram_bot.CONTENT_PLAN_PRESETS)}-{telegram_bot.CONTENT_PLAN_PRESETS[-1]}"
     assert len(client.videos) == len(telegram_bot.CONTENT_PLAN_PRESETS)
+
+
+def test_run_telegram_bot_menu_callback_opens_weekly_posts(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 115,
+                    "callback_query": {
+                        "id": "callback-menu-weekly-posts",
+                        "data": "menu:weekly_posts",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("weekly posts callback must not render video")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-weekly-posts", "Посты недели открыты.")]
+    assert len(client.messages) == len(telegram_bot.CONTENT_PLAN_PRESETS) + 1
+    assert "Посты недели для Пульса" in client.messages[0][1]
+    assert "Пост недели: Д1 Новая экономика 2021-2026" in client.messages[1][1]
+    assert "Пост недели: Д7 Голубые фишки" in client.messages[-1][1]
+    assert client.message_markups[0] == telegram_bot.weekly_posts_keyboard()
+    assert client.videos == []
 
 
 def test_run_telegram_bot_menu_callback_queues_daily_content_plan_short(monkeypatch) -> None:
@@ -2947,6 +3038,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "контент-план" in help_text
     assert "/plan_shorts" in help_text
     assert "снять план" in help_text
+    assert "/week_posts" in help_text
+    assert "посты недели" in help_text
     assert "/publish_week" in help_text
     assert "снять неделю" in help_text
     assert "/publish_day" in help_text
@@ -3246,6 +3339,7 @@ def test_handle_ticker_message_shows_content_plan() -> None:
     assert client.message_markups[0] == telegram_bot.content_plan_keyboard()
     keyboard = client.message_markups[0]["inline_keyboard"]
     assert keyboard[0][0]["callback_data"] == "menu:content_plan_shorts"
+    assert keyboard[0][1]["callback_data"] == "menu:weekly_posts"
     assert keyboard[1][0]["callback_data"] == "preset:neweconomy:shorts"
     assert keyboard[1][1]["callback_data"] == "preset:metals:shorts"
     assert keyboard[-1][1]["callback_data"] == telegram_bot.QUEUE_STATUS_CALLBACK_DATA
@@ -3322,6 +3416,28 @@ def test_handle_ticker_message_mentions_queue_mode_for_weekly_publication_pack()
     handle_ticker_message(client, settings, 123, "снять неделю")
 
     assert client.messages == [(123, "Команда недельного выпуска работает в режиме Telegram-очереди.")]
+    assert client.videos == []
+
+
+def test_handle_ticker_message_shows_weekly_posts_without_render(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("weekly posts must not render video")
+
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    handle_ticker_message(client, settings, 123, "посты недели")
+
+    assert len(client.messages) == len(telegram_bot.CONTENT_PLAN_PRESETS) + 1
+    assert "Посты недели для Пульса" in client.messages[0][1]
+    assert "Пост недели: Д1 Новая экономика 2021-2026" in client.messages[1][1]
+    assert "Пост недели: Д7 Голубые фишки" in client.messages[-1][1]
+    assert client.message_markups[0] == telegram_bot.weekly_posts_keyboard()
     assert client.videos == []
 
 
