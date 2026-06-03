@@ -607,6 +607,43 @@ def test_run_telegram_bot_queues_all_preset_shorts(monkeypatch) -> None:
     assert len(client.videos) == len(PRESETS)
 
 
+def test_run_telegram_bot_queues_styled_all_preset_shorts(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 66, "message": {"text": "все шортсы студио", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), theme="default"),
+    )
+    generated: list[tuple[str | None, int, int, bool, str]] = []
+
+    def fake_client_factory(*_args, **_kwargs):
+        return client
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, request.render.duration, request.render.fps, request.render.use_gradient, request.render.theme))
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert "в теме studio" in client.messages[0][1]
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
+    assert len(generated) == len(PRESETS)
+    assert generated[0] == ("tg-66-shorts-studio-1-neweconomy", 16, 24, True, "studio")
+    assert generated[-1][0] == f"tg-66-shorts-studio-{len(PRESETS)}-{PRESETS[-1].name}"
+    assert all(theme == "studio" for *_rest, theme in generated)
+    assert len(client.videos) == len(PRESETS)
+
+
 def test_run_telegram_bot_queues_hot_preset_drafts(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1540,6 +1577,49 @@ def test_run_telegram_bot_menu_callback_queues_all_preset_shorts(monkeypatch) ->
     assert len(client.videos) == len(PRESETS)
 
 
+def test_run_telegram_bot_menu_callback_queues_styled_all_preset_shorts(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 67,
+                    "callback_query": {
+                        "id": "callback-menu-all-shorts-aurora",
+                        "data": "menu:all_shorts_aurora",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), theme="default"),
+    )
+    generated: list[tuple[str | None, str]] = []
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, request.render.theme))
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-all-shorts-aurora", "Все shorts Aurora поставлены в очередь.")]
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
+    assert generated[0] == ("tg-67-shorts-aurora-1-neweconomy", "aurora")
+    assert generated[-1][0] == f"tg-67-shorts-aurora-{len(PRESETS)}-{PRESETS[-1].name}"
+    assert len(generated) == len(PRESETS)
+    assert all(theme == "aurora" for _job_id, theme in generated)
+    assert len(client.videos) == len(PRESETS)
+
+
 def test_run_telegram_bot_menu_callback_queues_styled_hot_preset_shorts(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1887,6 +1967,19 @@ def test_handle_ticker_message_mentions_queue_mode_for_all_shorts() -> None:
     assert client.videos == []
 
 
+def test_handle_ticker_message_mentions_queue_mode_for_styled_all_shorts() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "/all_shorts aurora")
+
+    assert client.messages == [(123, "Команда полного пакета shorts-роликов в теме aurora работает в режиме Telegram-очереди.")]
+    assert client.videos == []
+
+
 def test_handle_ticker_message_mentions_queue_mode_for_styled_hot_shorts() -> None:
     client = FakeClient()
     settings = TelegramBotSettings(
@@ -2171,6 +2264,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "топ шортсы" in help_text
     assert "топ шортсы студио" in help_text
     assert "все шортсы" in help_text
+    assert "все шортсы студио" in help_text
+    assert "all shorts aurora" in help_text
     assert "/all_shorts" in help_text
     assert "все черновики" in help_text
     assert "случайный шортс" in help_text
@@ -2413,13 +2508,17 @@ def test_handle_ticker_message_shows_pulse_pack() -> None:
     assert "top shorts studio" in pack_text
     assert "top shorts aurora" in pack_text
     assert "все шортсы" in pack_text
+    assert "все шортсы студио" in pack_text
+    assert "все шортсы аурора" in pack_text
     assert "без LLM" in pack_text
     assert client.message_markups[0] == telegram_bot.pulse_pack_keyboard()
     assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "menu:hot_shorts"
     assert client.message_markups[0]["inline_keyboard"][1][0]["callback_data"] == "menu:hot_shorts_studio"
     assert client.message_markups[0]["inline_keyboard"][1][1]["callback_data"] == "menu:hot_shorts_aurora"
     assert client.message_markups[0]["inline_keyboard"][2][0]["callback_data"] == "menu:all_shorts"
-    assert client.message_markups[0]["inline_keyboard"][3][0]["callback_data"] == "menu:posts"
+    assert client.message_markups[0]["inline_keyboard"][2][1]["callback_data"] == "menu:all_shorts_studio"
+    assert client.message_markups[0]["inline_keyboard"][3][0]["callback_data"] == "menu:all_shorts_aurora"
+    assert client.message_markups[0]["inline_keyboard"][4][0]["callback_data"] == "menu:posts"
     assert client.videos == []
 
 
