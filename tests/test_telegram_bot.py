@@ -970,6 +970,45 @@ def test_run_telegram_bot_menu_callback_opens_pulse_pack(monkeypatch) -> None:
     assert client.videos == []
 
 
+def test_run_telegram_bot_menu_callback_opens_preset_kits(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 72,
+                    "callback_query": {
+                        "id": "callback-menu-kits",
+                        "data": "menu:kits",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("preset kits menu must not render video")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-kits", "Пакеты открыты.")]
+    assert "Публикационные пакеты сценариев" in client.messages[0][1]
+    assert "kit metals" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.preset_kit_inline_keyboard()]
+    assert client.videos == []
+
+
 def test_run_telegram_bot_opens_preset_kit_without_render(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1003,6 +1042,46 @@ def test_run_telegram_bot_opens_preset_kit_without_render(monkeypatch) -> None:
     assert client.videos == []
 
 
+def test_run_telegram_bot_opens_preset_kit_from_inline_button(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 77,
+                    "callback_query": {
+                        "id": "callback-kit-metals",
+                        "data": "kit:metals",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("kit callback must not render video")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-kit-metals", "Пакет открыт.")]
+    kit_text = client.messages[0][1]
+    assert "Пакет сценария" in kit_text
+    assert "Шортс: preset metals" in kit_text
+    assert client.message_markups == [telegram_bot.preset_kit_keyboard("metals")]
+    assert client.videos == []
+
+
 def test_handle_ticker_message_opens_preset_kit_without_render(monkeypatch) -> None:
     client = FakeClient()
     settings = TelegramBotSettings(
@@ -1020,6 +1099,26 @@ def test_handle_ticker_message_opens_preset_kit_without_render(monkeypatch) -> N
     assert "Пакет сценария" in client.messages[0][1]
     assert "Шортс: preset metals" in client.messages[0][1]
     assert client.message_markups == [telegram_bot.preset_kit_keyboard("metals")]
+    assert client.videos == []
+
+
+def test_handle_ticker_message_lists_preset_kits_without_render(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("kits command must not render video")
+
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    handle_ticker_message(client, settings, 123, "/kits")
+
+    assert "Публикационные пакеты сценариев" in client.messages[0][1]
+    assert "kit metals" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.preset_kit_inline_keyboard()]
     assert client.videos == []
 
 
@@ -1798,6 +1897,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "/примеры" in help_text
     assert "/pack" in help_text
     assert "пакет пульса" in help_text
+    assert "/kits" in help_text
+    assert "пакеты" in help_text
     assert "kit metals" in help_text
     assert "пакет металлы" in help_text
     assert "/posts" in help_text
@@ -1858,10 +1959,11 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     assert keyboard[4][1] == {"text": "Черновики примеров", "callback_data": "menu:example_drafts"}
     assert keyboard[5][0] == {"text": "Случайный сценарий", "callback_data": "menu:random_draft"}
     assert keyboard[6][0] == {"text": "Пакет Пульса", "callback_data": "menu:pack"}
-    assert keyboard[6][1] == {"text": "Посты", "callback_data": "menu:posts"}
-    assert keyboard[7][0] == {"text": "Обложки", "callback_data": "menu:covers"}
+    assert keyboard[6][1] == {"text": "Пакеты", "callback_data": "menu:kits"}
+    assert keyboard[7][0] == {"text": "Посты", "callback_data": "menu:posts"}
     assert keyboard[7][1] == {"text": "Музыка", "callback_data": "menu:music"}
-    assert keyboard[8][0] == {"text": "Очередь", "callback_data": "menu:queue"}
+    assert keyboard[8][0] == {"text": "Обложки", "callback_data": "menu:covers"}
+    assert keyboard[9][0] == {"text": "Очередь", "callback_data": "menu:queue"}
     assert keyboard[-1][0]["callback_data"] == "menu:help"
     assert client.videos == []
 
