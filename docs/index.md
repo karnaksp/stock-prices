@@ -107,6 +107,8 @@ hide:
     металлы студио
     металлы студио 12с
     studio metals
+    variants metals
+    варианты металлы
     черновик металлы
     госы
     экспортёры
@@ -176,6 +178,8 @@ top drafts
 top shorts
 top shorts studio
 top shorts aurora
+variants metals
+варианты металлы
 топ шортсы
 топ шортсы студио
 случайный черновик
@@ -191,13 +195,16 @@ post LKOH SBER 2020 2024 без рендера дает skeleton текста д
 /posts открывает кнопки готовых текстовых пакетов без рендера
 /pack показывает top-сценарии сразу в трех форматах: шортс, черновик, пост без рендера
 top shorts studio и top shorts aurora запускают всю top-серию в выбранной теме
+variants metals и варианты металлы запускают один preset сразу в default, aurora и studio
 кнопки /menu открывают помощь, top-shorts сценарии, идеи, примеры, draft-прогоны и очередь
 кнопки /ideas подписаны по-русски
-follow-up кнопки после preset/custom-видео: черновик 4s / шортс 16s / вариант 12s / Aurora / Studio
+follow-up кнопки после preset/custom-видео: черновик 4s / шортс 16s / вариант 12s / Aurora / Studio; после preset-видео еще Все темы
 металлы
 металлы студио
 металлы студио 12с
 studio metals
+variants metals
+варианты металлы
 черновик металлы
 госы
 экспортёры

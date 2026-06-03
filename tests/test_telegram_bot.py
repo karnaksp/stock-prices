@@ -1223,6 +1223,88 @@ def test_run_telegram_bot_menu_callback_queues_styled_hot_preset_shorts(monkeypa
     assert len(client.videos) == 4
 
 
+def test_run_telegram_bot_queues_preset_theme_variants_from_text(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 74, "message": {"text": "variants metals", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), theme="default"),
+    )
+    generated: list[tuple[str | None, str, int, int, bool]] = []
+
+    def fake_generate(request, job_id=None):
+        generated.append(
+            (job_id, request.render.theme, request.render.duration, request.render.fps, request.render.use_gradient)
+        )
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
+    assert generated == [
+        ("tg-74-theme-1-default-metals", "default", 16, 24, True),
+        ("tg-74-theme-2-aurora-metals", "aurora", 16, 24, True),
+        ("tg-74-theme-3-studio-metals", "studio", 16, 24, True),
+    ]
+    assert len(client.videos) == 3
+
+
+def test_run_telegram_bot_queues_preset_theme_variants_from_followup_button(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 75,
+                    "callback_query": {
+                        "id": "callback-preset-theme-variants",
+                        "data": "preset:metals:themes",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), theme="default"),
+    )
+    generated: list[tuple[str | None, str]] = []
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, request.render.theme))
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [
+        ("callback-preset-theme-variants", "Варианты по темам поставлены в очередь.")
+    ]
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
+    assert generated == [
+        ("tg-75-theme-1-default-metals", "default"),
+        ("tg-75-theme-2-aurora-metals", "aurora"),
+        ("tg-75-theme-3-studio-metals", "studio"),
+    ]
+    assert len(client.videos) == 3
+
+
 def test_run_telegram_bot_menu_callback_queues_random_example(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1675,6 +1757,9 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "металлы студио" in help_text
     assert "металлы студио 12с" in help_text
     assert "studio metals" in help_text
+    assert "variants metals" in help_text
+    assert "варианты металлы" in help_text
+    assert "Все темы" in help_text
     assert "12s/12с" in help_text
     assert "вариант 12s" in help_text
     assert "theme=default|aurora|studio" in help_text
