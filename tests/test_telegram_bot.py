@@ -1342,6 +1342,102 @@ def test_run_telegram_bot_menu_callback_opens_help(monkeypatch) -> None:
     assert client.videos == []
 
 
+def test_run_telegram_bot_menu_callback_opens_quick_launch(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 115,
+                    "callback_query": {
+                        "id": "callback-menu-quick-launch",
+                        "data": "menu:quick_launch",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-quick-launch", "Быстрый запуск открыт.")]
+    assert "Быстрый запуск shorts для Пульса" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.quick_launch_keyboard()]
+    assert client.videos == []
+
+
+def test_run_telegram_bot_opens_quick_launch_without_render(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 117, "message": {"text": "/quick", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("quick launch command must not render video")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert "Быстрый запуск shorts для Пульса" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.quick_launch_keyboard()]
+    assert client.videos == []
+
+
+def test_run_telegram_bot_menu_callback_opens_main_menu(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 116,
+                    "callback_query": {
+                        "id": "callback-menu-main-menu",
+                        "data": "menu:main_menu",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-main-menu", "Меню открыто.")]
+    assert "Меню Telegram" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.main_menu_keyboard()]
+    assert client.videos == []
+
+
 def test_handle_ticker_message_shows_production_guide_without_render(monkeypatch) -> None:
     client = FakeClient()
     settings = TelegramBotSettings(
@@ -1374,6 +1470,37 @@ def test_handle_ticker_message_shows_production_guide_without_render(monkeypatch
     assert client.message_markups[0]["inline_keyboard"][1][1]["callback_data"] == "menu:daily_kit"
     assert client.message_markups[0]["inline_keyboard"][2][0]["callback_data"] == "menu:weekly_posts"
     assert client.message_markups[0]["inline_keyboard"][3][0]["callback_data"] == "menu:daily_short"
+    assert client.videos == []
+
+
+def test_handle_ticker_message_shows_quick_launch_without_render(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("quick launch must not render video")
+
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    handle_ticker_message(client, settings, 123, "быстрый запуск")
+
+    quick_text = client.messages[0][1]
+    assert "Быстрый запуск shorts для Пульса" in quick_text
+    assert "/publish_day" in quick_text
+    assert "top shorts studio" in quick_text
+    assert client.message_markups == [telegram_bot.quick_launch_keyboard()]
+    keyboard = client.message_markups[0]["inline_keyboard"]
+    assert keyboard[0][0] == {"text": "Снять день", "callback_data": "menu:publication_day"}
+    assert keyboard[0][1] == {"text": "Снять неделю", "callback_data": "menu:publication_week"}
+    assert keyboard[1][0] == {"text": "Top Studio", "callback_data": "menu:hot_shorts_studio"}
+    assert keyboard[1][1] == {"text": "Случайный шортс", "callback_data": "menu:random_shorts"}
+    assert keyboard[2][0] == {"text": "Контент-план", "callback_data": "menu:content_plan"}
+    assert keyboard[2][1] == {"text": "Посты недели", "callback_data": "menu:weekly_posts"}
+    assert keyboard[3][0] == {"text": "Очередь", "callback_data": "menu:queue"}
+    assert keyboard[3][1] == {"text": "Полное меню", "callback_data": "menu:main_menu"}
     assert client.videos == []
 
 
@@ -2999,6 +3126,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "/start" in help_text
     assert "/menu" in help_text
     assert "/меню" in help_text
+    assert "/quick" in help_text
+    assert "быстрый запуск" in help_text
     assert "/guide" in help_text
     assert "шпаргалка" in help_text
     assert "/shorts SBER LKOH за год" in help_text
@@ -3093,6 +3222,7 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     handle_ticker_message(client, settings, 123, "/menu")
 
     assert "Меню Telegram" in client.messages[0][1]
+    assert "быстрый запуск" in client.messages[0][1]
     assert "шпаргалка производства" in client.messages[0][1]
     assert "топовые shorts-сценарии" in client.messages[0][1]
     assert "полный пакет shorts" in client.messages[0][1]
@@ -3105,32 +3235,33 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     keyboard = client.message_markups[0]["inline_keyboard"]
     assert keyboard[0][0] == {"text": "Шпаргалка", "callback_data": "menu:guide"}
     assert keyboard[0][1] == {"text": "Помощь", "callback_data": "menu:help"}
-    assert keyboard[1][0]["callback_data"] == "menu:ideas"
-    assert keyboard[1][1]["callback_data"] == "menu:examples"
-    assert keyboard[2][0] == {"text": "Металлы", "callback_data": "preset:metals"}
-    assert keyboard[2][1] == {"text": "Новая экономика", "callback_data": "preset:neweconomy"}
-    assert keyboard[3][0] == {"text": "Алкоголь", "callback_data": "preset:vodka"}
-    assert keyboard[3][1] == {"text": "Мечел", "callback_data": "preset:mechel"}
-    assert keyboard[4][0] == {"text": "Топ черновики", "callback_data": "menu:hot_drafts"}
-    assert keyboard[4][1] == {"text": "Топ шортсы", "callback_data": "menu:hot_shorts"}
-    assert keyboard[5][0] == {"text": "Все шортсы", "callback_data": "menu:all_shorts"}
-    assert keyboard[5][1] == {"text": "Черновики", "callback_data": "menu:drafts"}
-    assert keyboard[6][0] == {"text": "Черновики примеров", "callback_data": "menu:example_drafts"}
-    assert keyboard[7][0] == {"text": "Случайный шортс", "callback_data": "menu:random_shorts"}
-    assert keyboard[7][1] == {"text": "Случайный draft", "callback_data": "menu:random_draft"}
-    assert keyboard[8][0] == {"text": "Случайный пример", "callback_data": "menu:random_example"}
-    assert keyboard[9][0] == {"text": "Пакет Пульса", "callback_data": "menu:pack"}
-    assert keyboard[9][1] == {"text": "Пакеты", "callback_data": "menu:kits"}
-    assert keyboard[10][0] == {"text": "Контент-план", "callback_data": "menu:content_plan"}
-    assert keyboard[10][1] == {"text": "Неделя публикаций", "callback_data": "menu:publication_week"}
-    assert keyboard[11][0] == {"text": "Публикация дня", "callback_data": "menu:publication_day"}
-    assert keyboard[11][1] == {"text": "Шортс дня", "callback_data": "menu:daily_short"}
-    assert keyboard[12][0] == {"text": "Пост дня", "callback_data": "menu:daily_post"}
-    assert keyboard[12][1] == {"text": "Пакет дня", "callback_data": "menu:daily_kit"}
-    assert keyboard[13][0] == {"text": "Посты", "callback_data": "menu:posts"}
-    assert keyboard[13][1] == {"text": "Музыка", "callback_data": "menu:music"}
-    assert keyboard[14][0] == {"text": "Обложки", "callback_data": "menu:covers"}
-    assert keyboard[15][0] == {"text": "Очередь", "callback_data": "menu:queue"}
+    assert keyboard[1][0] == {"text": "Быстрый запуск", "callback_data": "menu:quick_launch"}
+    assert keyboard[2][0]["callback_data"] == "menu:ideas"
+    assert keyboard[2][1]["callback_data"] == "menu:examples"
+    assert keyboard[3][0] == {"text": "Металлы", "callback_data": "preset:metals"}
+    assert keyboard[3][1] == {"text": "Новая экономика", "callback_data": "preset:neweconomy"}
+    assert keyboard[4][0] == {"text": "Алкоголь", "callback_data": "preset:vodka"}
+    assert keyboard[4][1] == {"text": "Мечел", "callback_data": "preset:mechel"}
+    assert keyboard[5][0] == {"text": "Топ черновики", "callback_data": "menu:hot_drafts"}
+    assert keyboard[5][1] == {"text": "Топ шортсы", "callback_data": "menu:hot_shorts"}
+    assert keyboard[6][0] == {"text": "Все шортсы", "callback_data": "menu:all_shorts"}
+    assert keyboard[6][1] == {"text": "Черновики", "callback_data": "menu:drafts"}
+    assert keyboard[7][0] == {"text": "Черновики примеров", "callback_data": "menu:example_drafts"}
+    assert keyboard[8][0] == {"text": "Случайный шортс", "callback_data": "menu:random_shorts"}
+    assert keyboard[8][1] == {"text": "Случайный draft", "callback_data": "menu:random_draft"}
+    assert keyboard[9][0] == {"text": "Случайный пример", "callback_data": "menu:random_example"}
+    assert keyboard[10][0] == {"text": "Пакет Пульса", "callback_data": "menu:pack"}
+    assert keyboard[10][1] == {"text": "Пакеты", "callback_data": "menu:kits"}
+    assert keyboard[11][0] == {"text": "Контент-план", "callback_data": "menu:content_plan"}
+    assert keyboard[11][1] == {"text": "Неделя публикаций", "callback_data": "menu:publication_week"}
+    assert keyboard[12][0] == {"text": "Публикация дня", "callback_data": "menu:publication_day"}
+    assert keyboard[12][1] == {"text": "Шортс дня", "callback_data": "menu:daily_short"}
+    assert keyboard[13][0] == {"text": "Пост дня", "callback_data": "menu:daily_post"}
+    assert keyboard[13][1] == {"text": "Пакет дня", "callback_data": "menu:daily_kit"}
+    assert keyboard[14][0] == {"text": "Посты", "callback_data": "menu:posts"}
+    assert keyboard[14][1] == {"text": "Музыка", "callback_data": "menu:music"}
+    assert keyboard[15][0] == {"text": "Обложки", "callback_data": "menu:covers"}
+    assert keyboard[16][0] == {"text": "Очередь", "callback_data": "menu:queue"}
     assert client.videos == []
 
 
@@ -3198,7 +3329,7 @@ def test_handle_ticker_message_shows_main_menu_with_russian_command() -> None:
     handle_ticker_message(client, settings, 123, "/меню")
 
     assert "Меню Telegram" in client.messages[0][1]
-    assert client.message_markups[0]["inline_keyboard"][8][0]["callback_data"] == "menu:random_example"
+    assert client.message_markups[0]["inline_keyboard"][9][0]["callback_data"] == "menu:random_example"
     assert client.videos == []
 
 
