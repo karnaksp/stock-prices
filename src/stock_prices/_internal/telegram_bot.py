@@ -733,7 +733,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /music, музыка, /covers, обложки, post metals, пост металлы, top drafts, top shorts, топ черновики, топ шортсы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
+        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, топ черновики, топ шортсы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -768,7 +768,9 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "/covers\n"
         "обложки\n"
         "post metals\n"
+        "post LKOH SBER 2020 2024\n"
         "пост металлы\n"
+        "текст золото серебро палладий с 2010 по 2026 в рублях капитал инвестируя каждый месяц 30к₽\n"
         "/queue\n"
         "очередь\n"
         "AAPL global USD gradient theme=studio\n"
@@ -899,17 +901,25 @@ def _preset_post_name(text: str) -> str | None:
     if not tokens:
         return None
     command = tokens[0].lstrip("/").lower()
-    if command not in {"post", "copy", "pulse", "пост", "текст", "пульс"}:
+    if command not in {"post", "copy", "pulse", "text", "пост", "текст", "пульс"}:
         return None
     return " ".join(tokens[1:]).strip()
 
 
-def _send_preset_post(client: TelegramClient, chat_id: int, preset_name: str) -> None:
-    if not preset_name:
-        client.send_message(chat_id, "Напиши название сценария, например: пост металлы")
+def _send_pulse_post(client: TelegramClient, settings: TelegramBotSettings, chat_id: int, post_request: str) -> None:
+    if not post_request:
+        client.send_message(chat_id, "Напиши название сценария или запрос, например: пост металлы")
         return
-    preset = get_preset(preset_name)
-    client.send_message(chat_id, format_pulse_post(preset))
+    try:
+        parsed = parse_telegram_video_request(post_request, settings.render, settings.default_engine, settings.default_market)
+    except ValueError as exc:
+        client.send_message(chat_id, f"Не смог разобрать запрос для текста Пульса: {exc}")
+        return
+    if parsed.preset_name:
+        preset = get_preset(parsed.preset_name)
+        client.send_message(chat_id, format_pulse_post(preset))
+    else:
+        client.send_message(chat_id, format_generic_pulse_post(parsed))
 
 
 def _is_example_draft_batch(text: str) -> bool:
@@ -1212,7 +1222,7 @@ def handle_ticker_message(
         return
     preset_post_name = _preset_post_name(text)
     if preset_post_name is not None:
-        _send_preset_post(client, chat_id, preset_post_name)
+        _send_pulse_post(client, settings, chat_id, preset_post_name)
         return
     if len(_batch_request_lines(text)) > 1:
         client.send_message(chat_id, "Несколько запросов одним сообщением работают в режиме Telegram-очереди.")
@@ -1304,7 +1314,7 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         else:
                             preset_post_name = _preset_post_name(text)
                             if preset_post_name is not None:
-                                _send_preset_post(client, chat_id, preset_post_name)
+                                _send_pulse_post(client, settings, chat_id, preset_post_name)
                                 continue
                             preset_list_mode = _preset_list_mode(text)
                             if preset_list_mode is not None:
