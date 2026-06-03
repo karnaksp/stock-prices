@@ -771,6 +771,80 @@ def test_run_telegram_bot_menu_callback_opens_cover_texts(monkeypatch) -> None:
     assert client.videos == []
 
 
+def test_run_telegram_bot_menu_callback_opens_pulse_posts(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 69,
+                    "callback_query": {
+                        "id": "callback-menu-posts",
+                        "data": "menu:posts",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-posts", "Посты открыты.")]
+    assert "Текстовые пакеты для Пульса" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.post_inline_keyboard()]
+    assert client.videos == []
+
+
+def test_run_telegram_bot_opens_preset_post_from_inline_button(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 70,
+                    "callback_query": {
+                        "id": "callback-post-metals",
+                        "data": "post:metals",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("post callback must not render video")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-post-metals", "Пост открыт.")]
+    assert "Текст для Пульса" in client.messages[0][1]
+    assert "Металлы часто воспринимают как защиту" in client.messages[0][1]
+    assert "Текст на обложку" in client.messages[0][1]
+    assert client.message_markups == [None]
+    assert client.videos == []
+
+
 def test_run_telegram_bot_opens_preset_post_without_queue(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1346,6 +1420,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "/random_draft" in help_text
     assert "/examples" in help_text
     assert "/примеры" in help_text
+    assert "/posts" in help_text
+    assert "посты" in help_text
     assert "/music" in help_text
     assert "музыка" in help_text
     assert "/covers" in help_text
@@ -1394,10 +1470,11 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     assert keyboard[4][0] == {"text": "Черновики", "callback_data": "menu:drafts"}
     assert keyboard[4][1] == {"text": "Черновики примеров", "callback_data": "menu:example_drafts"}
     assert keyboard[5][0] == {"text": "Случайный сценарий", "callback_data": "menu:random_draft"}
-    assert keyboard[-2][0]["callback_data"] == "menu:help"
-    assert keyboard[-2][1]["callback_data"] == "menu:music"
-    assert keyboard[-1][0]["callback_data"] == "menu:covers"
-    assert keyboard[-1][1]["callback_data"] == "menu:queue"
+    assert keyboard[6][0] == {"text": "Посты", "callback_data": "menu:posts"}
+    assert keyboard[6][1] == {"text": "Обложки", "callback_data": "menu:covers"}
+    assert keyboard[7][0] == {"text": "Музыка", "callback_data": "menu:music"}
+    assert keyboard[7][1] == {"text": "Очередь", "callback_data": "menu:queue"}
+    assert keyboard[-1][0]["callback_data"] == "menu:help"
     assert client.videos == []
 
 
@@ -1448,6 +1525,39 @@ def test_handle_ticker_message_shows_cover_texts() -> None:
     assert "30 000 ₽/мес в металлы" in cover_text
     assert "вертикального ролика" in cover_text
     assert client.message_markups == [None]
+    assert client.videos == []
+
+
+def test_handle_ticker_message_lists_pulse_posts() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "/posts")
+
+    posts_text = client.messages[0][1]
+    assert "Текстовые пакеты для Пульса" in posts_text
+    assert "post metals" in posts_text
+    assert "готовый текст" in posts_text
+    assert "без рендера" in posts_text
+    assert client.message_markups[0] == telegram_bot.post_inline_keyboard()
+    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "post:neweconomy"
+    assert client.videos == []
+
+
+def test_handle_ticker_message_lists_pulse_posts_with_russian_command() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "посты")
+
+    assert "Текстовые пакеты для Пульса" in client.messages[0][1]
+    assert client.message_markups[0]["inline_keyboard"][0][1]["callback_data"] == "post:metals"
     assert client.videos == []
 
 
