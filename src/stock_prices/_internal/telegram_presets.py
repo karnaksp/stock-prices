@@ -14,6 +14,7 @@ class TelegramPreset:
     tags: tuple[str, ...]
     music_mood: str
     music_tracks: tuple[str, ...] = ()
+    cover_texts: tuple[str, ...] = ()
     aliases: tuple[str, ...] = ()
     button_label: str = ""
 
@@ -37,6 +38,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         tags=("#пульс", "#инвестиции", "#акции", "#новаяэкономика"),
         music_mood="напряженный synthwave или быстрый электронный бит",
         music_tracks=("Kavinsky - Nightcall", "Carpenter Brut - Turbo Killer", "The Weeknd - Blinding Lights"),
+        cover_texts=("IPO-эйфория vs реальность", "30 000 ₽/мес в новую экономику", "Ростовые акции после хайпа"),
         button_label="Новая экономика",
     ),
     TelegramPreset(
@@ -57,6 +59,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         tags=("#пульс", "#металлы", "#золото", "#инвестиции"),
         music_mood="ровный cinematic beat с нарастающим финалом",
         music_tracks=("M83 - Outro", "Hans Zimmer - Time", "ODESZA - A Moment Apart"),
+        cover_texts=("30 000 ₽/мес в металлы", "Золото vs серебро vs палладий", "Какие металлы спасли рубли?"),
         button_label="Металлы",
     ),
     TelegramPreset(
@@ -77,6 +80,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         tags=("#пульс", "#акции", "#российскийрынок", "#идеядляграфика"),
         music_mood="ироничный funk / disco beat без тяжелого драматизма",
         music_tracks=("ABBA - Money, Money, Money", "Boney M. - Rasputin", "Parov Stelar - Booty Swing"),
+        cover_texts=("Алкогольные акции удивили", "Водка против рынка", "Не IT, а график резкий"),
         button_label="Алкоголь",
     ),
     TelegramPreset(
@@ -97,6 +101,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         tags=("#пульс", "#мечел", "#акции", "#риск"),
         music_mood="тяжелый industrial beat или драматичный trailer percussion",
         music_tracks=("The Prodigy - Firestarter", "Gesaffelstein - Pursuit", "Nine Inch Nails - The Hand That Feeds"),
+        cover_texts=("Мечел: боль или шанс?", "Циклическая акция без жалости", "30 000 ₽/мес в Мечел"),
         button_label="Мечел",
     ),
     TelegramPreset(
@@ -116,6 +121,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         tags=("#пульс", "#uwgn", "#IMOEX", "#российскиеакции"),
         music_mood="медленный dark beat с резким акцентом на просадках",
         music_tracks=("Depeche Mode - Wrong", "Massive Attack - Angel", "Woodkid - Run Boy Run"),
+        cover_texts=("Вагоны против индекса", "Хайп, ожидания, просадка", "Что осталось от истории ОВК?"),
         button_label="Вагоны",
     ),
     TelegramPreset(
@@ -135,6 +141,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         tags=("#пульс", "#газпром", "#аэрофлот", "#российскиеакции"),
         music_mood="сдержанный драматичный beat с ощущением длинного ожидания",
         music_tracks=("Кино - Группа крови", "Сплин - Выхода нет", "Moby - Extreme Ways"),
+        cover_texts=("Госкомпании на длинной дистанции", "Знакомые имена, тяжелый график", "Газпром / Аэрофлот / Сургут"),
         button_label="Госкомпании",
     ),
     TelegramPreset(
@@ -154,6 +161,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         tags=("#пульс", "#лукойл", "#фосагро", "#нлмк"),
         music_mood="энергичный electronic groove с акцентами на смене лидера",
         music_tracks=("The Chemical Brothers - Galvanize", "Justice - Genesis", "Daft Punk - Harder, Better, Faster, Stronger"),
+        cover_texts=("Экспортеры против слабого рубля", "Кто вытянул регулярные покупки?", "Нефть, удобрения, металл"),
         button_label="Экспортёры",
     ),
     TelegramPreset(
@@ -173,6 +181,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         tags=("#пульс", "#мечел", "#распадская", "#циклическиеакции"),
         music_mood="жесткий industrial / breakbeat с резкими паузами на просадках",
         music_tracks=("The Prodigy - Breathe", "Royal Blood - Out of the Black", "The White Stripes - Seven Nation Army"),
+        cover_texts=("Угольщики: ракета или ловушка?", "Сырьевой цикл без спокойствия", "MTLR vs RASP"),
         button_label="Угольщики",
     ),
     TelegramPreset(
@@ -193,6 +202,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         tags=("#пульс", "#сбер", "#лукойл", "#долгосрок"),
         music_mood="уверенный pop / corporate beat с чистым ритмом",
         music_tracks=("Daft Punk - One More Time", "Phoenix - Lisztomania", "Queen - Don't Stop Me Now"),
+        cover_texts=("Скучные акции победили?", "SBER / LKOH / MGNT", "Голубые фишки без хайпа"),
         button_label="Голубые фишки",
     ),
     TelegramPreset(
@@ -213,6 +223,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         tags=("#пульс", "#технологии", "#ydex", "#ozon"),
         music_mood="быстрый tech house или clean electronic groove",
         music_tracks=("Daft Punk - Technologic", "The Chemical Brothers - Go", "Disclosure - When a Fire Starts to Burn"),
+        cover_texts=("Российский tech: мечта или риск?", "YDEX / OZON / VKCO", "Технологии после перезапуска"),
         button_label="Российский тех",
     ),
 )
@@ -373,15 +384,32 @@ def format_music_list() -> str:
     return "\n".join(lines).strip()
 
 
+def format_cover_list() -> str:
+    lines = [
+        "Тексты для обложек Пульса:",
+        "",
+    ]
+    for preset in PRESETS:
+        covers = " / ".join(preset.cover_texts)
+        lines.append(f"{preset.title}: {covers}")
+    lines.append("")
+    lines.append("Короткие варианты рассчитаны на титр или первый кадр вертикального ролика.")
+    return "\n".join(lines).strip()
+
+
 def format_pulse_post(preset: TelegramPreset) -> str:
     tags = " ".join(preset.tags)
     music_tracks = ""
     if preset.music_tracks:
         music_tracks = f"Треки-референсы (права проверять отдельно): {', '.join(preset.music_tracks)}.\n"
+    cover_texts = ""
+    if preset.cover_texts:
+        cover_texts = f"Текст на обложку: {' / '.join(preset.cover_texts)}.\n"
     return (
         "Текст для Пульса:\n"
         f"{preset.hook}\n\n"
         f"{preset.post_text}\n\n"
+        f"{cover_texts}"
         f"Музыка/монтаж: {preset.music_mood}.\n"
         f"{music_tracks}"
         f"{tags}\n\n"
