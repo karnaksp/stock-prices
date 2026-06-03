@@ -699,6 +699,42 @@ def test_run_telegram_bot_menu_callback_opens_help(monkeypatch) -> None:
     assert client.videos == []
 
 
+def test_run_telegram_bot_menu_callback_opens_music_references(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 65,
+                    "callback_query": {
+                        "id": "callback-menu-music",
+                        "data": "menu:music",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-music", "Музыка открыта.")]
+    assert "Музыкальные референсы для Пульса" in client.messages[0][1]
+    assert "Kavinsky - Nightcall" in client.messages[0][1]
+    assert "права на треки нужно проверять отдельно" in client.messages[0][1]
+    assert client.message_markups == [None]
+    assert client.videos == []
+
+
 def test_run_telegram_bot_menu_callback_queues_hot_preset_drafts(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1196,6 +1232,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "/random_draft" in help_text
     assert "/examples" in help_text
     assert "/примеры" in help_text
+    assert "/music" in help_text
+    assert "музыка" in help_text
     assert "черновики примеров" in help_text
     assert "случайный пример" in help_text
     assert "/queue" in help_text
@@ -1238,8 +1276,9 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     assert keyboard[4][0] == {"text": "Черновики", "callback_data": "menu:drafts"}
     assert keyboard[4][1] == {"text": "Черновики примеров", "callback_data": "menu:example_drafts"}
     assert keyboard[5][0] == {"text": "Случайный сценарий", "callback_data": "menu:random_draft"}
-    assert keyboard[-1][0]["callback_data"] == "menu:help"
-    assert keyboard[-1][1]["callback_data"] == "menu:queue"
+    assert keyboard[-2][0]["callback_data"] == "menu:help"
+    assert keyboard[-2][1]["callback_data"] == "menu:music"
+    assert keyboard[-1][0]["callback_data"] == "menu:queue"
     assert client.videos == []
 
 
@@ -1254,6 +1293,24 @@ def test_handle_ticker_message_shows_main_menu_with_russian_command() -> None:
 
     assert "Меню Telegram" in client.messages[0][1]
     assert client.message_markups[0]["inline_keyboard"][5][1]["callback_data"] == "menu:random_example"
+    assert client.videos == []
+
+
+def test_handle_ticker_message_shows_music_references() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "музыка")
+
+    music_text = client.messages[0][1]
+    assert "Музыкальные референсы для Пульса" in music_text
+    assert "Новая экономика 2021-2026" in music_text
+    assert "Kavinsky - Nightcall" in music_text
+    assert "права на треки нужно проверять отдельно" in music_text
+    assert client.message_markups == [None]
     assert client.videos == []
 
 
@@ -1971,7 +2028,10 @@ def test_all_pulse_presets_have_ready_post_copy() -> None:
         assert preset.post_text
         assert preset.tags
         assert preset.music_mood
+        assert preset.music_tracks
         assert "Текст для Пульса" in post
+        assert "Треки-референсы" in post
+        assert "права проверять отдельно" in post
         assert "Не является индивидуальной инвестиционной рекомендацией." in post
 
 

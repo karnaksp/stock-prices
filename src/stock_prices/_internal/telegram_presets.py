@@ -13,6 +13,7 @@ class TelegramPreset:
     post_text: str
     tags: tuple[str, ...]
     music_mood: str
+    music_tracks: tuple[str, ...] = ()
     aliases: tuple[str, ...] = ()
     button_label: str = ""
 
@@ -35,6 +36,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#инвестиции", "#акции", "#новаяэкономика"),
         music_mood="напряженный synthwave или быстрый электронный бит",
+        music_tracks=("Kavinsky - Nightcall", "Carpenter Brut - Turbo Killer", "The Weeknd - Blinding Lights"),
         button_label="Новая экономика",
     ),
     TelegramPreset(
@@ -54,6 +56,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#металлы", "#золото", "#инвестиции"),
         music_mood="ровный cinematic beat с нарастающим финалом",
+        music_tracks=("M83 - Outro", "Hans Zimmer - Time", "ODESZA - A Moment Apart"),
         button_label="Металлы",
     ),
     TelegramPreset(
@@ -73,6 +76,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#акции", "#российскийрынок", "#идеядляграфика"),
         music_mood="ироничный funk / disco beat без тяжелого драматизма",
+        music_tracks=("ABBA - Money, Money, Money", "Boney M. - Rasputin", "Parov Stelar - Booty Swing"),
         button_label="Алкоголь",
     ),
     TelegramPreset(
@@ -92,6 +96,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#мечел", "#акции", "#риск"),
         music_mood="тяжелый industrial beat или драматичный trailer percussion",
+        music_tracks=("The Prodigy - Firestarter", "Gesaffelstein - Pursuit", "Nine Inch Nails - The Hand That Feeds"),
         button_label="Мечел",
     ),
     TelegramPreset(
@@ -110,6 +115,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#uwgn", "#IMOEX", "#российскиеакции"),
         music_mood="медленный dark beat с резким акцентом на просадках",
+        music_tracks=("Depeche Mode - Wrong", "Massive Attack - Angel", "Woodkid - Run Boy Run"),
         button_label="Вагоны",
     ),
     TelegramPreset(
@@ -128,6 +134,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#газпром", "#аэрофлот", "#российскиеакции"),
         music_mood="сдержанный драматичный beat с ощущением длинного ожидания",
+        music_tracks=("Кино - Группа крови", "Сплин - Выхода нет", "Moby - Extreme Ways"),
         button_label="Госкомпании",
     ),
     TelegramPreset(
@@ -146,6 +153,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#лукойл", "#фосагро", "#нлмк"),
         music_mood="энергичный electronic groove с акцентами на смене лидера",
+        music_tracks=("The Chemical Brothers - Galvanize", "Justice - Genesis", "Daft Punk - Harder, Better, Faster, Stronger"),
         button_label="Экспортёры",
     ),
     TelegramPreset(
@@ -164,6 +172,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#мечел", "#распадская", "#циклическиеакции"),
         music_mood="жесткий industrial / breakbeat с резкими паузами на просадках",
+        music_tracks=("The Prodigy - Breathe", "Royal Blood - Out of the Black", "The White Stripes - Seven Nation Army"),
         button_label="Угольщики",
     ),
     TelegramPreset(
@@ -183,6 +192,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#сбер", "#лукойл", "#долгосрок"),
         music_mood="уверенный pop / corporate beat с чистым ритмом",
+        music_tracks=("Daft Punk - One More Time", "Phoenix - Lisztomania", "Queen - Don't Stop Me Now"),
         button_label="Голубые фишки",
     ),
     TelegramPreset(
@@ -202,6 +212,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         ),
         tags=("#пульс", "#технологии", "#ydex", "#ozon"),
         music_mood="быстрый tech house или clean electronic groove",
+        music_tracks=("Daft Punk - Technologic", "The Chemical Brothers - Go", "Disclosure - When a Fire Starts to Burn"),
         button_label="Российский тех",
     ),
 )
@@ -349,13 +360,30 @@ def format_preset_list(mode: str = "shorts") -> str:
     return "\n".join(lines).strip()
 
 
+def format_music_list() -> str:
+    lines = [
+        "Музыкальные референсы для Пульса:",
+        "",
+    ]
+    for preset in PRESETS:
+        tracks = ", ".join(preset.music_tracks)
+        lines.append(f"{preset.title}: {tracks}")
+    lines.append("")
+    lines.append("Это идеи для монтажа; права на треки нужно проверять отдельно перед публикацией.")
+    return "\n".join(lines).strip()
+
+
 def format_pulse_post(preset: TelegramPreset) -> str:
     tags = " ".join(preset.tags)
+    music_tracks = ""
+    if preset.music_tracks:
+        music_tracks = f"Треки-референсы (права проверять отдельно): {', '.join(preset.music_tracks)}.\n"
     return (
         "Текст для Пульса:\n"
         f"{preset.hook}\n\n"
         f"{preset.post_text}\n\n"
         f"Музыка/монтаж: {preset.music_mood}.\n"
+        f"{music_tracks}"
         f"{tags}\n\n"
         "Не является индивидуальной инвестиционной рекомендацией."
     )
