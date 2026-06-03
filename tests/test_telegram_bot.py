@@ -970,6 +970,70 @@ def test_run_telegram_bot_menu_callback_opens_pulse_pack(monkeypatch) -> None:
     assert client.videos == []
 
 
+def test_run_telegram_bot_opens_preset_kit_without_render(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 76, "message": {"text": "kit metals", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("kit command must not render video")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    kit_text = client.messages[0][1]
+    assert "Пакет сценария" in kit_text
+    assert "Шортс: preset metals" in kit_text
+    assert "Варианты тем: variants metals" in kit_text
+    assert "Пост без рендера: post metals" in kit_text
+    assert "Треки-референсы" in kit_text
+    assert client.message_markups == [telegram_bot.preset_kit_keyboard("metals")]
+    assert client.videos == []
+
+
+def test_handle_ticker_message_opens_preset_kit_without_render(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("kit command must not render video")
+
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    handle_ticker_message(client, settings, 123, "пакет металлы")
+
+    assert "Пакет сценария" in client.messages[0][1]
+    assert "Шортс: preset metals" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.preset_kit_keyboard("metals")]
+    assert client.videos == []
+
+
+def test_preset_kit_keyboard_points_to_existing_actions() -> None:
+    keyboard = telegram_bot.preset_kit_keyboard("metals")["inline_keyboard"]
+
+    assert keyboard[0][0] == {"text": "Шортс 16s", "callback_data": "preset:metals:shorts"}
+    assert keyboard[0][1] == {"text": "Черновик 4s", "callback_data": "preset:metals:draft"}
+    assert keyboard[1][0] == {"text": "Все темы", "callback_data": "preset:metals:themes"}
+    assert keyboard[1][1] == {"text": "Вариант 12s", "callback_data": "preset:metals:12s"}
+    assert keyboard[2][0] == {"text": "Пост", "callback_data": "post:metals"}
+    assert keyboard[2][1] == {"text": "Очередь", "callback_data": "queue:status"}
+
+
 def test_run_telegram_bot_opens_preset_post_from_inline_button(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1734,6 +1798,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "/примеры" in help_text
     assert "/pack" in help_text
     assert "пакет пульса" in help_text
+    assert "kit metals" in help_text
+    assert "пакет металлы" in help_text
     assert "/posts" in help_text
     assert "посты" in help_text
     assert "/music" in help_text
