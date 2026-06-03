@@ -125,6 +125,9 @@ hide:
     госы
     экспортёры
     черновик угольщики
+    банки
+    дивиденды
+    стройка студио
     preset metals
     пресет металлы
     preset neweconomy duration=12 theme=studio
@@ -136,6 +139,7 @@ hide:
     # одним сообщением, по строке на ролик:
     металлы
     черновик угольщики
+    банки
     SBER LKOH 2020 2024 shorts
     ```
 
@@ -242,6 +246,9 @@ kit metals
 госы
 экспортёры
 черновик угольщики
+банки
+дивиденды
+стройка студио
 preset metals
 пресет металлы
 preset neweconomy duration=12 theme=studio

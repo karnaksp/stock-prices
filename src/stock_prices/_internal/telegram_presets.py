@@ -206,6 +206,69 @@ PRESETS: tuple[TelegramPreset, ...] = (
         button_label="Голубые фишки",
     ),
     TelegramPreset(
+        name="banks",
+        aliases=("banks", "banking", "банки", "банк", "финансы"),
+        title="Банки: обычная ставка инвестора",
+        description="SBER / SBERP / VTBR: знакомые бумаги и очень разная траектория регулярных покупок.",
+        request=(
+            "SBER SBERP VTBR from=2010-01-11 to=2026-06-01 RUB capital invest "
+            "initial=0 monthly=30000 shorts theme=default title=Banking_Base"
+        ),
+        hook="Если каждый месяц покупать российские банки, результат получается совсем не одинаковым даже внутри одного сектора.",
+        post_text=(
+            "SBER, SBERP и VTBR выглядят как простая и понятная банковская история, но регулярные покупки быстро показывают разницу "
+            "между ликвидным лидером, префами и бумагой с тяжелой переоценкой. Такой ролик хорош для Пульса: тикеры знакомые, "
+            "а итог не сводится к одному слову 'банки'."
+        ),
+        tags=("#пульс", "#сбер", "#втб", "#российскиеакции"),
+        music_mood="ровный уверенный beat с легким напряжением на смене лидера",
+        music_tracks=("The xx - Intro", "Tame Impala - Let It Happen", "Daft Punk - Instant Crush"),
+        cover_texts=("Банки: лидер и отстающие", "SBER / SBERP / VTBR", "30 000 ₽/мес в банковский сектор"),
+        button_label="Банки",
+    ),
+    TelegramPreset(
+        name="dividends",
+        aliases=("dividends", "дивиденды", "дивидендные", "префы", "доходные"),
+        title="Дивидендные имена: префы и циклы",
+        description="SNGSP / TRNFP / CHMF: дивидендная мечта, сырьевые циклы и цена входа.",
+        request=(
+            "SNGSP TRNFP CHMF from=2011-01-11 to=2026-06-01 RUB capital invest "
+            "initial=0 monthly=30000 shorts theme=aurora title=Dividend_Names"
+        ),
+        hook="Дивидендные истории часто кажутся спокойными, пока график не показывает цену входа, циклы и длинные паузы.",
+        post_text=(
+            "SNGSP, TRNFP и CHMF хорошо подходят для ролика про ожидания пассивного дохода. На одном графике видно, что регулярные "
+            "покупки в 'дивидендных' именах тоже зависят от сырьевого цикла, корпоративных решений и того, когда инвестор начал "
+            "набирать позицию."
+        ),
+        tags=("#пульс", "#дивиденды", "#префы", "#российскиеакции"),
+        music_mood="cinematic groove без лишней драмы, с акцентом на финальный результат",
+        music_tracks=("Massive Attack - Teardrop", "M83 - Midnight City", "Bonobo - Kiara"),
+        cover_texts=("Дивиденды без иллюзий", "SNGSP / TRNFP / CHMF", "Префы, циклы и регулярные покупки"),
+        button_label="Дивиденды",
+    ),
+    TelegramPreset(
+        name="builders",
+        aliases=("builders", "construction", "стройка", "строители", "девелоперы", "недвижимость"),
+        title="Строители: льготная ипотека и разворот",
+        description="PIKK / LSRG / SMLT: строительный бум, ставка и болезненная переоценка ожиданий.",
+        request=(
+            "PIKK LSRG SMLT from=2020-10-29 to=2026-06-01 RUB capital invest "
+            "initial=0 monthly=30000 shorts theme=studio title=Builders_Cycle"
+        ),
+        hook="Строители после ипотечного бума - хороший пример, как быстро меняется настроение рынка, когда меняется ставка.",
+        post_text=(
+            "PIKK, LSRG и SMLT дают зрелищный сюжет без экзотики: понятный сектор, громкие ожидания, льготная ипотека, рост ставок "
+            "и переоценка девелоперов. Такой график подходит для обсуждения того, почему красивая макроистория не гарантирует "
+            "спокойный инвестиционный результат."
+        ),
+        tags=("#пульс", "#строители", "#недвижимость", "#российскиеакции"),
+        music_mood="напряженный electronic beat с заметным падением энергии после пика",
+        music_tracks=("Woodkid - Run Boy Run", "Gesaffelstein - OPR", "The Weeknd - False Alarm"),
+        cover_texts=("Строители после бума", "PIKK / LSRG / SMLT", "Ипотечная мечта против ставки"),
+        button_label="Строители",
+    ),
+    TelegramPreset(
         name="techru",
         aliases=("tech", "rutech", "тех", "технологии", "российский тех"),
         title="Российский технологический сюжет",
@@ -256,6 +319,18 @@ _DIRECT_PRESET_ALIASES = {
     "bluechips": "bluechips",
     "голубые": "bluechips",
     "голубые фишки": "bluechips",
+    "banks": "banks",
+    "банки": "banks",
+    "банк": "banks",
+    "финансы": "banks",
+    "dividends": "dividends",
+    "дивиденды": "dividends",
+    "дивидендные": "dividends",
+    "префы": "dividends",
+    "builders": "builders",
+    "стройка": "builders",
+    "строители": "builders",
+    "девелоперы": "builders",
     "techru": "techru",
     "российский тех": "techru",
     "технологии": "techru",
