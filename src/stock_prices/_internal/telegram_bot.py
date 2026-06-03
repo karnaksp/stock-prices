@@ -187,6 +187,24 @@ PRESET_THEME_VARIANT_PREFIXES = (
     "серия",
     "стили",
 )
+PRESET_KIT_PREFIXES = (
+    "/kit",
+    "/content_kit",
+    "/content kit",
+    "/pulse_kit",
+    "/pulse kit",
+    "/пакет",
+    "kit",
+    "content kit",
+    "pulse kit",
+    "story kit",
+    "preset kit",
+    "пакет",
+    "пакет пульса",
+    "пульс пакет",
+    "контент пакет",
+    "контент-пакет",
+)
 HOT_BATCH_THEME_ALIASES = {
     "aurora": "aurora",
     "аурора": "aurora",
@@ -403,6 +421,45 @@ def post_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]
     ]
     rows = [buttons[index : index + columns] for index in range(0, len(buttons), columns)]
     return {"inline_keyboard": rows}
+
+
+def format_preset_kit(preset_name: str) -> str:
+    preset = get_preset(preset_name)
+    cover_texts = " / ".join(preset.cover_texts)
+    music_tracks = ", ".join(preset.music_tracks)
+    return (
+        f"Пакет сценария: {preset.title}\n"
+        f"{preset.description}\n\n"
+        f"Шортс: preset {preset.name}\n"
+        f"Черновик: preset {preset.name} draft\n"
+        f"Варианты тем: variants {preset.name}\n"
+        f"Пост без рендера: post {preset.name}\n\n"
+        f"Хук: {preset.hook}\n"
+        f"Текст на обложку: {cover_texts}.\n"
+        f"Музыка/монтаж: {preset.music_mood}.\n"
+        f"Треки-референсы: {music_tracks}.\n\n"
+        "Права на треки нужно проверять отдельно. Это фиксированный пакет без LLM."
+    )
+
+
+def preset_kit_keyboard(preset_name: str) -> dict[str, list[list[dict[str, str]]]]:
+    preset = get_preset(preset_name)
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "Шортс 16s", "callback_data": f"preset:{preset.name}:shorts"},
+                {"text": "Черновик 4s", "callback_data": f"preset:{preset.name}:draft"},
+            ],
+            [
+                {"text": "Все темы", "callback_data": f"preset:{preset.name}:themes"},
+                {"text": "Вариант 12s", "callback_data": f"preset:{preset.name}:12s"},
+            ],
+            [
+                {"text": "Пост", "callback_data": f"post:{preset.name}"},
+                {"text": "Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
+            ],
+        ]
+    }
 
 
 def format_pulse_pack() -> str:
@@ -951,7 +1008,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
+        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -990,6 +1047,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "/примеры\n"
         "/pack\n"
         "пакет пульса\n"
+        "kit metals\n"
+        "пакет металлы\n"
         "/posts\n"
         "посты\n"
         "черновики примеров\n"
@@ -1147,6 +1206,21 @@ def _is_pulse_pack(text: str) -> bool:
         "контент-пакет",
         "шортс пакет",
     }
+
+
+def _preset_kit_name(text: str) -> str | None:
+    normalized = " ".join(text.strip().lower().replace("ё", "е").replace("_", " ").replace("-", " ").split())
+    for prefix in sorted(PRESET_KIT_PREFIXES, key=len, reverse=True):
+        if not normalized.startswith(f"{prefix} "):
+            continue
+        candidate = normalized.removeprefix(prefix).strip()
+        if not candidate:
+            return None
+        try:
+            return get_preset(candidate).name
+        except ValueError:
+            return None
+    return None
 
 
 def _is_pulse_posts(text: str) -> bool:
@@ -1518,6 +1592,14 @@ def handle_ticker_message(
     if _is_cover_texts(text):
         client.send_message(chat_id, format_cover_list())
         return
+    preset_kit_name = _preset_kit_name(text)
+    if preset_kit_name is not None:
+        client.send_message(
+            chat_id,
+            format_preset_kit(preset_kit_name),
+            reply_markup=preset_kit_keyboard(preset_kit_name),
+        )
+        return
     if _is_pulse_pack(text):
         client.send_message(chat_id, format_pulse_pack(), reply_markup=pulse_pack_keyboard())
         return
@@ -1592,6 +1674,7 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         chat_id, text = extracted
                         hot_batch = _hot_batch_mode_and_theme(text)
                         preset_theme_variants_name = _preset_theme_variants_name(text)
+                        preset_kit_name = _preset_kit_name(text)
                         if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
                             client.send_message(chat_id, "This chat is not allowed to use this bot.")
                         elif _is_help(text):
@@ -1628,6 +1711,12 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             client.send_message(chat_id, format_music_list())
                         elif _is_cover_texts(text):
                             client.send_message(chat_id, format_cover_list())
+                        elif preset_kit_name is not None:
+                            client.send_message(
+                                chat_id,
+                                format_preset_kit(preset_kit_name),
+                                reply_markup=preset_kit_keyboard(preset_kit_name),
+                            )
                         elif _is_pulse_pack(text):
                             client.send_message(chat_id, format_pulse_pack(), reply_markup=pulse_pack_keyboard())
                         elif _is_pulse_posts(text):
