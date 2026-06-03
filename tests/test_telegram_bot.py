@@ -893,6 +893,42 @@ def test_run_telegram_bot_menu_callback_opens_pulse_posts(monkeypatch) -> None:
     assert client.videos == []
 
 
+def test_run_telegram_bot_menu_callback_opens_pulse_pack(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 71,
+                    "callback_query": {
+                        "id": "callback-menu-pack",
+                        "data": "menu:pack",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-pack", "Пакет открыт.")]
+    assert "Пакет для Пульса" in client.messages[0][1]
+    assert "preset metals" in client.messages[0][1]
+    assert "post mechel" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.pulse_pack_keyboard()]
+    assert client.videos == []
+
+
 def test_run_telegram_bot_opens_preset_post_from_inline_button(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1510,6 +1546,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "/random_draft" in help_text
     assert "/examples" in help_text
     assert "/примеры" in help_text
+    assert "/pack" in help_text
+    assert "пакет пульса" in help_text
     assert "/posts" in help_text
     assert "посты" in help_text
     assert "/music" in help_text
@@ -1560,10 +1598,11 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     assert keyboard[4][0] == {"text": "Черновики", "callback_data": "menu:drafts"}
     assert keyboard[4][1] == {"text": "Черновики примеров", "callback_data": "menu:example_drafts"}
     assert keyboard[5][0] == {"text": "Случайный сценарий", "callback_data": "menu:random_draft"}
-    assert keyboard[6][0] == {"text": "Посты", "callback_data": "menu:posts"}
-    assert keyboard[6][1] == {"text": "Обложки", "callback_data": "menu:covers"}
-    assert keyboard[7][0] == {"text": "Музыка", "callback_data": "menu:music"}
-    assert keyboard[7][1] == {"text": "Очередь", "callback_data": "menu:queue"}
+    assert keyboard[6][0] == {"text": "Пакет Пульса", "callback_data": "menu:pack"}
+    assert keyboard[6][1] == {"text": "Посты", "callback_data": "menu:posts"}
+    assert keyboard[7][0] == {"text": "Обложки", "callback_data": "menu:covers"}
+    assert keyboard[7][1] == {"text": "Музыка", "callback_data": "menu:music"}
+    assert keyboard[8][0] == {"text": "Очередь", "callback_data": "menu:queue"}
     assert keyboard[-1][0]["callback_data"] == "menu:help"
     assert client.videos == []
 
@@ -1648,6 +1687,45 @@ def test_handle_ticker_message_lists_pulse_posts_with_russian_command() -> None:
 
     assert "Текстовые пакеты для Пульса" in client.messages[0][1]
     assert client.message_markups[0]["inline_keyboard"][0][1]["callback_data"] == "post:metals"
+    assert client.videos == []
+
+
+def test_handle_ticker_message_shows_pulse_pack() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "/pack")
+
+    pack_text = client.messages[0][1]
+    assert "Пакет для Пульса" in pack_text
+    assert "preset metals" in pack_text
+    assert "preset metals draft" in pack_text
+    assert "post metals" in pack_text
+    assert "preset neweconomy" in pack_text
+    assert "post vodka" in pack_text
+    assert "top shorts" in pack_text
+    assert "без LLM" in pack_text
+    assert client.message_markups[0] == telegram_bot.pulse_pack_keyboard()
+    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "menu:hot_shorts"
+    assert client.message_markups[0]["inline_keyboard"][1][0]["callback_data"] == "menu:posts"
+    assert client.videos == []
+
+
+def test_handle_ticker_message_shows_pulse_pack_with_russian_command() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "пакет пульса")
+
+    assert "Пакет для Пульса" in client.messages[0][1]
+    assert "post mechel" in client.messages[0][1]
+    assert client.message_markups[0]["inline_keyboard"][0][1]["callback_data"] == "menu:hot_drafts"
     assert client.videos == []
 
 
