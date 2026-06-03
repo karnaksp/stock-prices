@@ -144,6 +144,7 @@ MENU_ACTIONS = {
     "help",
     "content_plan",
     "content_plan_shorts",
+    "daily_kit",
     "daily_short",
     "ideas",
     "examples",
@@ -314,6 +315,9 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             [
                 {"text": "Контент-план", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
                 {"text": "Шортс дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_short"},
+            ],
+            [
+                {"text": "Пакет дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_kit"},
             ],
             [
                 {"text": "Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
@@ -562,6 +566,20 @@ def preset_kit_keyboard(preset_name: str) -> dict[str, list[list[dict[str, str]]
             ],
         ]
     }
+
+
+def format_daily_content_kit(today: date | None = None) -> str:
+    day_index, preset = _daily_content_plan_preset(today)
+    return (
+        f"Пакет дня: Д{day_index} {preset.title}\n"
+        "Сценарий взят из недельного контент-плана.\n\n"
+        f"{format_preset_kit(preset.name)}"
+    )
+
+
+def daily_content_kit_keyboard(today: date | None = None) -> dict[str, list[list[dict[str, str]]]]:
+    _day_index, preset = _daily_content_plan_preset(today)
+    return preset_kit_keyboard(preset.name)
 
 
 def format_preset_kit_list() -> str:
@@ -1229,7 +1247,7 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
 def _main_menu_text() -> str:
     return (
         "Меню Telegram\n"
-        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, пакет для Пульса, контент-план, шортс дня, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, полный пакет shorts, draft-прогоны, случайный шортс, случайный draft или статус очереди."
+        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, пакет для Пульса, контент-план, шортс дня, пакет дня, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, полный пакет shorts, draft-прогоны, случайный шортс, случайный draft или статус очереди."
     )
 
 
@@ -1241,7 +1259,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /plan, план пульса, контент-план, /plan_shorts, снять план, /today, шортс дня, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все шортсы, все шортсы студио, all shorts aurora, /all_shorts, все черновики, черновики примеров, случайный шортс, /random_shorts, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
+        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /plan, план пульса, контент-план, /plan_shorts, снять план, /today, шортс дня, /today_kit, пакет дня, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все шортсы, все шортсы студио, all shorts aurora, /all_shorts, все черновики, черновики примеров, случайный шортс, /random_shorts, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -1296,6 +1314,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "снять план\n"
         "/today\n"
         "шортс дня\n"
+        "/today_kit\n"
+        "пакет дня\n"
         "/kits\n"
         "пакеты\n"
         "kit metals\n"
@@ -1566,6 +1586,32 @@ def _is_daily_content_plan_short(text: str) -> bool:
         "снять сегодня",
         "выпуск дня",
         "сценарий дня",
+    }
+
+
+def _is_daily_content_kit(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().replace("ё", "е").replace("_", " ").replace("-", " ").split())
+    return normalized in {
+        "/today kit",
+        "/daily kit",
+        "/day kit",
+        "/today pack",
+        "/kit today",
+        "/пакет дня",
+        "/пакет сегодня",
+        "today kit",
+        "daily kit",
+        "day kit",
+        "today pack",
+        "kit today",
+        "daily content kit",
+        "пакет дня",
+        "пакет сегодня",
+        "сегодня пакет",
+        "контент дня",
+        "контент пакет дня",
+        "публикация дня",
+        "сценарий дня пакет",
     }
 
 
@@ -2039,6 +2085,9 @@ def handle_ticker_message(
     if _is_daily_content_plan_short(text):
         client.send_message(chat_id, "Команда шортса дня работает в режиме Telegram-очереди.")
         return
+    if _is_daily_content_kit(text):
+        client.send_message(chat_id, format_daily_content_kit(), reply_markup=daily_content_kit_keyboard())
+        return
     if _is_content_plan(text):
         client.send_message(chat_id, format_content_plan(), reply_markup=content_plan_keyboard())
         return
@@ -2149,7 +2198,13 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             shorts_batch = _shorts_batch_theme(text)
                             preset_theme_variants_name = _preset_theme_variants_name(text)
                             preset_kit_name = _preset_kit_name(text)
-                            if _is_draft_batch(text):
+                            if _is_daily_content_kit(text):
+                                client.send_message(
+                                    chat_id,
+                                    format_daily_content_kit(),
+                                    reply_markup=daily_content_kit_keyboard(),
+                                )
+                            elif _is_draft_batch(text):
                                 job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
                             elif _is_daily_content_plan_short(text):
                                 job_queue.enqueue_daily_content_plan_short(chat_id, int(update["update_id"]))
@@ -2280,6 +2335,13 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif menu_callback.action == "daily_short":
                             client.answer_callback_query(menu_callback.callback_query_id, "Шортс дня поставлен в очередь.")
                             job_queue.enqueue_daily_content_plan_short(menu_callback.chat_id, int(update["update_id"]))
+                        elif menu_callback.action == "daily_kit":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Пакет дня открыт.")
+                            client.send_message(
+                                menu_callback.chat_id,
+                                format_daily_content_kit(),
+                                reply_markup=daily_content_kit_keyboard(),
+                            )
                         elif menu_callback.action == "kits":
                             client.answer_callback_query(menu_callback.callback_query_id, "Пакеты открыты.")
                             client.send_message(

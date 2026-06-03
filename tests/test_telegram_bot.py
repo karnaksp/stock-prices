@@ -654,6 +654,48 @@ def test_daily_content_plan_preset_uses_weekday() -> None:
     assert (sunday_index, sunday_preset.name) == (7, "bluechips")
 
 
+def test_format_daily_content_kit_uses_weekday() -> None:
+    kit_text = telegram_bot.format_daily_content_kit(date(2026, 6, 3))
+
+    assert "Пакет дня: Д3" in kit_text
+    assert "Пакет сценария" in kit_text
+    assert "Шортс: preset banks" in kit_text
+    assert "Пост без рендера: post banks" in kit_text
+    assert telegram_bot.daily_content_kit_keyboard(date(2026, 6, 3)) == telegram_bot.preset_kit_keyboard("banks")
+
+
+def test_run_telegram_bot_opens_daily_content_kit_without_render(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 106, "message": {"text": "пакет дня", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("daily content kit must not render video")
+
+    monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    kit_text = client.messages[0][1]
+    assert "Пакет дня: Д3" in kit_text
+    assert "Шортс: preset banks" in kit_text
+    assert "Пост без рендера: post banks" in kit_text
+    assert client.message_markups == [telegram_bot.preset_kit_keyboard("banks")]
+    assert client.videos == []
+
+
 def test_run_telegram_bot_queues_daily_content_plan_short(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1371,6 +1413,47 @@ def test_run_telegram_bot_menu_callback_queues_daily_content_plan_short(monkeypa
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
     assert generated == [("tg-75-daily-short-3-banks", 16, 24, True, "default")]
     assert len(client.videos) == 1
+
+
+def test_run_telegram_bot_menu_callback_opens_daily_content_kit(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 107,
+                    "callback_query": {
+                        "id": "callback-menu-daily-kit",
+                        "data": "menu:daily_kit",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("daily kit callback must not render video")
+
+    monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-daily-kit", "Пакет дня открыт.")]
+    kit_text = client.messages[0][1]
+    assert "Пакет дня: Д3" in kit_text
+    assert "Шортс: preset banks" in kit_text
+    assert client.message_markups == [telegram_bot.preset_kit_keyboard("banks")]
+    assert client.videos == []
 
 
 def test_run_telegram_bot_menu_callback_opens_preset_kits(monkeypatch) -> None:
@@ -2494,6 +2577,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "снять план" in help_text
     assert "/today" in help_text
     assert "шортс дня" in help_text
+    assert "/today_kit" in help_text
+    assert "пакет дня" in help_text
     assert "/posts" in help_text
     assert "посты" in help_text
     assert "/music" in help_text
@@ -2540,6 +2625,7 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     assert "топовые shorts-сценарии" in client.messages[0][1]
     assert "полный пакет shorts" in client.messages[0][1]
     assert "контент-план" in client.messages[0][1]
+    assert "пакет дня" in client.messages[0][1]
     assert client.message_markups[0] == telegram_bot.main_menu_keyboard()
     keyboard = client.message_markups[0]["inline_keyboard"]
     assert keyboard[0][0]["callback_data"] == "menu:ideas"
@@ -2560,10 +2646,11 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     assert keyboard[8][1] == {"text": "Пакеты", "callback_data": "menu:kits"}
     assert keyboard[9][0] == {"text": "Контент-план", "callback_data": "menu:content_plan"}
     assert keyboard[9][1] == {"text": "Шортс дня", "callback_data": "menu:daily_short"}
-    assert keyboard[10][0] == {"text": "Посты", "callback_data": "menu:posts"}
-    assert keyboard[10][1] == {"text": "Музыка", "callback_data": "menu:music"}
-    assert keyboard[11][0] == {"text": "Обложки", "callback_data": "menu:covers"}
-    assert keyboard[12][0] == {"text": "Очередь", "callback_data": "menu:queue"}
+    assert keyboard[10][0] == {"text": "Пакет дня", "callback_data": "menu:daily_kit"}
+    assert keyboard[11][0] == {"text": "Посты", "callback_data": "menu:posts"}
+    assert keyboard[11][1] == {"text": "Музыка", "callback_data": "menu:music"}
+    assert keyboard[12][0] == {"text": "Обложки", "callback_data": "menu:covers"}
+    assert keyboard[13][0] == {"text": "Очередь", "callback_data": "menu:queue"}
     assert keyboard[-1][0]["callback_data"] == "menu:help"
     assert client.videos == []
 
@@ -2776,6 +2863,29 @@ def test_handle_ticker_message_shows_content_plan() -> None:
     assert keyboard[1][0]["callback_data"] == "preset:neweconomy:shorts"
     assert keyboard[1][1]["callback_data"] == "preset:metals:shorts"
     assert keyboard[-1][1]["callback_data"] == telegram_bot.QUEUE_STATUS_CALLBACK_DATA
+    assert client.videos == []
+
+
+def test_handle_ticker_message_shows_daily_content_kit(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("daily content kit must not render video")
+
+    monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    handle_ticker_message(client, settings, 123, "пакет дня")
+
+    kit_text = client.messages[0][1]
+    assert "Пакет дня: Д3" in kit_text
+    assert "Шортс: preset banks" in kit_text
+    assert "Пост без рендера: post banks" in kit_text
+    assert client.message_markups == [telegram_bot.preset_kit_keyboard("banks")]
     assert client.videos == []
 
 
