@@ -151,6 +151,7 @@ MENU_ACTIONS = {
     "hot_shorts",
     "hot_shorts_aurora",
     "hot_shorts_studio",
+    "all_shorts",
     "example_drafts",
     "random_shorts",
     "random_draft",
@@ -264,7 +265,10 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
                 {"text": "Топ шортсы", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_shorts"},
             ],
             [
+                {"text": "Все шортсы", "callback_data": f"{MENU_CALLBACK_PREFIX}all_shorts"},
                 {"text": "Черновики", "callback_data": f"{MENU_CALLBACK_PREFIX}drafts"},
+            ],
+            [
                 {"text": "Черновики примеров", "callback_data": f"{MENU_CALLBACK_PREFIX}example_drafts"},
             ],
             [
@@ -505,7 +509,7 @@ def format_pulse_pack() -> str:
         lines.append(f"Черновик: preset {preset_name} draft")
         lines.append(f"Пост без рендера: post {preset_name}")
         lines.append("")
-    lines.append("Пакетный запуск видео: top shorts или top drafts.")
+    lines.append("Пакетный запуск видео: top shorts, top drafts или все шортсы.")
     lines.append("Стильная серия одной командой: top shorts studio или top shorts aurora.")
     lines.append("Только текст до рендера: post <name> или кнопка Посты.")
     lines.append("Это фиксированный пакет без LLM и без автопридумывания идей.")
@@ -522,6 +526,9 @@ def pulse_pack_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             [
                 {"text": "Top Studio", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_shorts_studio"},
                 {"text": "Top Aurora", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_shorts_aurora"},
+            ],
+            [
+                {"text": "Все шортсы", "callback_data": f"{MENU_CALLBACK_PREFIX}all_shorts"},
             ],
             [
                 {"text": "Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
@@ -674,6 +681,26 @@ class TelegramJobQueue:
                     f"preset {preset.name} draft",
                     update_id,
                     job_suffix=f"draft-{index}-{preset.name}",
+                    notify=False,
+                )
+            )
+        return jobs
+
+    def enqueue_preset_shorts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
+        labels = ", ".join(preset_button_label(preset) for preset in PRESETS)
+        self.client.send_message(
+            chat_id,
+            f"Ставлю в очередь {len(PRESETS)} shorts-роликов: {labels}.",
+            reply_markup=queue_status_keyboard(),
+        )
+        jobs: list[TelegramJob] = []
+        for index, preset in enumerate(PRESETS, start=1):
+            jobs.append(
+                self.enqueue(
+                    chat_id,
+                    f"preset {preset.name} shorts",
+                    update_id,
+                    job_suffix=f"shorts-{index}-{preset.name}",
                     notify=False,
                 )
             )
@@ -1069,7 +1096,7 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
 def _main_menu_text() -> str:
     return (
         "Меню Telegram\n"
-        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, пакет для Пульса, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, draft-прогоны, случайный шортс, случайный draft или статус очереди."
+        "Выбери действие кнопкой: помощь, готовые идеи, проверенные примеры, пакет для Пульса, пакеты сценариев, посты, музыка, обложки, топовые shorts-сценарии, полный пакет shorts, draft-прогоны, случайный шортс, случайный draft или статус очереди."
     )
 
 
@@ -1081,7 +1108,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все черновики, черновики примеров, случайный шортс, /random_shorts, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
+        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все шортсы, /all_shorts, все черновики, черновики примеров, случайный шортс, /random_shorts, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -1116,6 +1143,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "top shorts aurora\n"
         "топ шортсы\n"
         "топ шортсы студио\n"
+        "все шортсы\n"
+        "/all_shorts\n"
         "все черновики\n"
         "случайный шортс\n"
         "/random_shorts\n"
@@ -1487,6 +1516,24 @@ def _is_draft_batch(text: str) -> bool:
     }
 
 
+def _is_shorts_batch(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().replace("_", " ").replace("-", " ").split())
+    return normalized in {
+        "/all shorts",
+        "/shorts all",
+        "/shorts batch",
+        "/все шортсы",
+        "all shorts",
+        "shorts all",
+        "shorts batch",
+        "batch shorts",
+        "все шортсы",
+        "шортсы все",
+        "пакет шортсов",
+        "полный пакет шортсов",
+    }
+
+
 def _is_random_shorts(text: str) -> bool:
     normalized = " ".join(text.strip().lower().replace("_", " ").replace("-", " ").split())
     return normalized in {
@@ -1727,6 +1774,9 @@ def handle_ticker_message(
     if _is_draft_batch(text):
         client.send_message(chat_id, "Команда пакетных черновиков работает в режиме Telegram-очереди.")
         return
+    if _is_shorts_batch(text):
+        client.send_message(chat_id, "Команда полного пакета shorts-роликов работает в режиме Telegram-очереди.")
+        return
     hot_batch = _hot_batch_mode_and_theme(text)
     if hot_batch is not None:
         mode, theme = hot_batch
@@ -1866,6 +1916,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             preset_kit_name = _preset_kit_name(text)
                             if _is_draft_batch(text):
                                 job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
+                            elif _is_shorts_batch(text):
+                                job_queue.enqueue_preset_shorts(chat_id, int(update["update_id"]))
                             elif hot_batch is not None:
                                 mode, theme = hot_batch
                                 if mode == "draft":
@@ -1996,6 +2048,9 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif menu_callback.action == "hot_shorts_aurora":
                             client.answer_callback_query(menu_callback.callback_query_id, "Top-shorts Aurora поставлены в очередь.")
                             job_queue.enqueue_hot_preset_shorts_with_theme(menu_callback.chat_id, int(update["update_id"]), "aurora")
+                        elif menu_callback.action == "all_shorts":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Все shorts поставлены в очередь.")
+                            job_queue.enqueue_preset_shorts(menu_callback.chat_id, int(update["update_id"]))
                         elif menu_callback.action == "example_drafts":
                             client.answer_callback_query(menu_callback.callback_query_id, "Draft-примеры поставлены в очередь.")
                             job_queue.enqueue_example_drafts(menu_callback.chat_id, int(update["update_id"]))

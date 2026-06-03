@@ -93,6 +93,8 @@ hide:
     top shorts aurora
     топ шортсы
     топ шортсы студио
+    все шортсы
+    /all_shorts
     случайный шортс
     random shorts
     /random_shorts
@@ -196,6 +198,8 @@ YDEX OZON за полгода shorts
 пакет пульса
 пакеты
 все черновики
+все шортсы
+/all_shorts
 top drafts
 топ черновики
 top shorts
@@ -227,6 +231,7 @@ post LKOH SBER 2020 2024 без рендера дает skeleton текста д
 /pack показывает top-сценарии сразу в трех форматах: шортс, черновик, пост без рендера
 /kits и пакеты открывают кнопочный список публикационных пакетов всех preset-сценариев без рендера
 top shorts studio и top shorts aurora запускают всю top-серию в выбранной теме
+все шортсы и /all_shorts запускают полноценные shorts-ролики по всей preset-библиотеке
 variants metals и варианты металлы запускают один preset сразу в default, aurora и studio
 kit metals и пакет металлы открывают action-пакет одного preset: шортс, черновик, все темы, 12s, пост
 кнопки /menu открывают помощь, top-shorts сценарии, идеи, примеры, draft-прогоны и очередь
