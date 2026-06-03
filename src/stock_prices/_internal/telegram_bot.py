@@ -148,6 +148,8 @@ MENU_ACTIONS = {
     "drafts",
     "hot_drafts",
     "hot_shorts",
+    "hot_shorts_aurora",
+    "hot_shorts_studio",
     "example_drafts",
     "random_draft",
     "random_example",
@@ -167,6 +169,39 @@ CUSTOM_FOLLOWUP_MODES = {
     "12s": "duration=12 fps=24 gradient",
     "aurora": "theme=aurora",
     "studio": "theme=studio",
+}
+HOT_BATCH_THEME_ALIASES = {
+    "aurora": "aurora",
+    "аурора": "aurora",
+    "studio": "studio",
+    "студио": "studio",
+    "студия": "studio",
+}
+HOT_DRAFT_BATCH_ALIASES = {
+    "/hot_drafts",
+    "/top_drafts",
+    "/топ_черновики",
+    "hot drafts",
+    "top drafts",
+    "hot draft",
+    "top draft",
+    "топ черновики",
+    "топовые черновики",
+    "горячие черновики",
+    "черновики топ",
+}
+HOT_SHORTS_BATCH_ALIASES = {
+    "/hot_shorts",
+    "/top_shorts",
+    "/топ_шортсы",
+    "hot shorts",
+    "top shorts",
+    "hot short",
+    "top short",
+    "топ шортсы",
+    "топовые шортсы",
+    "горячие шортсы",
+    "шортсы топ",
 }
 
 
@@ -367,6 +402,7 @@ def format_pulse_pack() -> str:
         lines.append(f"Пост без рендера: post {preset_name}")
         lines.append("")
     lines.append("Пакетный запуск видео: top shorts или top drafts.")
+    lines.append("Стильная серия одной командой: top shorts studio или top shorts aurora.")
     lines.append("Только текст до рендера: post <name> или кнопка Посты.")
     lines.append("Это фиксированный пакет без LLM и без автопридумывания идей.")
     return "\n".join(lines).strip()
@@ -378,6 +414,10 @@ def pulse_pack_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             [
                 {"text": "Топ шортсы", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_shorts"},
                 {"text": "Топ черновики", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_drafts"},
+            ],
+            [
+                {"text": "Top Studio", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_shorts_studio"},
+                {"text": "Top Aurora", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_shorts_aurora"},
             ],
             [
                 {"text": "Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
@@ -521,25 +561,28 @@ class TelegramJobQueue:
             )
         return jobs
 
-    def _enqueue_hot_presets(self, chat_id: int, update_id: int, mode: str) -> list[TelegramJob]:
+    def _enqueue_hot_presets(self, chat_id: int, update_id: int, mode: str, theme: str | None = None) -> list[TelegramJob]:
         if mode not in {"draft", "shorts"}:
             msg = f"Unsupported hot preset mode: {mode}"
             raise ValueError(msg)
         labels = ", ".join(label for label, _preset_name in HOT_MENU_PRESETS)
         mode_label = "top-draft" if mode == "draft" else "top-shorts"
+        theme_suffix = f" theme={theme}" if theme else ""
+        theme_label = f" в теме {theme}" if theme else ""
         self.client.send_message(
             chat_id,
-            f"Ставлю в очередь {len(HOT_MENU_PRESETS)} {mode_label}: {labels}.",
+            f"Ставлю в очередь {len(HOT_MENU_PRESETS)} {mode_label}{theme_label}: {labels}.",
             reply_markup=queue_status_keyboard(),
         )
         jobs: list[TelegramJob] = []
         for index, (_label, preset_name) in enumerate(HOT_MENU_PRESETS, start=1):
+            job_suffix_theme = f"-{theme}" if theme else ""
             jobs.append(
                 self.enqueue(
                     chat_id,
-                    f"preset {preset_name} {mode}",
+                    f"preset {preset_name} {mode}{theme_suffix}",
                     update_id,
-                    job_suffix=f"hot-{mode}-{index}-{preset_name}",
+                    job_suffix=f"hot-{mode}{job_suffix_theme}-{index}-{preset_name}",
                     notify=False,
                 )
             )
@@ -550,6 +593,9 @@ class TelegramJobQueue:
 
     def enqueue_hot_preset_shorts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
         return self._enqueue_hot_presets(chat_id, update_id, "shorts")
+
+    def enqueue_hot_preset_shorts_with_theme(self, chat_id: int, update_id: int, theme: str) -> list[TelegramJob]:
+        return self._enqueue_hot_presets(chat_id, update_id, "shorts", theme=theme)
 
     def enqueue_random_preset_draft(self, chat_id: int, update_id: int) -> TelegramJob:
         preset = random.choice(PRESETS)
@@ -838,7 +884,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, топ черновики, топ шортсы, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
+        "Готовые сценарии: /menu, /меню, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, все черновики, черновики примеров, случайный черновик, случайный пример, /queue, металлы, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -860,7 +906,10 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "top drafts\n"
         "топ черновики\n"
         "top shorts\n"
+        "top shorts studio\n"
+        "top shorts aurora\n"
         "топ шортсы\n"
+        "топ шортсы студио\n"
         "все черновики\n"
         "случайный черновик\n"
         "/random_draft\n"
@@ -1090,38 +1139,30 @@ def _is_example_draft_batch(text: str) -> bool:
     }
 
 
+def _hot_batch_mode_and_theme(text: str) -> tuple[str, str | None] | None:
+    normalized = " ".join(text.strip().lower().replace("ё", "е").split())
+    if normalized in HOT_DRAFT_BATCH_ALIASES:
+        return ("draft", None)
+    if normalized in HOT_SHORTS_BATCH_ALIASES:
+        return ("shorts", None)
+    for alias in HOT_SHORTS_BATCH_ALIASES:
+        for theme_alias, theme in HOT_BATCH_THEME_ALIASES.items():
+            if normalized in {
+                f"{alias} {theme_alias}",
+                f"{theme_alias} {alias}",
+                f"{alias}_{theme_alias}",
+                f"{alias}-{theme_alias}",
+            }:
+                return ("shorts", theme)
+    return None
+
+
 def _is_hot_draft_batch(text: str) -> bool:
-    normalized = " ".join(text.strip().lower().split())
-    return normalized in {
-        "/hot_drafts",
-        "/top_drafts",
-        "/топ_черновики",
-        "hot drafts",
-        "top drafts",
-        "hot draft",
-        "top draft",
-        "топ черновики",
-        "топовые черновики",
-        "горячие черновики",
-        "черновики топ",
-    }
+    return _hot_batch_mode_and_theme(text) == ("draft", None)
 
 
 def _is_hot_shorts_batch(text: str) -> bool:
-    normalized = " ".join(text.strip().lower().split())
-    return normalized in {
-        "/hot_shorts",
-        "/top_shorts",
-        "/топ_шортсы",
-        "hot shorts",
-        "top shorts",
-        "hot short",
-        "top short",
-        "топ шортсы",
-        "топовые шортсы",
-        "горячие шортсы",
-        "шортсы топ",
-    }
+    return _hot_batch_mode_and_theme(text) == ("shorts", None)
 
 
 def _is_random_example_draft(text: str) -> bool:
@@ -1361,11 +1402,12 @@ def handle_ticker_message(
     if _is_draft_batch(text):
         client.send_message(chat_id, "Команда пакетных черновиков работает в режиме Telegram-очереди.")
         return
-    if _is_hot_draft_batch(text):
-        client.send_message(chat_id, "Команда top-draft черновиков работает в режиме Telegram-очереди.")
-        return
-    if _is_hot_shorts_batch(text):
-        client.send_message(chat_id, "Команда top-shorts роликов работает в режиме Telegram-очереди.")
+    hot_batch = _hot_batch_mode_and_theme(text)
+    if hot_batch is not None:
+        mode, theme = hot_batch
+        mode_label = "top-draft черновиков" if mode == "draft" else "top-shorts роликов"
+        theme_label = f" в теме {theme}" if theme else ""
+        client.send_message(chat_id, f"Команда {mode_label}{theme_label} работает в режиме Telegram-очереди.")
         return
     if _is_random_draft(text):
         client.send_message(chat_id, "Команда случайного черновика работает в режиме Telegram-очереди.")
@@ -1460,6 +1502,7 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                     extracted = _extract_text_message(update)
                     if extracted is not None:
                         chat_id, text = extracted
+                        hot_batch = _hot_batch_mode_and_theme(text)
                         if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
                             client.send_message(chat_id, "This chat is not allowed to use this bot.")
                         elif _is_help(text):
@@ -1468,10 +1511,14 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             _send_main_menu(client, chat_id)
                         elif _is_draft_batch(text):
                             job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
-                        elif _is_hot_draft_batch(text):
-                            job_queue.enqueue_hot_preset_drafts(chat_id, int(update["update_id"]))
-                        elif _is_hot_shorts_batch(text):
-                            job_queue.enqueue_hot_preset_shorts(chat_id, int(update["update_id"]))
+                        elif hot_batch is not None:
+                            mode, theme = hot_batch
+                            if mode == "draft":
+                                job_queue.enqueue_hot_preset_drafts(chat_id, int(update["update_id"]))
+                            elif theme:
+                                job_queue.enqueue_hot_preset_shorts_with_theme(chat_id, int(update["update_id"]), theme)
+                            else:
+                                job_queue.enqueue_hot_preset_shorts(chat_id, int(update["update_id"]))
                         elif _is_random_draft(text):
                             job_queue.enqueue_random_preset_draft(chat_id, int(update["update_id"]))
                         elif _is_example_draft_batch(text):
@@ -1561,6 +1608,12 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif menu_callback.action == "hot_shorts":
                             client.answer_callback_query(menu_callback.callback_query_id, "Top-shorts поставлены в очередь.")
                             job_queue.enqueue_hot_preset_shorts(menu_callback.chat_id, int(update["update_id"]))
+                        elif menu_callback.action == "hot_shorts_studio":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Top-shorts Studio поставлены в очередь.")
+                            job_queue.enqueue_hot_preset_shorts_with_theme(menu_callback.chat_id, int(update["update_id"]), "studio")
+                        elif menu_callback.action == "hot_shorts_aurora":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Top-shorts Aurora поставлены в очередь.")
+                            job_queue.enqueue_hot_preset_shorts_with_theme(menu_callback.chat_id, int(update["update_id"]), "aurora")
                         elif menu_callback.action == "example_drafts":
                             client.answer_callback_query(menu_callback.callback_query_id, "Draft-примеры поставлены в очередь.")
                             job_queue.enqueue_example_drafts(menu_callback.chat_id, int(update["update_id"]))
