@@ -732,6 +732,44 @@ def test_run_telegram_bot_queues_daily_content_plan_short(monkeypatch) -> None:
     assert len(client.videos) == 1
 
 
+def test_run_telegram_bot_queues_daily_publication_day(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 108, "message": {"text": "/publish_day", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+    generated: list[tuple[str | None, int, int, bool, str]] = []
+
+    def fake_client_factory(*_args, **_kwargs):
+        return client
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, request.render.duration, request.render.fps, request.render.use_gradient, request.render.theme))
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert "Публикационный день: Д3 Банки" in client.messages[0][1]
+    assert "Пакет дня: Д3" in client.messages[1][1]
+    assert "Пост без рендера: post banks" in client.messages[1][1]
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
+    assert client.message_markups[1] == telegram_bot.preset_kit_keyboard("banks")
+    assert generated == [("tg-108-publication-day-3-banks", 16, 24, True, "default")]
+    assert len(client.videos) == 1
+
+
 def test_run_telegram_bot_queues_styled_all_preset_shorts(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1165,12 +1203,14 @@ def test_handle_ticker_message_shows_production_guide_without_render(monkeypatch
 
     guide_text = client.messages[0][1]
     assert "Шпаргалка производства шортсов для Пульса" in guide_text
+    assert "/publish_day" in guide_text
     assert "/today_kit" in guide_text
     assert "top drafts" in guide_text
     assert "post metals" in guide_text
     assert client.message_markups == [telegram_bot.production_guide_keyboard()]
-    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "menu:daily_kit"
-    assert client.message_markups[0]["inline_keyboard"][0][1]["callback_data"] == "menu:daily_short"
+    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "menu:publication_day"
+    assert client.message_markups[0]["inline_keyboard"][1][0]["callback_data"] == "menu:daily_kit"
+    assert client.message_markups[0]["inline_keyboard"][1][1]["callback_data"] == "menu:daily_short"
     assert client.videos == []
 
 
@@ -1499,6 +1539,50 @@ def test_run_telegram_bot_menu_callback_queues_daily_content_plan_short(monkeypa
     assert "Шортс дня" in client.messages[0][1]
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
     assert generated == [("tg-75-daily-short-3-banks", 16, 24, True, "default")]
+    assert len(client.videos) == 1
+
+
+def test_run_telegram_bot_menu_callback_queues_daily_publication_day(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 109,
+                    "callback_query": {
+                        "id": "callback-menu-publication-day",
+                        "data": "menu:publication_day",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+    generated: list[tuple[str | None, int, int, bool, str]] = []
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, request.render.duration, request.render.fps, request.render.use_gradient, request.render.theme))
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-publication-day", "Публикационный день поставлен в очередь.")]
+    assert "Публикационный день: Д3 Банки" in client.messages[0][1]
+    assert "Пакет дня: Д3" in client.messages[1][1]
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
+    assert client.message_markups[1] == telegram_bot.preset_kit_keyboard("banks")
+    assert generated == [("tg-109-publication-day-3-banks", 16, 24, True, "default")]
     assert len(client.videos) == 1
 
 
@@ -2664,6 +2748,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "контент-план" in help_text
     assert "/plan_shorts" in help_text
     assert "снять план" in help_text
+    assert "/publish_day" in help_text
+    assert "снять день" in help_text
     assert "/today" in help_text
     assert "шортс дня" in help_text
     assert "/today_kit" in help_text
@@ -2715,6 +2801,7 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     assert "топовые shorts-сценарии" in client.messages[0][1]
     assert "полный пакет shorts" in client.messages[0][1]
     assert "контент-план" in client.messages[0][1]
+    assert "публикация дня" in client.messages[0][1]
     assert "пакет дня" in client.messages[0][1]
     assert client.message_markups[0] == telegram_bot.main_menu_keyboard()
     keyboard = client.message_markups[0]["inline_keyboard"]
@@ -2737,8 +2824,9 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     assert keyboard[9][0] == {"text": "Пакет Пульса", "callback_data": "menu:pack"}
     assert keyboard[9][1] == {"text": "Пакеты", "callback_data": "menu:kits"}
     assert keyboard[10][0] == {"text": "Контент-план", "callback_data": "menu:content_plan"}
-    assert keyboard[10][1] == {"text": "Шортс дня", "callback_data": "menu:daily_short"}
-    assert keyboard[11][0] == {"text": "Пакет дня", "callback_data": "menu:daily_kit"}
+    assert keyboard[10][1] == {"text": "Публикация дня", "callback_data": "menu:publication_day"}
+    assert keyboard[11][0] == {"text": "Шортс дня", "callback_data": "menu:daily_short"}
+    assert keyboard[11][1] == {"text": "Пакет дня", "callback_data": "menu:daily_kit"}
     assert keyboard[12][0] == {"text": "Посты", "callback_data": "menu:posts"}
     assert keyboard[12][1] == {"text": "Музыка", "callback_data": "menu:music"}
     assert keyboard[13][0] == {"text": "Обложки", "callback_data": "menu:covers"}
@@ -3003,6 +3091,19 @@ def test_handle_ticker_message_mentions_queue_mode_for_daily_short() -> None:
     handle_ticker_message(client, settings, 123, "шортс дня")
 
     assert client.messages == [(123, "Команда шортса дня работает в режиме Telegram-очереди.")]
+    assert client.videos == []
+
+
+def test_handle_ticker_message_mentions_queue_mode_for_publication_day() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "снять день")
+
+    assert client.messages == [(123, "Команда публикационного дня работает в режиме Telegram-очереди.")]
     assert client.videos == []
 
 
