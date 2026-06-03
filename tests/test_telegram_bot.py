@@ -57,6 +57,9 @@ def test_handle_ticker_message_generates_video(monkeypatch) -> None:
 
     assert client.messages[0][0] == 123
     assert "Генерирую видео: LKOH" in client.messages[0][1]
+    assert "Тема: default" in client.messages[0][1]
+    assert "Метрика: капитал с реинвестированием" in client.messages[0][1]
+    assert "Градиент: нет" in client.messages[0][1]
     assert seen_job_ids == ["tg-1"]
     assert len(client.messages) == 2
     assert "Текст для Пульса" in client.messages[1][1]
@@ -271,6 +274,7 @@ def test_run_telegram_bot_queues_theme_preset_from_followup_button(monkeypatch) 
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers == [("callback-preset-studio", "Сценарий поставлен в очередь.")]
+    assert any("Тема: studio" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/metals-studio.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 
@@ -1295,6 +1299,8 @@ def test_handle_ticker_message_sends_generic_pulse_copy_for_investment_request(m
     assert "ежемесячно 30 000 RUB" in pulse_text
     assert "#сырье" in pulse_text
     assert "Не инвестиционная рекомендация" in pulse_text
+    assert "Инвестиции: ежемесячно 30 000 RUB" in client.messages[0][1]
+    assert "Тема: default" in client.messages[0][1]
 
 
 def test_format_generic_pulse_post_uses_single_asset_hook() -> None:
