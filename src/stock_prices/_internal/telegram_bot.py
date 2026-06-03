@@ -1450,7 +1450,7 @@ def format_quick_launch() -> str:
         "Снять неделю - 7 shorts недельного плана и чеклист публикаций.\n"
         "Top Studio - top-сценарии в едином стиле Studio.\n"
         "Случайный шортс - один готовый preset без выбора.\n\n"
-        "Текстом можно написать: /publish_day, /publish_week, top shorts studio или random shorts."
+        "Текстом можно написать: /shoot, снять, /publish_day, /publish_week, top shorts studio или random shorts."
     )
 
 
@@ -1501,7 +1501,7 @@ def production_guide_keyboard() -> dict[str, list[list[dict[str, str]]]]:
 def format_production_guide() -> str:
     return (
         "Шпаргалка производства шортсов для Пульса\n\n"
-        "Самый короткий вход: /quick или быстрый запуск - компактный пульт с частыми действиями.\n\n"
+        "Самый короткий вход: /quick, /shoot или снять - компактный пульт с частыми действиями.\n\n"
         "Быстрый дневной процесс:\n"
         "1. /publish_day или снять день - поставить шортс дня в очередь и сразу получить пакет для поста.\n"
         "2. /today_post или пост дня - взять готовый текст публикации без рендера.\n"
@@ -1529,8 +1529,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Для производства контента: /quick или быстрый запуск - компактный пульт, /guide или шпаргалка - workflow с кнопками.\n"
-        "Готовые сценарии: /start, /menu, /меню, /quick, /shorts SBER LKOH за год, /draft metals, /ideas, /examples, /pack, /plan, /week_posts, /publish_week, /publish_day, /today, /today_post, /today_kit, /kits, /posts, /music, /covers, top drafts, top shorts, top shorts studio, top shorts aurora, все шортсы, /all_shorts, случайный шортс, /random_shorts, /queue.\n"
+        "Для производства контента: /quick, /shoot или снять - компактный пульт, /guide или шпаргалка - workflow с кнопками.\n"
+        "Готовые сценарии: /start, /menu, /меню, /quick, /shoot, /shorts SBER LKOH за год, /draft metals, /ideas, /examples, /pack, /plan, /week_posts, /publish_week, /publish_day, /today, /today_post, /today_kit, /kits, /posts, /music, /covers, top drafts, top shorts, top shorts studio, top shorts aurora, все шортсы, /all_shorts, случайный шортс, /random_shorts, /queue.\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -1542,6 +1542,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "/menu\n"
         "/меню\n"
         "/quick\n"
+        "/shoot\n"
+        "снять\n"
         "быстрый запуск\n"
         "/guide\n"
         "шпаргалка\n"
@@ -1677,6 +1679,8 @@ def _is_quick_launch(text: str) -> bool:
     if command is not None:
         return command[0] in {
             "/quick",
+            "/shoot",
+            "/go",
             "/fast",
             "/launch",
             "/быстро",
@@ -1688,7 +1692,13 @@ def _is_quick_launch(text: str) -> bool:
         "quick",
         "fast",
         "launch",
+        "shoot",
+        "go",
         "быстро",
+        "снять",
+        "запустить",
+        "запусти съемку",
+        "запусти съёмку",
         "быстрый запуск",
         "запуск",
         "снять быстро",

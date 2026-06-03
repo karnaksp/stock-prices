@@ -1404,6 +1404,34 @@ def test_run_telegram_bot_opens_quick_launch_without_render(monkeypatch) -> None
     assert client.videos == []
 
 
+def test_run_telegram_bot_opens_quick_launch_with_shoot_alias(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 118, "message": {"text": "/shoot", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("shoot alias must not render video")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert "Быстрый запуск shorts для Пульса" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.quick_launch_keyboard()]
+    assert client.videos == []
+
+
 def test_run_telegram_bot_menu_callback_opens_main_menu(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1485,10 +1513,11 @@ def test_handle_ticker_message_shows_quick_launch_without_render(monkeypatch) ->
 
     monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
 
-    handle_ticker_message(client, settings, 123, "быстрый запуск")
+    handle_ticker_message(client, settings, 123, "снять")
 
     quick_text = client.messages[0][1]
     assert "Быстрый запуск shorts для Пульса" in quick_text
+    assert "/shoot" in quick_text
     assert "/publish_day" in quick_text
     assert "top shorts studio" in quick_text
     assert client.message_markups == [telegram_bot.quick_launch_keyboard()]
