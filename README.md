@@ -103,6 +103,9 @@ kit metals
 госы
 экспортёры
 черновик угольщики
+банки
+дивиденды
+стройка студио
 preset metals
 пресет металлы
 preset neweconomy duration=12 theme=studio
@@ -127,6 +130,7 @@ USD000UTSTOM selt 2024 close
 ```text
 металлы
 черновик угольщики
+банки
 SBER LKOH 2020 2024 shorts
 ```
 
@@ -242,6 +246,9 @@ kit metals             команды и кнопки для публикаци�
 госы                  госкомпании: GAZP / AFLT / SNGS
 экспортёры            экспортеры: LKOH / PHOR / NLMK
 черновик угольщики    быстрый draft-прогон MTLR / RASP
+банки                 банковский preset: SBER / SBERP / VTBR
+дивиденды             дивидендный preset: SNGSP / TRNFP / CHMF
+стройка студио        строительный preset: PIKK / LSRG / SMLT в теме Studio
 preset metals           готовый сценарий с металлами
 пресет металлы          тот же сценарий русским текстом
 preset neweconomy       готовый сценарий новой экономики

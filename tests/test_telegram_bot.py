@@ -2417,6 +2417,9 @@ def test_handle_ticker_message_lists_pulse_presets() -> None:
     assert "preset neweconomy" in preset_text
     assert "preset exporters" in preset_text
     assert "preset coalminers" in preset_text
+    assert "preset banks" in preset_text
+    assert "preset dividends" in preset_text
+    assert "preset builders" in preset_text
     assert "/queue" in preset_text
     assert "вариант 12s" in preset_text
     assert client.message_markups[0] == _expected_preset_keyboard()
@@ -2452,6 +2455,7 @@ def test_handle_ticker_message_lists_draft_presets() -> None:
     assert "preset metals" in preset_text
     assert "preset neweconomy" in preset_text
     assert "preset stateowned" in preset_text
+    assert "preset banks" in preset_text
     assert "/queue" in preset_text
     assert client.message_markups[0] == _expected_preset_keyboard("draft")
     assert client.videos == []
@@ -3058,6 +3062,27 @@ def test_parse_telegram_video_request_accepts_coalminers_draft_shortcut() -> Non
     assert parsed.request.render.use_gradient is False
 
 
+@pytest.mark.parametrize(
+    ("text", "preset_name", "tickers"),
+    [
+        ("банки", "banks", ["SBER", "SBERP", "VTBR"]),
+        ("дивиденды duration=12", "dividends", ["SNGSP", "TRNFP", "CHMF"]),
+        ("стройка студио", "builders", ["PIKK", "LSRG", "SMLT"]),
+    ],
+)
+def test_parse_telegram_video_request_accepts_new_russian_story_shortcuts(
+    text: str, preset_name: str, tickers: list[str]
+) -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request(text, base)
+
+    assert parsed.preset_name == preset_name
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == tickers
+    assert parsed.request.render.monthly_investment == 30_000
+    assert parsed.request.render.use_gradient is True
+
+
 def test_parse_telegram_video_request_keeps_gold_as_single_asset() -> None:
     base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
 
@@ -3181,4 +3206,7 @@ def test_all_pulse_presets_have_human_button_labels() -> None:
     assert "Металлы" in labels
     assert "Новая экономика" in labels
     assert "Угольщики" in labels
+    assert "Банки" in labels
+    assert "Дивиденды" in labels
+    assert "Строители" in labels
     assert all(label and len(label) <= 24 for label in labels)
