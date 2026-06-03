@@ -142,6 +142,7 @@ MENU_CALLBACK_PREFIX = "menu:"
 MENU_ACTIONS = {
     "help",
     "content_plan",
+    "content_plan_shorts",
     "ideas",
     "examples",
     "pack",
@@ -472,7 +473,7 @@ def format_content_plan() -> str:
     lines = [
         "Контент-план для Пульса:",
         "",
-        "7 выпусков без LLM и автопридумывания идей. Можно выпускать по одному ролику в день или нажимать кнопки ниже, когда нужен готовый shorts.",
+        "7 выпусков без LLM и автопридумывания идей. Можно поставить весь план в очередь одной кнопкой или выпускать по одному ролику в день.",
         "",
     ]
     for index, preset in enumerate(_content_plan_preset_list(), start=1):
@@ -484,7 +485,7 @@ def format_content_plan() -> str:
         lines.append(f"Обложка: {cover}")
         lines.append(f"Музыка: {track}")
         lines.append("")
-    lines.append("Кнопки ниже запускают shorts для конкретного дня. Тексты постов отдельно: /posts или post <name>.")
+    lines.append("Первая кнопка ставит все 7 shorts в очередь. Тексты постов отдельно: /posts или post <name>.")
     return "\n".join(lines).strip()
 
 
@@ -493,7 +494,8 @@ def content_plan_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str
         {"text": f"Д{index} {preset_button_label(preset)}", "callback_data": f"preset:{preset.name}:shorts"}
         for index, preset in enumerate(_content_plan_preset_list(), start=1)
     ]
-    rows = [buttons[index : index + columns] for index in range(0, len(buttons), columns)]
+    rows = [[{"text": "Снять весь план", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan_shorts"}]]
+    rows.extend(buttons[index : index + columns] for index in range(0, len(buttons), columns))
     rows.append(
         [
             {"text": "Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
@@ -782,6 +784,27 @@ class TelegramJobQueue:
                     f"preset {preset.name} shorts{theme_suffix}",
                     update_id,
                     job_suffix=f"shorts{job_suffix_theme}-{index}-{preset.name}",
+                    notify=False,
+                )
+            )
+        return jobs
+
+    def enqueue_content_plan_shorts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
+        presets = _content_plan_preset_list()
+        labels = ", ".join(f"Д{index} {preset_button_label(preset)}" for index, preset in enumerate(presets, start=1))
+        self.client.send_message(
+            chat_id,
+            f"Ставлю в очередь {len(presets)} shorts-роликов контент-плана: {labels}.",
+            reply_markup=queue_status_keyboard(),
+        )
+        jobs: list[TelegramJob] = []
+        for index, preset in enumerate(presets, start=1):
+            jobs.append(
+                self.enqueue(
+                    chat_id,
+                    f"preset {preset.name} shorts",
+                    update_id,
+                    job_suffix=f"plan-shorts-{index}-{preset.name}",
                     notify=False,
                 )
             )
@@ -1189,7 +1212,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
     return (
         "Напиши тикер или несколько тикеров, и я поставлю задачу в очередь и верну MP4-график.\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /plan, план пульса, контент-план, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все шортсы, все шортсы студио, all shorts aurora, /all_shorts, все черновики, черновики примеров, случайный шортс, /random_shorts, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
+        "Готовые сценарии: /start, /menu, /меню, /shorts SBER LKOH за год, /draft metals, /ideas, /идеи, /drafts, /черновики, /examples, /примеры, /pack, пакет пульса, /plan, план пульса, контент-план, /plan_shorts, снять план, /kits, пакеты, kit metals, пакет металлы, /posts, посты, /music, музыка, /covers, обложки, post metals, post LKOH SBER 2020 2024, пост металлы, top drafts, top shorts, top shorts studio, top shorts aurora, топ черновики, топ шортсы, топ шортсы студио, variants metals, варианты металлы, все шортсы, все шортсы студио, all shorts aurora, /all_shorts, все черновики, черновики примеров, случайный шортс, /random_shorts, случайный черновик, случайный пример, /queue, металлы, металлы студио, studio metals, черновик металлы\n"
         "Можно писать коротко или обычной фразой: сделай шортс про SBER и LKOH за полгода для Пульса; сравни SBER с LKOH за год шортс.\n"
         "Можно отправить несколько запросов строками в одном сообщении.\n"
         "После постановки задачи будет кнопка: Статус очереди.\n"
@@ -1240,6 +1263,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "/plan\n"
         "план пульса\n"
         "контент-план\n"
+        "/plan_shorts\n"
+        "снять план\n"
         "/kits\n"
         "пакеты\n"
         "kit metals\n"
@@ -1455,6 +1480,32 @@ def _is_content_plan(text: str) -> bool:
         "сетка",
         "сетка пульса",
         "сетка публикаций",
+    }
+
+
+def _is_content_plan_shorts(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().replace("ё", "е").replace("_", " ").replace("-", " ").split())
+    return normalized in {
+        "/plan shorts",
+        "/content plan shorts",
+        "/shoot plan",
+        "/снять план",
+        "/шортсы плана",
+        "plan shorts",
+        "content plan shorts",
+        "shoot plan",
+        "run plan",
+        "queue plan",
+        "снять план",
+        "снять контент план",
+        "запусти план",
+        "запустить план",
+        "выпустить план",
+        "план шортсы",
+        "план пульса шортсы",
+        "контент план шортсы",
+        "шортсы плана",
+        "шортсы контент плана",
     }
 
 
@@ -1922,6 +1973,9 @@ def handle_ticker_message(
     if _is_cover_texts(text):
         client.send_message(chat_id, format_cover_list())
         return
+    if _is_content_plan_shorts(text):
+        client.send_message(chat_id, "Команда запуска контент-плана работает в режиме Telegram-очереди.")
+        return
     if _is_content_plan(text):
         client.send_message(chat_id, format_content_plan(), reply_markup=content_plan_keyboard())
         return
@@ -2034,6 +2088,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             preset_kit_name = _preset_kit_name(text)
                             if _is_draft_batch(text):
                                 job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
+                            elif _is_content_plan_shorts(text):
+                                job_queue.enqueue_content_plan_shorts(chat_id, int(update["update_id"]))
                             elif shorts_batch[0]:
                                 job_queue.enqueue_preset_shorts(chat_id, int(update["update_id"]), theme=shorts_batch[1])
                             elif hot_batch is not None:
@@ -2153,6 +2209,9 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 format_content_plan(),
                                 reply_markup=content_plan_keyboard(),
                             )
+                        elif menu_callback.action == "content_plan_shorts":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Контент-план поставлен в очередь.")
+                            job_queue.enqueue_content_plan_shorts(menu_callback.chat_id, int(update["update_id"]))
                         elif menu_callback.action == "kits":
                             client.answer_callback_query(menu_callback.callback_query_id, "Пакеты открыты.")
                             client.send_message(

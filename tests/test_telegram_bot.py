@@ -607,6 +607,45 @@ def test_run_telegram_bot_queues_all_preset_shorts(monkeypatch) -> None:
     assert len(client.videos) == len(PRESETS)
 
 
+def test_run_telegram_bot_queues_content_plan_shorts(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 104, "message": {"text": "снять план", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), use_gradient=False),
+    )
+    generated: list[tuple[str | None, int, int, bool, str]] = []
+
+    def fake_client_factory(*_args, **_kwargs):
+        return client
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, request.render.duration, request.render.fps, request.render.use_gradient, request.render.theme))
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert "shorts-роликов контент-плана" in client.messages[0][1]
+    assert "Д1" in client.messages[0][1]
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
+    assert len(generated) == len(telegram_bot.CONTENT_PLAN_PRESETS)
+    assert generated[0] == ("tg-104-plan-shorts-1-neweconomy", 16, 24, True, "studio")
+    assert generated[1] == ("tg-104-plan-shorts-2-metals", 16, 24, True, "aurora")
+    assert generated[-1][0] == f"tg-104-plan-shorts-{len(telegram_bot.CONTENT_PLAN_PRESETS)}-{telegram_bot.CONTENT_PLAN_PRESETS[-1]}"
+    assert len({job_id for job_id, *_rest in generated}) == len(telegram_bot.CONTENT_PLAN_PRESETS)
+    assert len(client.videos) == len(telegram_bot.CONTENT_PLAN_PRESETS)
+
+
 def test_run_telegram_bot_queues_styled_all_preset_shorts(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1200,8 +1239,52 @@ def test_run_telegram_bot_menu_callback_opens_content_plan(monkeypatch) -> None:
     assert "preset neweconomy" in client.messages[0][1]
     assert "post metals" in client.messages[0][1]
     assert client.message_markups == [telegram_bot.content_plan_keyboard()]
-    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "preset:neweconomy:shorts"
+    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "menu:content_plan_shorts"
+    assert client.message_markups[0]["inline_keyboard"][1][0]["callback_data"] == "preset:neweconomy:shorts"
     assert client.videos == []
+
+
+def test_run_telegram_bot_menu_callback_queues_content_plan_shorts(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 74,
+                    "callback_query": {
+                        "id": "callback-menu-content-plan-shorts",
+                        "data": "menu:content_plan_shorts",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+    generated: list[tuple[str | None, int, int, bool]] = []
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, request.render.duration, request.render.fps, request.render.use_gradient))
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-content-plan-shorts", "Контент-план поставлен в очередь.")]
+    assert "shorts-роликов контент-плана" in client.messages[0][1]
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
+    assert len(generated) == len(telegram_bot.CONTENT_PLAN_PRESETS)
+    assert generated[0] == ("tg-74-plan-shorts-1-neweconomy", 16, 24, True)
+    assert generated[-1][0] == f"tg-74-plan-shorts-{len(telegram_bot.CONTENT_PLAN_PRESETS)}-{telegram_bot.CONTENT_PLAN_PRESETS[-1]}"
+    assert len(client.videos) == len(telegram_bot.CONTENT_PLAN_PRESETS)
 
 
 def test_run_telegram_bot_menu_callback_opens_preset_kits(monkeypatch) -> None:
@@ -2321,6 +2404,8 @@ def test_help_text_mentions_investments_and_themes() -> None:
     assert "/plan" in help_text
     assert "план пульса" in help_text
     assert "контент-план" in help_text
+    assert "/plan_shorts" in help_text
+    assert "снять план" in help_text
     assert "/posts" in help_text
     assert "посты" in help_text
     assert "/music" in help_text
@@ -2595,12 +2680,26 @@ def test_handle_ticker_message_shows_content_plan() -> None:
     assert "День 1" in plan_text
     assert "preset neweconomy" in plan_text
     assert "post metals" in plan_text
-    assert "Кнопки ниже запускают shorts" in plan_text
+    assert "Первая кнопка ставит все 7 shorts" in plan_text
     assert client.message_markups[0] == telegram_bot.content_plan_keyboard()
     keyboard = client.message_markups[0]["inline_keyboard"]
-    assert keyboard[0][0]["callback_data"] == "preset:neweconomy:shorts"
-    assert keyboard[0][1]["callback_data"] == "preset:metals:shorts"
+    assert keyboard[0][0]["callback_data"] == "menu:content_plan_shorts"
+    assert keyboard[1][0]["callback_data"] == "preset:neweconomy:shorts"
+    assert keyboard[1][1]["callback_data"] == "preset:metals:shorts"
     assert keyboard[-1][1]["callback_data"] == telegram_bot.QUEUE_STATUS_CALLBACK_DATA
+    assert client.videos == []
+
+
+def test_handle_ticker_message_mentions_queue_mode_for_content_plan_shorts() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "снять план")
+
+    assert client.messages == [(123, "Команда запуска контент-плана работает в режиме Telegram-очереди.")]
     assert client.videos == []
 
 
