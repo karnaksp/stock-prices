@@ -164,6 +164,8 @@ CUSTOM_FOLLOWUP_MODES = {
     "draft": "draft",
     "shorts": "shorts",
     "12s": "duration=12 fps=24 gradient",
+    "aurora": "theme=aurora",
+    "studio": "theme=studio",
 }
 
 
@@ -220,6 +222,10 @@ def custom_followup_keyboard(request_key: str) -> dict[str, list[list[dict[str, 
             ],
             [
                 {"text": "Вариант 12s", "callback_data": f"custom:{request_key}:12s"},
+            ],
+            [
+                {"text": "Aurora", "callback_data": f"custom:{request_key}:aurora"},
+                {"text": "Studio", "callback_data": f"custom:{request_key}:studio"},
             ],
         ]
     }
@@ -668,7 +674,7 @@ def _extract_preset_callback(update: dict[str, Any]) -> TelegramPresetCallback |
     if not preset_name:
         return None
     mode = parts[2].lower() if len(parts) == 3 else ""
-    if mode not in {"", "draft", "shorts", "12s"}:
+    if mode not in {"", "draft", "shorts", "12s", "aurora", "studio"}:
         return None
     text = f"preset {preset_name}"
     if mode == "draft":
@@ -677,6 +683,8 @@ def _extract_preset_callback(update: dict[str, Any]) -> TelegramPresetCallback |
         text = f"{text} shorts"
     elif mode == "12s":
         text = f"{text} duration=12"
+    elif mode in {"aurora", "studio"}:
+        text = f"{text} theme={mode}"
     return TelegramPresetCallback(str(callback_query_id), int(chat_id), text)
 
 
