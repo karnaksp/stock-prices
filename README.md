@@ -81,6 +81,7 @@ LKOH
 SBER LKOH 2020 2024
 металлы
 металлы студио
+металлы студио 12с
 studio metals
 черновик металлы
 госы
@@ -197,6 +198,7 @@ random draft           английский вариант случайного 
 follow-up кнопки       после preset/custom-видео: черновик 4s, шортс 16s, вариант 12s, Aurora, Studio
 металлы                короткий запуск preset-сценария с металлами
 металлы студио         тот же preset сразу в теме Studio
+металлы студио 12с     preset в теме Studio с длительностью 12 секунд
 studio metals          английский вариант короткой theme-команды
 черновик металлы       быстрый draft-прогон сценария с металлами
 госы                  госкомпании: GAZP / AFLT / SNGS
@@ -226,6 +228,7 @@ shorts                 короткий режим: duration=16 fps=24 gradient
 draft                  быстрый черновик: duration=4 fps=8 без gradient
 theme=aurora           визуальная тема: default, aurora или studio
 duration=12 fps=24     настройки видео
+12s / 12с              короткая запись duration=12
 ```
 
 Сокращения активов:

@@ -208,6 +208,14 @@ def _parse_int(value: str, minimum: int, maximum: int, name: str) -> int:
     return max(minimum, min(parsed, maximum))
 
 
+def _parse_duration_shortcut(token: str) -> int | None:
+    normalized = token.strip().lower().replace("_", "")
+    match = re.fullmatch(r"(\d{1,2})(s|sec|secs|second|seconds|с|сек|секунд|секунда|секунды)", normalized)
+    if match is None:
+        return None
+    return _parse_int(match.group(1), 1, 90, "duration")
+
+
 def _shift_years(value: date, years: int) -> date:
     try:
         return value.replace(year=value.year - years)
@@ -528,6 +536,8 @@ def parse_telegram_video_request(
             idx += 2
         elif (parsed_date := _parse_date_token(token, end=len(positional_dates) == 1)) is not None:
             positional_dates.append(parsed_date)
+        elif (duration_shortcut := _parse_duration_shortcut(token)) is not None:
+            updates["duration"] = duration_shortcut
         elif lowered in {"gradient", "градиент"}:
             updates["use_gradient"] = True
         elif lowered in {"nogradient", "no_gradient", "line", "линия"}:

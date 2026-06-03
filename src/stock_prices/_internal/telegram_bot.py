@@ -899,6 +899,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "сравни SBER с LKOH за год шортс\n"
         "металлы\n"
         "металлы студио\n"
+        "металлы студио 12с\n"
         "studio metals\n"
         "черновик металлы\n"
         "preset neweconomy duration=12\n"
@@ -940,7 +941,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "USD000UTSTOM selt 2024 close\n"
         "Параметры: from=YYYY-MM-DD to=YYYY-MM-DD shorts draft close capital invest initial=0 monthly=30000 "
         "или по-русски: с 2020 по 2024, каждый месяц 30к₽, по 30 тыс рублей в месяц, в месяц по 30к₽. "
-        "duration=12 fps=24 theme=default|aurora|studio"
+        "duration=12 или коротко 12s/12с. fps=24 theme=default|aurora|studio"
     )
 
 
