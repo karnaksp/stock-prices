@@ -86,7 +86,10 @@ hide:
     top drafts
     топ черновики
     top shorts
+    top shorts studio
+    top shorts aurora
     топ шортсы
+    топ шортсы студио
     случайный черновик
     random draft
     /random_draft
@@ -168,7 +171,10 @@ YDEX OZON за полгода shorts
 top drafts
 топ черновики
 top shorts
+top shorts studio
+top shorts aurora
 топ шортсы
+топ шортсы студио
 случайный черновик
 random draft
 /random_draft
@@ -181,6 +187,7 @@ random draft
 post LKOH SBER 2020 2024 без рендера дает skeleton текста для Пульса
 /posts открывает кнопки готовых текстовых пакетов без рендера
 /pack показывает top-сценарии сразу в трех форматах: шортс, черновик, пост без рендера
+top shorts studio и top shorts aurora запускают всю top-серию в выбранной теме
 кнопки /menu открывают помощь, top-shorts сценарии, идеи, примеры, draft-прогоны и очередь
 кнопки /ideas подписаны по-русски
 follow-up кнопки после preset/custom-видео: черновик 4s / шортс 16s / вариант 12s / Aurora / Studio
