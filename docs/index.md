@@ -77,8 +77,11 @@ hide:
 === "Telegram"
 
     ```text
+    /start
     /menu
     /меню
+    /shorts SBER LKOH за год
+    /draft metals
     /ideas
     /drafts
     /идеи
@@ -164,12 +167,17 @@ hide:
 LKOH
 SBER LKOH 2020 2024
 SBER LKOH за 10 лет shorts
+/shorts SBER LKOH за год
+/draft metals
 YDEX OZON за 6 месяцев shorts
 YDEX OZON за полгода shorts
 сделай шортс про SBER и LKOH за полгода для Пульса
 сравни SBER с LKOH за год шортс
 /menu
 /меню
+/start
+/shorts SBER LKOH за год
+/draft metals
 /ideas
 /drafts
 /posts
@@ -205,6 +213,7 @@ random draft
 Текст для Пульса после каждого MP4
 post LKOH SBER 2020 2024 без рендера дает skeleton текста для Пульса
 /posts открывает кнопки готовых текстовых пакетов без рендера
+/shorts <запрос> ставит обычный запрос как shorts, /draft <запрос> ставит его как быстрый черновик
 /pack показывает top-сценарии сразу в трех форматах: шортс, черновик, пост без рендера
 /kits и пакеты открывают кнопочный список публикационных пакетов всех preset-сценариев без рендера
 top shorts studio и top shorts aurora запускают всю top-серию в выбранной теме

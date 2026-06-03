@@ -102,6 +102,81 @@ def test_run_telegram_bot_queues_generation_once(monkeypatch) -> None:
     assert client.videos == [(123, Path("animations/LKOH.mp4"), "LKOH: 2020-01-01 - 2020-01-02")]
 
 
+def test_run_telegram_bot_queues_shorts_slash_command(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 421, "message": {"text": "/shorts LKOH SBER 2020 2024", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), duration=30, fps=20),
+    )
+    generated: list[tuple[str | None, int, int, bool, list[str]]] = []
+
+    def fake_generate(request, job_id=None):
+        generated.append(
+            (
+                job_id,
+                request.render.duration,
+                request.render.fps,
+                request.render.use_gradient,
+                [spec.ticker for spec in request.ticker_specs],
+            )
+        )
+        return Path("animations/LKOH-SBER-shorts.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert generated == [("tg-421", 16, 24, True, ["LKOH", "SBER"])]
+    assert any("16s/24fps" in message for _chat_id, message in client.messages)
+    assert client.videos == [(123, Path("animations/LKOH-SBER-shorts.mp4"), "LKOH / SBER: 2020-01-01 - 2024-12-31")]
+
+
+def test_run_telegram_bot_queues_draft_slash_command_for_preset(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 422, "message": {"text": "/draft metals", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), duration=30, fps=20, use_gradient=True),
+    )
+    generated: list[tuple[str | None, int, int, bool, list[str]]] = []
+
+    def fake_generate(request, job_id=None):
+        generated.append(
+            (
+                job_id,
+                request.render.duration,
+                request.render.fps,
+                request.render.use_gradient,
+                [spec.ticker for spec in request.ticker_specs],
+            )
+        )
+        return Path("animations/metals-draft.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert generated == [("tg-422", 4, 8, False, ["GC=F", "SI=F", "PA=F"])]
+    assert client.videos == [(123, Path("animations/metals-draft.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
+
+
 def test_run_telegram_bot_queues_preset_from_inline_button(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -1875,8 +1950,11 @@ def test_help_text_mentions_investments_and_themes() -> None:
     handle_ticker_message(client, settings, 123, "/help")
 
     help_text = client.messages[0][1]
+    assert "/start" in help_text
     assert "/menu" in help_text
     assert "/меню" in help_text
+    assert "/shorts SBER LKOH за год" in help_text
+    assert "/draft metals" in help_text
     assert "monthly=30000" in help_text
     assert "30к" in help_text
     assert "shorts" in help_text
@@ -1965,6 +2043,60 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     assert keyboard[8][0] == {"text": "Обложки", "callback_data": "menu:covers"}
     assert keyboard[9][0] == {"text": "Очередь", "callback_data": "menu:queue"}
     assert keyboard[-1][0]["callback_data"] == "menu:help"
+    assert client.videos == []
+
+
+def test_handle_ticker_message_start_shows_main_menu() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "/start")
+
+    assert "Меню Telegram" in client.messages[0][1]
+    assert client.message_markups[0] == telegram_bot.main_menu_keyboard()
+    assert client.videos == []
+
+
+def test_handle_ticker_message_shorts_slash_without_payload_shows_presets(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("empty /shorts command must not render video")
+
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    handle_ticker_message(client, settings, 123, "/shorts")
+
+    assert "Готовые сценарии для Пульса" in client.messages[0][1]
+    assert "preset metals" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.preset_inline_keyboard(mode="shorts")]
+    assert client.videos == []
+
+
+def test_handle_ticker_message_draft_slash_without_payload_shows_draft_presets(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("empty /draft command must not render video")
+
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    handle_ticker_message(client, settings, 123, "/draft")
+
+    assert "Готовые сценарии для Пульса" in client.messages[0][1]
+    assert "Draft-кнопки ниже" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.preset_inline_keyboard(mode="draft")]
     assert client.videos == []
 
 
