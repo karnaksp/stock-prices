@@ -214,9 +214,9 @@ CONTENT_PLAN_PRESETS = (
     "neweconomy",
     "metals",
     "banks",
-    "dividends",
-    "vodka",
-    "mechel",
+    "telecoms",
+    "retailers",
+    "utilities",
     "bluechips",
 )
 CUSTOM_FOLLOWUP_MODES = {
@@ -601,7 +601,8 @@ def format_content_plan() -> str:
     lines = [
         "Контент-план для Пульса:",
         "",
-        "7 выпусков без LLM и автопридумывания идей. Можно поставить весь план в очередь одной кнопкой или выпускать по одному ролику в день.",
+        "7 выпусков без LLM и автопридумывания идей: мечта роста, металлы, банки, связь, ритейл, энергетика и спокойная база.",
+        "Можно поставить весь план в очередь одной кнопкой или выпускать по одному ролику в день.",
         "",
     ]
     for index, preset in enumerate(_content_plan_preset_list(), start=1):
@@ -764,7 +765,7 @@ def format_weekly_publication_pack() -> str:
     lines = [
         "Недельный выпуск для Пульса:",
         "",
-        "Ставлю 7 shorts в очередь и даю компактный чеклист публикаций.",
+        "Ставлю 7 shorts в очередь и даю компактный чеклист публикаций: хайп, сырье и тихие российские истории в одной неделе.",
         "",
     ]
     for index, preset in enumerate(_content_plan_preset_list(), start=1):

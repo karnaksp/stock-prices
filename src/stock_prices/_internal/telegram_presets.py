@@ -93,7 +93,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="ироничный funk / disco beat без тяжелого драматизма",
         music_tracks=("ABBA - Money, Money, Money", "Boney M. - Rasputin", "Parov Stelar - Booty Swing"),
         cover_texts=("Алкогольные акции удивили", "Водка против рынка", "Не IT, а график резкий"),
-        categories=("quiet", "weekly"),
+        categories=("quiet",),
         button_label="Алкоголь",
     ),
     TelegramPreset(
@@ -115,7 +115,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="тяжелый industrial beat или драматичный trailer percussion",
         music_tracks=("The Prodigy - Firestarter", "Gesaffelstein - Pursuit", "Nine Inch Nails - The Hand That Feeds"),
         cover_texts=("Мечел: боль или шанс?", "Циклическая акция без жалости", "30 000 ₽/мес в Мечел"),
-        categories=("drama", "commodities", "weekly"),
+        categories=("drama", "commodities"),
         button_label="Мечел",
     ),
     TelegramPreset(
@@ -265,7 +265,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="cinematic groove без лишней драмы, с акцентом на финальный результат",
         music_tracks=("Massive Attack - Teardrop", "M83 - Midnight City", "Bonobo - Kiara"),
         cover_texts=("Дивиденды без иллюзий", "SNGSP / TRNFP / CHMF", "Префы, циклы и регулярные покупки"),
-        categories=("quiet", "commodities", "weekly"),
+        categories=("quiet", "commodities"),
         button_label="Дивиденды",
     ),
     TelegramPreset(
@@ -331,7 +331,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="спокойный уверенный beat с легким напряжением на смене лидера",
         music_tracks=("The xx - Intro", "Moby - Porcelain", "Tame Impala - The Less I Know The Better"),
         cover_texts=("Связь: скучно или эффективно?", "MTSS / RTKM / RTKMP", "Дивиденды против ожидания"),
-        categories=("quiet",),
+        categories=("quiet", "weekly"),
         button_label="Связь",
     ),
     TelegramPreset(
@@ -353,7 +353,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="легкий groove с ироничным акцентом на просадках и смене лидера",
         music_tracks=("Gorillaz - Feel Good Inc.", "Parov Stelar - Booty Swing", "Phoenix - Lisztomania"),
         cover_texts=("Ритейл: понятный бизнес?", "MGNT / FIVE / FIXP", "Магазины против графика"),
-        categories=("quiet", "drama"),
+        categories=("quiet", "drama", "weekly"),
         button_label="Ритейл",
     ),
     TelegramPreset(
@@ -375,7 +375,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="медленный cinematic beat, без лишней драмы, с акцентом на финальном сравнении",
         music_tracks=("Bonobo - Kiara", "M83 - Midnight City", "Massive Attack - Teardrop"),
         cover_texts=("Скучная инфраструктура", "IRAO / FEES / HYDR", "Энергетика на длинной дистанции"),
-        categories=("quiet",),
+        categories=("quiet", "weekly"),
         button_label="Энергетика",
     ),
 )
@@ -415,7 +415,7 @@ PRESET_CATEGORIES: tuple[TelegramPresetCategory, ...] = (
         aliases=("неделя", "план", "weekly"),
         title="Недельный контент-план",
         description="Семь сценариев для регулярной недели публикаций: от драмы до спокойной базы.",
-        preset_names=("neweconomy", "metals", "banks", "dividends", "vodka", "mechel", "bluechips"),
+        preset_names=("neweconomy", "metals", "banks", "telecoms", "retailers", "utilities", "bluechips"),
     ),
 )
 
