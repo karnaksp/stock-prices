@@ -312,6 +312,72 @@ PRESETS: tuple[TelegramPreset, ...] = (
         categories=("growth",),
         button_label="Российский тех",
     ),
+    TelegramPreset(
+        name="telecoms",
+        aliases=("telecom", "telecoms", "связь", "телеком", "мтс", "ростелеком"),
+        title="Связь и дивиденды",
+        description="MTSS / RTKM / RTKMP: скучная защитная идея, дивиденды и разная траектория внутри сектора.",
+        request=(
+            "MTSS RTKM RTKMP from=2014-01-01 to=2026-06-01 RUB capital invest "
+            "initial=0 monthly=30000 shorts theme=default title=Telecom_Dividends"
+        ),
+        hook="Связь кажется скучной защитной историей. Но регулярные покупки показывают, где была стабильность, а где инвестор просто ждал.",
+        post_text=(
+            "MTSS, RTKM и RTKMP хорошо работают как спокойный, но обсуждаемый сюжет для Пульса. "
+            "Бизнес понятный, бренды знакомые, ожидания часто дивидендные. На графике видно, что даже внутри одного "
+            "сектора обычка, префы и дивидендная история могут вести инвестора совсем по-разному."
+        ),
+        tags=("#пульс", "#мтс", "#ростелеком", "#дивиденды"),
+        music_mood="спокойный уверенный beat с легким напряжением на смене лидера",
+        music_tracks=("The xx - Intro", "Moby - Porcelain", "Tame Impala - The Less I Know The Better"),
+        cover_texts=("Связь: скучно или эффективно?", "MTSS / RTKM / RTKMP", "Дивиденды против ожидания"),
+        categories=("quiet",),
+        button_label="Связь",
+    ),
+    TelegramPreset(
+        name="retailers",
+        aliases=("retail", "retailers", "ритейл", "магазины", "магнит", "x5", "fixprice"),
+        title="Ритейл после перестройки рынка",
+        description="MGNT / FIVE / FIXP: понятный потребительский бизнес, но не всегда понятный график.",
+        request=(
+            "MGNT FIVE FIXP from=2021-12-10 to=2026-06-01 RUB capital invest "
+            "initial=0 monthly=30000 shorts theme=studio title=Retail_Consumer"
+        ),
+        hook="Продуктовый и дискаунт-ритейл выглядит понятнее IT и сырья. Но понятный бизнес не гарантирует понятный график.",
+        post_text=(
+            "MGNT, FIVE и FIXP - бытовой сюжет, который легко обсуждать: магазины рядом с домом, федеральный ритейл, "
+            "дискаунтеры и перестройка рынка. Такой ролик не про модную ракету, а про вопрос, который часто задает "
+            "частный инвестор: если бизнес понятен в жизни, должен ли он быть понятным на бирже?"
+        ),
+        tags=("#пульс", "#ритейл", "#магнит", "#российскиеакции"),
+        music_mood="легкий groove с ироничным акцентом на просадках и смене лидера",
+        music_tracks=("Gorillaz - Feel Good Inc.", "Parov Stelar - Booty Swing", "Phoenix - Lisztomania"),
+        cover_texts=("Ритейл: понятный бизнес?", "MGNT / FIVE / FIXP", "Магазины против графика"),
+        categories=("quiet", "drama"),
+        button_label="Ритейл",
+    ),
+    TelegramPreset(
+        name="utilities",
+        aliases=("utilities", "power", "energygrid", "электроэнергетика", "сети", "ирао", "россети", "русгидро"),
+        title="Электроэнергетика: скучная инфраструктура",
+        description="IRAO / FEES / HYDR: стратегически важный сектор, низкий хайп и проверка доходности на дистанции.",
+        request=(
+            "IRAO FEES HYDR from=2014-01-01 to=2026-06-01 RUB capital invest "
+            "initial=0 monthly=30000 shorts theme=aurora title=Utilities_Grid"
+        ),
+        hook="Электроэнергетика почти никогда не выглядит модной идеей. Тем интереснее проверить, что дала скучная инфраструктура на длинной дистанции.",
+        post_text=(
+            "IRAO, FEES и HYDR дают спокойный, но полезный для Пульса график: инфраструктура, государственное влияние, "
+            "дешевые оценки и ожидание дивидендов. Это хороший сюжет про то, что 'важный сектор' и 'дешево выглядит' "
+            "не всегда означают простой инвестиционный результат."
+        ),
+        tags=("#пульс", "#электроэнергетика", "#ирао", "#российскиеакции"),
+        music_mood="медленный cinematic beat, без лишней драмы, с акцентом на финальном сравнении",
+        music_tracks=("Bonobo - Kiara", "M83 - Midnight City", "Massive Attack - Teardrop"),
+        cover_texts=("Скучная инфраструктура", "IRAO / FEES / HYDR", "Энергетика на длинной дистанции"),
+        categories=("quiet",),
+        button_label="Энергетика",
+    ),
 )
 
 
@@ -321,14 +387,14 @@ PRESET_CATEGORIES: tuple[TelegramPresetCategory, ...] = (
         aliases=("тихий", "тихие", "спокойный", "спокойные", "менее хайповые", "quiet"),
         title="Тихие российские истории",
         description="Узнаваемые бумаги без ставки только на хайп: банки, дивиденды, госы и понятные бизнесы.",
-        preset_names=("bluechips", "banks", "dividends", "stateowned", "vodka"),
+        preset_names=("bluechips", "banks", "dividends", "stateowned", "vodka", "telecoms", "retailers", "utilities"),
     ),
     TelegramPresetCategory(
         name="drama",
         aliases=("драма", "драматичный", "просадки", "памп", "дамп", "drama"),
         title="Драмы и просадки",
         description="Сюжеты, где аудитория сразу видит цену хайпа, цикла или неудачного выбора.",
-        preset_names=("neweconomy", "builders", "wagons", "mechel", "coalminers"),
+        preset_names=("neweconomy", "builders", "wagons", "mechel", "coalminers", "retailers"),
     ),
     TelegramPresetCategory(
         name="commodities",
@@ -396,6 +462,27 @@ _DIRECT_PRESET_ALIASES = {
     "techru": "techru",
     "российский тех": "techru",
     "технологии": "techru",
+    "telecoms": "telecoms",
+    "telecom": "telecoms",
+    "связь": "telecoms",
+    "телеком": "telecoms",
+    "мтс": "telecoms",
+    "ростелеком": "telecoms",
+    "retailers": "retailers",
+    "retail": "retailers",
+    "ритейл": "retailers",
+    "магазины": "retailers",
+    "магнит": "retailers",
+    "x5": "retailers",
+    "fixprice": "retailers",
+    "utilities": "utilities",
+    "power": "utilities",
+    "электроэнергетика": "utilities",
+    "энергетика": "utilities",
+    "сети": "utilities",
+    "ирао": "utilities",
+    "россети": "utilities",
+    "русгидро": "utilities",
 }
 _DIRECT_MODE_PREFIXES = {
     "short": "shorts",
@@ -562,9 +649,14 @@ def ready_preset_commands(preset: TelegramPreset) -> tuple[str, ...]:
     )
 
 
-def format_preset_category_list() -> str:
+def format_preset_category_list(mode: str = "shorts") -> str:
+    if mode not in {"shorts", "draft"}:
+        msg = f"Unknown preset category mode: {mode}."
+        raise ValueError(msg)
+    title = "Черновики по категориям для Пульса:" if mode == "draft" else "Истории для Пульса по категориям:"
+    action_hint = "Кнопки категорий откроют draft-запуск." if mode == "draft" else "Кнопки категорий откроют shorts-запуск."
     lines = [
-        "Истории для Пульса по категориям:",
+        title,
         "",
     ]
     for category in PRESET_CATEGORIES:
@@ -573,12 +665,20 @@ def format_preset_category_list() -> str:
         lines.append(f"Команда: category {category.name}")
         lines.append(f"Сюжеты: {labels}")
         lines.append("")
-    lines.append("Открой категорию кнопкой ниже или напиши: категории, истории, category drama.")
+    lines.append(f"{action_hint} Текстом: категории, истории, category drama.")
     return "\n".join(lines).strip()
 
 
-def format_preset_category(category_name: str) -> str:
+def format_preset_category(category_name: str, mode: str = "shorts") -> str:
+    if mode not in {"shorts", "draft"}:
+        msg = f"Unknown preset category mode: {mode}."
+        raise ValueError(msg)
     category = get_preset_category(category_name)
+    button_hint = (
+        "Кнопки ниже запускают draft 4s по выбранному сценарию."
+        if mode == "draft"
+        else "Кнопки ниже запускают shorts 16s по выбранному сценарию."
+    )
     lines = [
         f"Категория: {category.title}",
         category.description,
@@ -589,7 +689,7 @@ def format_preset_category(category_name: str) -> str:
         lines.append(f"{preset_button_label(preset)} - {preset.description}")
         lines.append(f"Команды: {commands}")
         lines.append("")
-    lines.append("Кнопки ниже запускают shorts 16s по выбранному сценарию. Для пакета с постом, музыкой и обложкой: kit <name>.")
+    lines.append(f"{button_hint} Для пакета с постом, музыкой и обложкой: kit <name>.")
     return "\n".join(lines).strip()
 
 

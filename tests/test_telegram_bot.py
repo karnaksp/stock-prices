@@ -1572,7 +1572,7 @@ def test_run_telegram_bot_menu_callback_opens_help(monkeypatch) -> None:
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers == [("callback-menu-help", "Помощь открыта.")]
-    assert "3 способа начать" in client.messages[0][1]
+    assert "Короткий вход" in client.messages[0][1]
     assert "monthly=30000" in client.messages[0][1]
     assert client.message_markups == [telegram_bot.help_keyboard()]
     assert client.videos == []
@@ -1680,6 +1680,41 @@ def test_run_telegram_bot_preset_category_callback_opens_category(monkeypatch) -
     assert "Категория: Тихие российские истории" in client.messages[0][1]
     assert "Голубые фишки" in client.messages[0][1]
     assert client.message_markups == [telegram_bot.preset_category_keyboard("quiet")]
+    assert client.videos == []
+
+
+def test_run_telegram_bot_preset_category_callback_opens_draft_category(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 68,
+                    "callback_query": {
+                        "id": "callback-category-quiet-draft",
+                        "data": "category:quiet:draft",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-category-quiet-draft", "Категория открыта.")]
+    assert "draft 4s" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.preset_category_keyboard("quiet", mode="draft")]
+    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"].endswith(":draft")
     assert client.videos == []
 
 
@@ -1879,10 +1914,8 @@ def test_handle_ticker_message_shows_quick_launch_without_render(monkeypatch) ->
     assert keyboard[0][1] == {"text": "Снять неделю", "callback_data": "menu:publication_week"}
     assert keyboard[1][0] == {"text": "Top Studio", "callback_data": "menu:hot_shorts_studio"}
     assert keyboard[1][1] == {"text": "Случайный", "callback_data": "menu:random_shorts"}
-    assert keyboard[2][0] == {"text": "Пост дня", "callback_data": "menu:daily_post"}
-    assert keyboard[2][1] == {"text": "Посты недели", "callback_data": "menu:weekly_posts"}
-    assert keyboard[3][0] == {"text": "Очередь", "callback_data": "menu:queue"}
-    assert keyboard[3][1] == {"text": "Меню", "callback_data": "menu:main_menu"}
+    assert keyboard[2][0] == {"text": "Очередь", "callback_data": "menu:queue"}
+    assert keyboard[2][1] == {"text": "Меню", "callback_data": "menu:main_menu"}
     assert client.videos == []
 
 
@@ -3509,23 +3542,25 @@ def test_help_text_is_compact_and_actionable() -> None:
     handle_ticker_message(client, settings, 123, "/help")
 
     help_text = client.messages[0][1]
-    assert "3 способа начать" in help_text
+    assert "Короткий вход" in help_text
     assert len(help_text) < 700
     assert len(help_text.splitlines()) <= 14
     assert client.message_markups == [telegram_bot.help_keyboard()]
     assert "/shoot" in help_text
     assert "/queue" in help_text
     assert "/shorts SBER LKOH за год" in help_text
+    assert "top quiet" in help_text
     assert "/guide" in help_text
-    assert "Справочник" in help_text
+    assert "Истории" in help_text
+    assert "Справочник" not in help_text
     assert "/draft metals" not in help_text
     assert "AAPL global USD shorts" not in help_text
     assert "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient" in help_text
     assert "monthly=30000" in help_text
     assert "top shorts studio" not in help_text
     assert "случайный шортс" not in help_text
-    assert "/week_posts" in help_text
-    assert "/today_post" in help_text
+    assert "/week_posts" not in help_text
+    assert "/today_post" not in help_text
     assert "/posts" not in help_text
     assert "post metals" not in help_text
     assert "theme=default|aurora|studio" not in help_text
@@ -3546,26 +3581,22 @@ def test_handle_ticker_message_shows_main_menu() -> None:
 
     assert "Меню для Пульса" in client.messages[0][1]
     assert "/shoot" in client.messages[0][1]
-    assert "Справочнике" in client.messages[0][1]
+    assert "/guide" in client.messages[0][1]
     assert "топовые shorts-сценарии" not in client.messages[0][1]
     assert "полный пакет shorts" not in client.messages[0][1]
     assert client.message_markups[0] == telegram_bot.main_menu_keyboard()
     keyboard = client.message_markups[0]["inline_keyboard"]
     assert keyboard == [
         [
-            {"text": "Снять", "callback_data": "menu:quick_launch"},
+            {"text": "Снять ролик", "callback_data": "menu:quick_launch"},
             {"text": "День", "callback_data": "menu:publication_day"},
         ],
         [
             {"text": "Неделя", "callback_data": "menu:publication_week"},
-            {"text": "Пакеты", "callback_data": "menu:pack"},
+            {"text": "Истории", "callback_data": "menu:preset_categories"},
         ],
         [
-            {"text": "План", "callback_data": "menu:content_plan"},
             {"text": "Очередь", "callback_data": "menu:queue"},
-        ],
-        [
-            {"text": "Справочник", "callback_data": "menu:reference"},
             {"text": "Справка", "callback_data": "menu:help"},
         ],
     ]
@@ -3600,9 +3631,10 @@ def test_handle_ticker_message_shorts_slash_without_payload_shows_presets(monkey
 
     handle_ticker_message(client, settings, 123, "/shorts")
 
-    assert "Готовые сценарии для Пульса" in client.messages[0][1]
-    assert "preset metals" in client.messages[0][1]
-    assert client.message_markups == [telegram_bot.preset_inline_keyboard(mode="shorts")]
+    assert "Истории для Пульса по категориям" in client.messages[0][1]
+    assert "Тихие российские истории" in client.messages[0][1]
+    assert "preset metals" not in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.preset_category_inline_keyboard(mode="shorts")]
     assert client.videos == []
 
 
@@ -3620,9 +3652,14 @@ def test_handle_ticker_message_draft_slash_without_payload_shows_draft_presets(m
 
     handle_ticker_message(client, settings, 123, "/draft")
 
-    assert "Готовые сценарии для Пульса" in client.messages[0][1]
-    assert "Draft-кнопки ниже" in client.messages[0][1]
-    assert client.message_markups == [telegram_bot.preset_inline_keyboard(mode="draft")]
+    assert "Черновики по категориям для Пульса" in client.messages[0][1]
+    assert "draft-запуск" in client.messages[0][1]
+    assert "preset metals" not in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.preset_category_inline_keyboard(mode="draft")]
+    assert client.message_markups[0]["inline_keyboard"][-1][0] == {
+        "text": "Полный список",
+        "callback_data": "menu:draft_presets",
+    }
     assert client.videos == []
 
 
@@ -4070,13 +4107,10 @@ def test_handle_ticker_message_lists_draft_presets() -> None:
     handle_ticker_message(client, settings, 123, "/drafts")
 
     preset_text = client.messages[0][1]
-    assert "draft" in preset_text
-    assert "preset metals" in preset_text
-    assert "preset neweconomy" in preset_text
-    assert "preset stateowned" in preset_text
-    assert "preset banks" in preset_text
-    assert "/queue" in preset_text
-    assert client.message_markups[0] == _expected_preset_keyboard("draft")
+    assert "Черновики по категориям для Пульса" in preset_text
+    assert "draft-запуск" in preset_text
+    assert "preset metals" not in preset_text
+    assert client.message_markups[0] == telegram_bot.preset_category_inline_keyboard(mode="draft")
     assert client.videos == []
 
 
@@ -4089,8 +4123,8 @@ def test_handle_ticker_message_lists_draft_presets_with_russian_command() -> Non
 
     handle_ticker_message(client, settings, 123, "/черновики")
 
-    assert "draft" in client.messages[0][1]
-    assert client.message_markups[0]["inline_keyboard"][0][1]["callback_data"] == "preset:metals:draft"
+    assert "Черновики по категориям" in client.messages[0][1]
+    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "category:quiet:draft"
     assert client.videos == []
 
 
@@ -4582,6 +4616,27 @@ def test_parse_telegram_video_request_accepts_direct_draft_preset_shortcut() -> 
     assert parsed.request.render.use_gradient is False
 
 
+@pytest.mark.parametrize(
+    ("text", "preset_name", "tickers"),
+    [
+        ("телеком", "telecoms", ["MTSS", "RTKM", "RTKMP"]),
+        ("ритейл studio", "retailers", ["MGNT", "FIVE", "FIXP"]),
+        ("энергетика", "utilities", ["IRAO", "FEES", "HYDR"]),
+    ],
+)
+def test_parse_telegram_video_request_accepts_new_quiet_preset_shortcuts(
+    text: str, preset_name: str, tickers: list[str]
+) -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request(text, base)
+
+    assert parsed.preset_name == preset_name
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == tickers
+    assert parsed.request.render.with_investments is True
+    assert parsed.request.render.monthly_investment == 30_000
+
+
 def test_parse_telegram_video_request_accepts_direct_preset_theme_suffix() -> None:
     base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), theme="default")
 
@@ -4828,4 +4883,7 @@ def test_all_pulse_presets_have_human_button_labels() -> None:
     assert "Банки" in labels
     assert "Дивиденды" in labels
     assert "Строители" in labels
+    assert "Связь" in labels
+    assert "Ритейл" in labels
+    assert "Энергетика" in labels
     assert all(label and len(label) <= 24 for label in labels)
