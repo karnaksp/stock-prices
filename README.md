@@ -114,6 +114,8 @@ TICKER|ENGINE|MARKET
 - `/guide` или `шпаргалка` - рабочий процесс публикации без длинного списка команд.
 - `/queue` или `очередь` - статус активной и ожидающих задач.
 
+При запуске бот обновляет встроенное меню команд Telegram: `/shoot`, `/publish_day`, `/publish_week`, `/shorts`, `/draft`, `/queue`, `/today_post`, `/week_posts`, `/help`.
+
 Прямой запуск ролика:
 
 ```text

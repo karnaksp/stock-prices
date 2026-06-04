@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import date
 from pathlib import Path
 from threading import Event
@@ -21,6 +22,7 @@ class FakeClient:
         self.message_markups: list[dict | None] = []
         self.videos: list[tuple[int, Path, str]] = []
         self.callback_answers: list[tuple[str, str]] = []
+        self.command_menus: list[list[dict[str, str]]] = []
 
     def send_message(self, chat_id: int, text: str, reply_markup: dict | None = None) -> None:
         self.messages.append((chat_id, text))
@@ -32,11 +34,99 @@ class FakeClient:
     def answer_callback_query(self, callback_query_id: str, text: str = "") -> None:
         self.callback_answers.append((callback_query_id, text))
 
+    def set_my_commands(self, commands: list[dict[str, str]]) -> None:
+        self.command_menus.append(commands)
+
 
 def _expected_preset_keyboard(mode: str = "shorts", columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
     suffix = ":draft" if mode == "draft" else ""
     buttons = [{"text": preset_button_label(preset), "callback_data": f"preset:{preset.name}{suffix}"} for preset in PRESETS]
     return {"inline_keyboard": [buttons[index : index + columns] for index in range(0, len(buttons), columns)]}
+
+
+def test_telegram_bot_command_menu_is_compact() -> None:
+    commands = telegram_bot.telegram_bot_command_menu()
+
+    assert [item["command"] for item in commands] == [
+        "shoot",
+        "publish_day",
+        "publish_week",
+        "shorts",
+        "draft",
+        "queue",
+        "today_post",
+        "week_posts",
+        "help",
+    ]
+    assert len(commands) <= 9
+    assert all(1 <= len(item["description"]) <= 256 for item in commands)
+    assert all("/" not in item["command"] for item in commands)
+    assert all(item["command"].replace("_", "").isalnum() and item["command"].islower() for item in commands)
+
+
+def test_telegram_client_sets_my_commands(monkeypatch) -> None:
+    calls = []
+
+    class FakeResponse:
+        ok = True
+        text = '{"ok": true, "result": true}'
+
+        def json(self):
+            return {"ok": True, "result": True}
+
+    def fake_post(url, **kwargs):
+        calls.append((url, kwargs))
+        return FakeResponse()
+
+    monkeypatch.setattr(requests, "post", fake_post)
+
+    TelegramClient("123456:SECRET").set_my_commands(telegram_bot.telegram_bot_command_menu())
+
+    assert len(calls) == 1
+    url, kwargs = calls[0]
+    assert url == "https://api.telegram.org/bot123456:SECRET/setMyCommands"
+    commands = json.loads(kwargs["data"]["commands"])
+    assert commands[0] == {"command": "shoot", "description": "быстрый пульт для роликов"}
+    assert commands[-1]["command"] == "help"
+
+
+def test_configure_telegram_command_menu_logs_and_continues(caplog) -> None:
+    class FailingClient(FakeClient):
+        def set_my_commands(self, commands: list[dict[str, str]]) -> None:
+            raise TelegramApiError("temporary api failure")
+
+    telegram_bot.configure_telegram_command_menu(FailingClient())
+
+    assert "Failed to update Telegram bot command menu." in caplog.text
+
+
+def test_run_telegram_bot_configures_command_menu(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+            self.calls: list[str] = []
+
+        def set_my_commands(self, commands: list[dict[str, str]]) -> None:
+            self.calls.append("set_my_commands")
+            super().set_my_commands(commands)
+
+        def get_updates(self, *_args, **_kwargs):
+            self.calls.append("get_updates")
+            return []
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.command_menus == [telegram_bot.telegram_bot_command_menu()]
+    assert client.calls == ["set_my_commands", "get_updates"]
 
 
 def test_handle_ticker_message_generates_video(monkeypatch) -> None:

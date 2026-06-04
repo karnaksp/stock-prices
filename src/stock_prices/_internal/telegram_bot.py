@@ -34,6 +34,23 @@ class TelegramApiError(RuntimeError):
     pass
 
 
+TELEGRAM_BOT_COMMANDS: tuple[tuple[str, str], ...] = (
+    ("shoot", "быстрый пульт для роликов"),
+    ("publish_day", "ролик дня и пакет поста"),
+    ("publish_week", "7 роликов на неделю"),
+    ("shorts", "ролик по запросу"),
+    ("draft", "быстрый черновик"),
+    ("queue", "статус очереди"),
+    ("today_post", "текст поста дня"),
+    ("week_posts", "посты недели"),
+    ("help", "короткая справка"),
+)
+
+
+def telegram_bot_command_menu() -> list[dict[str, str]]:
+    return [{"command": command, "description": description} for command, description in TELEGRAM_BOT_COMMANDS]
+
+
 def _redact_token(text: str, token: str) -> str:
     return text.replace(token, "<telegram-token>")
 
@@ -70,6 +87,9 @@ class TelegramClient:
         if reply_markup is not None:
             data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
         self.call("sendMessage", **data)
+
+    def set_my_commands(self, commands: list[dict[str, str]]) -> None:
+        self.call("setMyCommands", commands=json.dumps(commands, ensure_ascii=False))
 
     def answer_callback_query(self, callback_query_id: str, text: str = "") -> None:
         data: dict[str, Any] = {"callback_query_id": callback_query_id}
@@ -1545,6 +1565,13 @@ def cleanup_old_outputs(output_dir: Path, retention_days: int, keep: set[Path] |
     return removed
 
 
+def configure_telegram_command_menu(client: TelegramClient) -> None:
+    try:
+        client.set_my_commands(telegram_bot_command_menu())
+    except TelegramApiError:
+        logging.warning("Failed to update Telegram bot command menu.", exc_info=True)
+
+
 def _slash_command_and_payload(text: str) -> tuple[str, str] | None:
     stripped = text.strip()
     if not stripped.startswith("/"):
@@ -2517,6 +2544,7 @@ def handle_ticker_message(
 
 def run_telegram_bot(settings: TelegramBotSettings) -> None:
     client = TelegramClient(settings.token, settings.poll_timeout)
+    configure_telegram_command_menu(client)
     job_queue = TelegramJobQueue(client, settings)
     job_queue.start()
     offset: int | None = None
