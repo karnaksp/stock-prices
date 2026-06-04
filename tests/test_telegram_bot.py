@@ -11,7 +11,14 @@ import requests
 
 from stock_prices._internal import telegram_bot
 from stock_prices._internal.models import RenderSettings
-from stock_prices._internal.telegram_presets import PRESETS, format_pulse_post, preset_button_label, preset_followup_keyboard
+from stock_prices._internal.telegram_presets import (
+    PRESET_CATEGORIES,
+    PRESETS,
+    format_pulse_post,
+    get_preset,
+    preset_button_label,
+    preset_followup_keyboard,
+)
 from stock_prices._internal.telegram_requests import parse_telegram_video_request
 from stock_prices._internal.telegram_bot import TelegramApiError, TelegramBotSettings, TelegramClient, cleanup_old_outputs, handle_ticker_message
 
@@ -1463,7 +1470,77 @@ def test_run_telegram_bot_menu_callback_opens_reference(monkeypatch) -> None:
     assert client.callback_answers == [("callback-menu-reference", "Справочник открыт.")]
     assert "Справочник" in client.messages[0][1]
     assert "музыка" in client.messages[0][1]
+    assert client.message_markups[0]["inline_keyboard"][0][0] == {"text": "Истории", "callback_data": "menu:preset_categories"}
     assert client.message_markups == [telegram_bot.reference_keyboard()]
+    assert client.videos == []
+
+
+def test_run_telegram_bot_menu_callback_opens_preset_categories(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 66,
+                    "callback_query": {
+                        "id": "callback-menu-preset-categories",
+                        "data": "menu:preset_categories",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-preset-categories", "Истории открыты.")]
+    assert "Истории для Пульса по категориям" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.preset_category_inline_keyboard()]
+    assert client.videos == []
+
+
+def test_run_telegram_bot_preset_category_callback_opens_category(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 67,
+                    "callback_query": {
+                        "id": "callback-category-quiet",
+                        "data": "category:quiet",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-category-quiet", "Категория открыта.")]
+    assert "Категория: Тихие российские истории" in client.messages[0][1]
+    assert "Голубые фишки" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.preset_category_keyboard("quiet")]
     assert client.videos == []
 
 
@@ -2277,6 +2354,10 @@ def test_run_telegram_bot_opens_preset_kit_without_render(monkeypatch) -> None:
     assert "Шортс: preset metals" in kit_text
     assert "Варианты тем: variants metals" in kit_text
     assert "Пост без рендера: post metals" in kit_text
+    assert "Готовые команды:" in kit_text
+    assert "- preset metals" in kit_text
+    assert "- gold studio" in kit_text
+    assert "- черновик gold" in kit_text
     assert "Треки-референсы" in kit_text
     assert client.message_markups == [telegram_bot.preset_kit_keyboard("metals")]
     assert client.videos == []
@@ -3783,6 +3864,60 @@ def test_handle_ticker_message_lists_pulse_presets_with_russian_command() -> Non
     assert "preset metals" in client.messages[0][1]
     assert client.message_markups[0]["inline_keyboard"][0][1]["text"] == "Металлы"
     assert client.message_markups[0]["inline_keyboard"][0][1]["callback_data"] == "preset:metals"
+    assert client.videos == []
+
+
+def test_all_pulse_presets_have_valid_categories() -> None:
+    category_names = {category.name for category in PRESET_CATEGORIES}
+    preset_names = {preset.name for preset in PRESETS}
+
+    assert category_names == {"quiet", "drama", "commodities", "growth", "weekly"}
+    for preset in PRESETS:
+        assert preset.categories
+        assert set(preset.categories) <= category_names
+
+    for category in PRESET_CATEGORIES:
+        assert category.preset_names
+        assert set(category.preset_names) <= preset_names
+        for preset_name in category.preset_names:
+            assert category.name in get_preset(preset_name).categories
+
+
+def test_handle_ticker_message_lists_preset_categories() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "категории")
+
+    category_text = client.messages[0][1]
+    assert "Истории для Пульса по категориям" in category_text
+    assert "Тихие российские истории" in category_text
+    assert "Драмы и просадки" in category_text
+    assert "category drama" in category_text
+    assert client.message_markups[0] == telegram_bot.preset_category_inline_keyboard()
+    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "category:quiet"
+    assert client.videos == []
+
+
+def test_handle_ticker_message_opens_preset_category() -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    handle_ticker_message(client, settings, 123, "category drama")
+
+    category_text = client.messages[0][1]
+    assert "Категория: Драмы и просадки" in category_text
+    assert "Новая экономика" in category_text
+    assert "Команды: preset neweconomy" in category_text
+    assert "черновик new" in category_text
+    assert client.message_markups[0] == telegram_bot.preset_category_keyboard("drama")
+    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "preset:neweconomy:shorts"
     assert client.videos == []
 
 
