@@ -41,14 +41,10 @@ class TelegramApiError(RuntimeError):
 
 
 TELEGRAM_BOT_COMMANDS: tuple[tuple[str, str], ...] = (
-    ("shoot", "быстрый пульт для роликов"),
-    ("publish_day", "ролик дня и пакет поста"),
-    ("publish_week", "7 роликов на неделю"),
+    ("menu", "главный пульт"),
+    ("shoot", "быстрый запуск"),
     ("shorts", "ролик по запросу"),
-    ("draft", "быстрый черновик"),
     ("queue", "статус очереди"),
-    ("today_post", "текст поста дня"),
-    ("week_posts", "посты недели"),
     ("help", "короткая справка"),
 )
 
@@ -364,23 +360,23 @@ CATEGORY_RANDOM_DRAFT_PREFIXES = {
 
 
 def queue_status_keyboard() -> dict[str, list[list[dict[str, str]]]]:
-    return {"inline_keyboard": [[{"text": "Статус очереди", "callback_data": QUEUE_STATUS_CALLBACK_DATA}]]}
+    return {"inline_keyboard": [[{"text": "⏳ Статус очереди", "callback_data": QUEUE_STATUS_CALLBACK_DATA}]]}
 
 
 def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return {
         "inline_keyboard": [
             [
-                {"text": "Снять ролик", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
-                {"text": "День", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
+                {"text": "📅 День", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
+                {"text": "🗓 Неделя", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_week"},
             ],
             [
-                {"text": "Неделя", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_week"},
-                {"text": "Истории", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
+                {"text": "✨ Top Studio", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_shorts_studio"},
+                {"text": "🎲 Случайный", "callback_data": f"{MENU_CALLBACK_PREFIX}random_shorts"},
             ],
             [
-                {"text": "Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
-                {"text": "Справка", "callback_data": f"{MENU_CALLBACK_PREFIX}help"},
+                {"text": "📚 Истории", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
+                {"text": "⏳ Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
             ],
         ]
     }
@@ -390,60 +386,27 @@ def reference_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return {
         "inline_keyboard": [
             [
-                {"text": "Истории", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
-                {"text": "Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}examples"},
+                {"text": "📚 Истории", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
+                {"text": "💬 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}examples"},
             ],
             [
-                {"text": "Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
-                {"text": "Пакеты", "callback_data": f"{MENU_CALLBACK_PREFIX}kits"},
+                {"text": "📝 Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
+                {"text": "🎵 Музыка", "callback_data": f"{MENU_CALLBACK_PREFIX}music"},
             ],
             [
-                {"text": "Музыка", "callback_data": f"{MENU_CALLBACK_PREFIX}music"},
-                {"text": "Обложки", "callback_data": f"{MENU_CALLBACK_PREFIX}covers"},
-            ],
-            [
-                {"text": "Шпаргалка", "callback_data": f"{MENU_CALLBACK_PREFIX}guide"},
-                {"text": "Назад", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
+                {"text": "🖼 Обложки", "callback_data": f"{MENU_CALLBACK_PREFIX}covers"},
+                {"text": "🏠 Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
             ],
         ]
     }
 
 
 def quick_launch_keyboard() -> dict[str, list[list[dict[str, str]]]]:
-    return {
-        "inline_keyboard": [
-            [
-                {"text": "Снять день", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
-                {"text": "Снять неделю", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_week"},
-            ],
-            [
-                {"text": "Top Studio", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_shorts_studio"},
-                {"text": "Случайный", "callback_data": f"{MENU_CALLBACK_PREFIX}random_shorts"},
-            ],
-            [
-                {"text": "Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
-                {"text": "Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
-            ],
-        ]
-    }
+    return main_menu_keyboard()
 
 
 def help_keyboard() -> dict[str, list[list[dict[str, str]]]]:
-    return {
-        "inline_keyboard": [
-            [
-                {"text": "Снять ролик", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
-                {"text": "Истории", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
-            ],
-            [
-                {"text": "Шпаргалка", "callback_data": f"{MENU_CALLBACK_PREFIX}guide"},
-                {"text": "Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
-            ],
-            [
-                {"text": "Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
-            ],
-        ]
-    }
+    return main_menu_keyboard()
 
 
 def custom_followup_keyboard(request_key: str) -> dict[str, list[list[dict[str, str]]]]:
@@ -1664,8 +1627,8 @@ def _extract_preset_category_callback(update: dict[str, Any]) -> TelegramPresetC
 def _main_menu_text() -> str:
     return (
         "Меню для Пульса\n"
-        "На первом экране только частые действия: /shoot, день, неделя, истории и очередь. "
-        "Подробности: /help или /guide."
+        "Шесть частых действий: день, неделя, Top Studio, случайный ролик, истории и очередь. "
+        "Свой запрос можно просто написать одной строкой."
     )
 
 
@@ -1676,19 +1639,19 @@ def _send_main_menu(client: TelegramClient, chat_id: int) -> None:
 def format_reference_menu() -> str:
     return (
         "Справочник\n\n"
-        "Здесь вторичные разделы: истории по категориям, примеры запросов, тексты для Пульса, "
-        "музыка, обложки и подробная шпаргалка."
+        "Вторичные разделы без немедленного рендера: истории по категориям, примеры запросов, "
+        "готовые тексты, музыка и обложки."
     )
 
 
 def format_quick_launch() -> str:
     return (
         "Быстрый запуск\n\n"
-        "День - один актуальный ролик и пакет для поста.\n"
+        "День - актуальный ролик и пакет поста.\n"
         "Неделя - 7 shorts и чеклист публикаций.\n"
-        "Top Studio - top-сценарии в едином стиле.\n"
+        "Top Studio - сильные сюжеты в едином стиле.\n"
         "Случайный - один готовый сюжет без выбора.\n\n"
-        "Текстом: /shoot, /publish_day, /publish_week, top shorts studio, random shorts."
+        "Свой ролик: напишите тикеры, период и стиль одной строкой. Подробности: /help."
     )
 
 
@@ -1700,20 +1663,20 @@ def production_guide_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return {
         "inline_keyboard": [
             [
-                {"text": "Публикация дня", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
-                {"text": "Неделя публикаций", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_week"},
+                {"text": "📅 День", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
+                {"text": "🗓 Неделя", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_week"},
             ],
             [
-                {"text": "Пост дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_post"},
-                {"text": "Пакет дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_kit"},
+                {"text": "📝 Пост дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_post"},
+                {"text": "📦 Пакет дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_kit"},
             ],
             [
-                {"text": "Контент-план", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
-                {"text": "Пакеты", "callback_data": f"{MENU_CALLBACK_PREFIX}pack"},
+                {"text": "📊 План", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
+                {"text": "🎵 Музыка", "callback_data": f"{MENU_CALLBACK_PREFIX}music"},
             ],
             [
-                {"text": "Справочник", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
-                {"text": "Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
+                {"text": "⏳ Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
+                {"text": "🏠 Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
             ],
         ]
     }
@@ -1748,15 +1711,15 @@ def format_production_guide() -> str:
 
 def _help_text(default_engine: str, default_market: str) -> str:
     return (
-        "Короткий вход\n"
+        "Как попросить ролик\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "1. /shoot - быстрый пульт.\n"
-        "2. истории или top quiet - готовые сюжеты.\n"
-        "3. /shorts SBER LKOH за год - свой график.\n"
-        "4. /queue - активный job и ошибки.\n\n"
-        "Пример инвестиционного ролика:\n"
+        "Кнопками: Снять, День, Неделя, Истории или План.\n"
+        "Текстом: тикеры + период + валюта/режим + стиль.\n\n"
+        "Примеры:\n"
+        "/shorts SBER LKOH за год\n"
         "золото серебро палладий 2010-2026 RUB капитал с нуля ежемесячно 30к₽ gradient\n\n"
-        "Больше примеров: /guide или кнопка Истории."
+        "Готовые сюжеты: истории, top quiet, random shorts.\n"
+        "Статус: /queue. Подробно: /guide."
     )
 
 
