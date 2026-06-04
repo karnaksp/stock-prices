@@ -188,6 +188,7 @@ MENU_ACTIONS = {
     "kits",
     "posts",
     "drafts",
+    "draft_presets",
     "hot_drafts",
     "hot_shorts",
     "hot_shorts_aurora",
@@ -370,19 +371,15 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return {
         "inline_keyboard": [
             [
-                {"text": "Снять", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
+                {"text": "Снять ролик", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
                 {"text": "День", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
             ],
             [
                 {"text": "Неделя", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_week"},
-                {"text": "Пакеты", "callback_data": f"{MENU_CALLBACK_PREFIX}pack"},
+                {"text": "Истории", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
             ],
             [
-                {"text": "План", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
                 {"text": "Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
-            ],
-            [
-                {"text": "Справочник", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
                 {"text": "Справка", "callback_data": f"{MENU_CALLBACK_PREFIX}help"},
             ],
         ]
@@ -397,8 +394,8 @@ def reference_keyboard() -> dict[str, list[list[dict[str, str]]]]:
                 {"text": "Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}examples"},
             ],
             [
-                {"text": "Preset-пакеты", "callback_data": f"{MENU_CALLBACK_PREFIX}kits"},
                 {"text": "Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
+                {"text": "Пакеты", "callback_data": f"{MENU_CALLBACK_PREFIX}kits"},
             ],
             [
                 {"text": "Музыка", "callback_data": f"{MENU_CALLBACK_PREFIX}music"},
@@ -406,7 +403,7 @@ def reference_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             ],
             [
                 {"text": "Шпаргалка", "callback_data": f"{MENU_CALLBACK_PREFIX}guide"},
-                {"text": "Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
+                {"text": "Назад", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
             ],
         ]
     }
@@ -424,10 +421,6 @@ def quick_launch_keyboard() -> dict[str, list[list[dict[str, str]]]]:
                 {"text": "Случайный", "callback_data": f"{MENU_CALLBACK_PREFIX}random_shorts"},
             ],
             [
-                {"text": "Пост дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_post"},
-                {"text": "Посты недели", "callback_data": f"{MENU_CALLBACK_PREFIX}weekly_posts"},
-            ],
-            [
                 {"text": "Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
                 {"text": "Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
             ],
@@ -439,12 +432,15 @@ def help_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return {
         "inline_keyboard": [
             [
-                {"text": "Быстрый запуск", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
-                {"text": "Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
+                {"text": "Снять ролик", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
+                {"text": "Истории", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
             ],
             [
                 {"text": "Шпаргалка", "callback_data": f"{MENU_CALLBACK_PREFIX}guide"},
                 {"text": "Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
+            ],
+            [
+                {"text": "Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
             ],
         ]
     }
@@ -825,31 +821,42 @@ def preset_kit_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str
     return {"inline_keyboard": rows}
 
 
-def preset_category_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
+def preset_category_inline_keyboard(columns: int = 2, mode: str = "shorts") -> dict[str, list[list[dict[str, str]]]]:
+    if mode not in {"shorts", "draft"}:
+        msg = f"Unknown preset category keyboard mode: {mode}."
+        raise ValueError(msg)
+    category_suffix = ":draft" if mode == "draft" else ""
+    all_label = "Полный список" if mode == "draft" else "Все preset"
+    all_callback = "draft_presets" if mode == "draft" else "ideas"
     buttons = [
-        {"text": category.title, "callback_data": f"{PRESET_CATEGORY_CALLBACK_PREFIX}{category.name}"}
+        {"text": category.title, "callback_data": f"{PRESET_CATEGORY_CALLBACK_PREFIX}{category.name}{category_suffix}"}
         for category in PRESET_CATEGORIES
     ]
     rows = [buttons[index : index + columns] for index in range(0, len(buttons), columns)]
     rows.append(
         [
-            {"text": "Все preset", "callback_data": f"{MENU_CALLBACK_PREFIX}ideas"},
+            {"text": all_label, "callback_data": f"{MENU_CALLBACK_PREFIX}{all_callback}"},
             {"text": "Справочник", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
         ]
     )
     return {"inline_keyboard": rows}
 
 
-def preset_category_keyboard(category_name: str, columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
+def preset_category_keyboard(category_name: str, columns: int = 2, mode: str = "shorts") -> dict[str, list[list[dict[str, str]]]]:
+    if mode not in {"shorts", "draft"}:
+        msg = f"Unknown preset category keyboard mode: {mode}."
+        raise ValueError(msg)
     category = get_preset_category(category_name)
+    preset_suffix = ":draft" if mode == "draft" else ":shorts"
+    back_callback = "drafts" if mode == "draft" else "preset_categories"
     buttons = [
-        {"text": preset_button_label(preset), "callback_data": f"preset:{preset.name}:shorts"}
+        {"text": preset_button_label(preset), "callback_data": f"preset:{preset.name}{preset_suffix}"}
         for preset in presets_for_category(category.name)
     ]
     rows = [buttons[index : index + columns] for index in range(0, len(buttons), columns)]
     rows.append(
         [
-            {"text": "Категории", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
+            {"text": "Категории", "callback_data": f"{MENU_CALLBACK_PREFIX}{back_callback}"},
             {"text": "Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
         ]
     )
@@ -952,6 +959,7 @@ class TelegramPresetCategoryCallback:
     callback_query_id: str
     chat_id: int
     category_name: str
+    mode: str = "shorts"
 
 
 @dataclass(frozen=True)
@@ -1640,19 +1648,23 @@ def _extract_preset_category_callback(update: dict[str, Any]) -> TelegramPresetC
     chat_id = chat.get("id")
     if chat_id is None:
         return None
-    category_name = data.removeprefix(PRESET_CATEGORY_CALLBACK_PREFIX).strip().lower()
+    category_payload = data.removeprefix(PRESET_CATEGORY_CALLBACK_PREFIX).strip().lower()
+    category_name, separator, mode = category_payload.partition(":")
+    if separator and mode != "draft":
+        return None
+    callback_mode = mode if separator else "shorts"
     try:
         category = get_preset_category(category_name)
     except ValueError:
         return None
-    return TelegramPresetCategoryCallback(str(callback_query_id), int(chat_id), category.name)
+    return TelegramPresetCategoryCallback(str(callback_query_id), int(chat_id), category.name, callback_mode)
 
 
 def _main_menu_text() -> str:
     return (
         "Меню для Пульса\n"
-        "Первый экран оставлен под рабочие действия. Для быстрого старта напиши /shoot или снять. "
-        "Примеры, музыка, посты и обложки лежат в Справочнике."
+        "На первом экране только частые действия: /shoot, день, неделя, истории и очередь. "
+        "Подробности: /help или /guide."
     )
 
 
@@ -1663,20 +1675,19 @@ def _send_main_menu(client: TelegramClient, chat_id: int) -> None:
 def format_reference_menu() -> str:
     return (
         "Справочник\n\n"
-        "Здесь собраны вторичные разделы, которые не нужны на первом экране: истории по категориям, "
-        "примеры запросов, preset-пакеты, тексты для Пульса, музыка, обложки и подробная шпаргалка."
+        "Здесь вторичные разделы: истории по категориям, примеры запросов, тексты для Пульса, "
+        "музыка, обложки и подробная шпаргалка."
     )
 
 
 def format_quick_launch() -> str:
     return (
         "Быстрый запуск\n\n"
-        "Выбери готовое действие без чтения полного меню.\n"
         "День - один актуальный ролик и пакет для поста.\n"
         "Неделя - 7 shorts и чеклист публикаций.\n"
         "Top Studio - top-сценарии в едином стиле.\n"
         "Случайный - один готовый сюжет без выбора.\n\n"
-        "Текстом: /shoot, снять, /publish_day, /publish_week, top shorts studio, random shorts."
+        "Текстом: /shoot, /publish_day, /publish_week, top shorts studio, random shorts."
     )
 
 
@@ -1736,15 +1747,15 @@ def format_production_guide() -> str:
 
 def _help_text(default_engine: str, default_market: str) -> str:
     return (
-        "3 способа начать\n"
+        "Короткий вход\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
-        "1. /shoot - открыть быстрый пульт.\n"
-        "2. /shorts SBER LKOH за год - поставить свой ролик в очередь.\n"
-        "3. /queue - проверить активный job и ошибки.\n\n"
+        "1. /shoot - быстрый пульт.\n"
+        "2. истории или top quiet - готовые сюжеты.\n"
+        "3. /shorts SBER LKOH за год - свой график.\n"
+        "4. /queue - активный job и ошибки.\n\n"
         "Пример инвестиционного ролика:\n"
         "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n\n"
-        "Команды для производства: /publish_day, /publish_week, /today_post, /week_posts.\n"
-        "Параметры и примеры: /guide или кнопка Справочник."
+        "Больше примеров: /guide или кнопка Истории."
     )
 
 
@@ -2700,8 +2711,8 @@ def handle_ticker_message(
         if not shortcut_text:
             client.send_message(
                 chat_id,
-                format_preset_list(mode),
-                reply_markup=preset_inline_keyboard(mode=mode),
+                format_preset_category_list(mode),
+                reply_markup=preset_category_inline_keyboard(mode=mode),
             )
             return
         text = shortcut_text
@@ -2815,6 +2826,13 @@ def handle_ticker_message(
         return
     preset_list_mode = _preset_list_mode(text)
     if preset_list_mode is not None:
+        if preset_list_mode == "draft":
+            client.send_message(
+                chat_id,
+                format_preset_category_list("draft"),
+                reply_markup=preset_category_inline_keyboard(mode="draft"),
+            )
+            return
         client.send_message(
             chat_id,
             format_preset_list(preset_list_mode),
@@ -2900,8 +2918,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 if not shortcut_text:
                                     client.send_message(
                                         chat_id,
-                                        format_preset_list(shortcut_mode),
-                                        reply_markup=preset_inline_keyboard(mode=shortcut_mode),
+                                        format_preset_category_list(shortcut_mode),
+                                        reply_markup=preset_category_inline_keyboard(mode=shortcut_mode),
                                     )
                                     continue
                                 text = shortcut_text
@@ -3035,6 +3053,13 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                     continue
                                 preset_list_mode = _preset_list_mode(text)
                                 if preset_list_mode is not None:
+                                    if preset_list_mode == "draft":
+                                        client.send_message(
+                                            chat_id,
+                                            format_preset_category_list("draft"),
+                                            reply_markup=preset_category_inline_keyboard(mode="draft"),
+                                        )
+                                        continue
                                     client.send_message(
                                         chat_id,
                                         format_preset_list(preset_list_mode),
@@ -3161,6 +3186,13 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             client.answer_callback_query(menu_callback.callback_query_id, "Меню обновлено.")
                             client.send_message(
                                 menu_callback.chat_id,
+                                format_preset_category_list("draft"),
+                                reply_markup=preset_category_inline_keyboard(mode="draft"),
+                            )
+                        elif menu_callback.action == "draft_presets":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Меню обновлено.")
+                            client.send_message(
+                                menu_callback.chat_id,
                                 format_preset_list("draft"),
                                 reply_markup=preset_inline_keyboard(mode="draft"),
                             )
@@ -3221,8 +3253,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             client.answer_callback_query(category_callback.callback_query_id, "Категория открыта.")
                             client.send_message(
                                 category_callback.chat_id,
-                                format_preset_category(category.name),
-                                reply_markup=preset_category_keyboard(category.name),
+                                format_preset_category(category.name, category_callback.mode),
+                                reply_markup=preset_category_keyboard(category.name, mode=category_callback.mode),
                             )
                         continue
                     queue_callback = _extract_queue_status_callback(update)
