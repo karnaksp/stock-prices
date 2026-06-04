@@ -307,6 +307,59 @@ SHORTS_BATCH_ALIASES = {
     "пакет шортсов",
     "полный пакет шортсов",
 }
+CATEGORY_BATCH_SHORTS_PREFIXES = {
+    "/shorts",
+    "/short",
+    "/шортс",
+    "/шортсы",
+    "shorts",
+    "short",
+    "top",
+    "top shorts",
+    "top short",
+    "шортс",
+    "шортсы",
+    "топ",
+    "топ шортсы",
+    "снять",
+    "снять шортс",
+}
+CATEGORY_BATCH_DRAFT_PREFIXES = {
+    "/draft",
+    "/drafts",
+    "/черновик",
+    "/черновики",
+    "draft",
+    "drafts",
+    "top drafts",
+    "top draft",
+    "черновик",
+    "черновики",
+    "топ черновики",
+}
+CATEGORY_RANDOM_SHORTS_PREFIXES = {
+    "/random",
+    "/random_short",
+    "/random_shorts",
+    "/случайный",
+    "/случайный_шортс",
+    "random",
+    "random short",
+    "random shorts",
+    "случайный",
+    "случайный шортс",
+    "случайный шорт",
+    "случайный ролик",
+}
+CATEGORY_RANDOM_DRAFT_PREFIXES = {
+    "/random_draft",
+    "/случайный_черновик",
+    "random draft",
+    "random drafts",
+    "draft random",
+    "случайный черновик",
+    "черновик случайный",
+}
 
 
 def queue_status_keyboard() -> dict[str, list[list[dict[str, str]]]]:
@@ -901,6 +954,14 @@ class TelegramPresetCategoryCallback:
     category_name: str
 
 
+@dataclass(frozen=True)
+class TelegramCategoryPresetAction:
+    kind: str
+    mode: str
+    category_name: str
+    theme: str | None = None
+
+
 class TelegramJobQueue:
     def __init__(self, client: TelegramClient, settings: TelegramBotSettings) -> None:
         self.client = client
@@ -1010,6 +1071,54 @@ class TelegramJobQueue:
                 )
             )
         return jobs
+
+    def _enqueue_category_presets(
+        self,
+        chat_id: int,
+        update_id: int,
+        category_name: str,
+        mode: str,
+        theme: str | None = None,
+    ) -> list[TelegramJob]:
+        if mode not in {"draft", "shorts"}:
+            msg = f"Unsupported category preset mode: {mode}"
+            raise ValueError(msg)
+        category = get_preset_category(category_name)
+        presets = presets_for_category(category.name)
+        labels = ", ".join(preset_button_label(preset) for preset in presets)
+        theme_suffix = f" theme={theme}" if theme and mode == "shorts" else ""
+        theme_label = f" в теме {theme}" if theme and mode == "shorts" else ""
+        mode_label = "draft-черновиков" if mode == "draft" else "shorts-роликов"
+        self.client.send_message(
+            chat_id,
+            f"Ставлю в очередь {len(presets)} {mode_label} категории {category.title}{theme_label}: {labels}.",
+            reply_markup=queue_status_keyboard(),
+        )
+        jobs: list[TelegramJob] = []
+        for index, preset in enumerate(presets, start=1):
+            job_suffix_theme = f"-{theme}" if theme and mode == "shorts" else ""
+            jobs.append(
+                self.enqueue(
+                    chat_id,
+                    f"preset {preset.name} {mode}{theme_suffix}",
+                    update_id,
+                    job_suffix=f"{category.name}-{mode}{job_suffix_theme}-{index}-{preset.name}",
+                    notify=False,
+                )
+            )
+        return jobs
+
+    def enqueue_category_preset_shorts(
+        self,
+        chat_id: int,
+        update_id: int,
+        category_name: str,
+        theme: str | None = None,
+    ) -> list[TelegramJob]:
+        return self._enqueue_category_presets(chat_id, update_id, category_name, "shorts", theme=theme)
+
+    def enqueue_category_preset_drafts(self, chat_id: int, update_id: int, category_name: str) -> list[TelegramJob]:
+        return self._enqueue_category_presets(chat_id, update_id, category_name, "draft")
 
     def enqueue_content_plan_shorts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
         presets = _content_plan_preset_list()
@@ -1175,6 +1284,49 @@ class TelegramJobQueue:
             f"preset {preset.name} draft",
             update_id,
             job_suffix=f"random-draft-{preset.name}",
+            notify=False,
+        )
+
+    def enqueue_random_category_preset_shorts(
+        self,
+        chat_id: int,
+        update_id: int,
+        category_name: str,
+        theme: str | None = None,
+    ) -> TelegramJob:
+        category = get_preset_category(category_name)
+        preset = random.choice(presets_for_category(category.name))
+        theme_suffix = f" theme={theme}" if theme else ""
+        theme_label = f" в теме {theme}" if theme else ""
+        self.client.send_message(
+            chat_id,
+            f"Случайный шортс категории {category.title}{theme_label}: "
+            f"{preset_button_label(preset)}. Ставлю готовый shorts-ролик в очередь.",
+            reply_markup=queue_status_keyboard(),
+        )
+        job_suffix_theme = f"-{theme}" if theme else ""
+        return self.enqueue(
+            chat_id,
+            f"preset {preset.name} shorts{theme_suffix}",
+            update_id,
+            job_suffix=f"random-{category.name}-shorts{job_suffix_theme}-{preset.name}",
+            notify=False,
+        )
+
+    def enqueue_random_category_preset_draft(self, chat_id: int, update_id: int, category_name: str) -> TelegramJob:
+        category = get_preset_category(category_name)
+        preset = random.choice(presets_for_category(category.name))
+        self.client.send_message(
+            chat_id,
+            f"Случайный черновик категории {category.title}: "
+            f"{preset_button_label(preset)}. Ставлю короткий draft в очередь.",
+            reply_markup=queue_status_keyboard(),
+        )
+        return self.enqueue(
+            chat_id,
+            f"preset {preset.name} draft",
+            update_id,
+            job_suffix=f"random-{category.name}-draft-{preset.name}",
             notify=False,
         )
 
@@ -2304,6 +2456,62 @@ def _is_queue_status(text: str) -> bool:
     }
 
 
+def _strip_category_action_theme(normalized: str) -> tuple[str, str | None]:
+    for theme_alias, theme in HOT_BATCH_THEME_ALIASES.items():
+        if normalized.startswith(f"{theme_alias} "):
+            return normalized.removeprefix(f"{theme_alias} ").strip(), theme
+        if normalized.endswith(f" {theme_alias}"):
+            return normalized.removesuffix(f" {theme_alias}").strip(), theme
+    return normalized, None
+
+
+def _match_category_action_prefix(normalized: str, prefixes: set[str]) -> str | None:
+    for prefix in sorted(prefixes, key=len, reverse=True):
+        candidates: list[str] = []
+        if normalized.startswith(f"{prefix} "):
+            candidates.append(normalized.removeprefix(f"{prefix} ").strip())
+        if normalized.endswith(f" {prefix}"):
+            candidates.append(normalized.removesuffix(f" {prefix}").strip())
+        for candidate in candidates:
+            candidate = candidate.lstrip("/").strip()
+            if not candidate:
+                continue
+            try:
+                category = get_preset_category(candidate)
+            except ValueError:
+                continue
+            candidate_key = candidate.lower().replace(" ", "").replace("_", "").replace("-", "")
+            try:
+                get_preset(candidate)
+            except ValueError:
+                return category.name
+            if candidate_key == category.name:
+                return category.name
+    return None
+
+
+def _category_preset_action(text: str) -> TelegramCategoryPresetAction | None:
+    normalized = " ".join(text.strip().lower().replace("ё", "е").replace("_", " ").replace("-", " ").split())
+    for explicit_prefix in ("category ", "категория "):
+        if normalized.startswith(explicit_prefix):
+            normalized = normalized.removeprefix(explicit_prefix).strip()
+            break
+    normalized, theme = _strip_category_action_theme(normalized)
+    random_draft = _match_category_action_prefix(normalized, CATEGORY_RANDOM_DRAFT_PREFIXES)
+    if random_draft is not None:
+        return TelegramCategoryPresetAction("random", "draft", random_draft)
+    random_shorts = _match_category_action_prefix(normalized, CATEGORY_RANDOM_SHORTS_PREFIXES)
+    if random_shorts is not None:
+        return TelegramCategoryPresetAction("random", "shorts", random_shorts, theme=theme)
+    batch_draft = _match_category_action_prefix(normalized, CATEGORY_BATCH_DRAFT_PREFIXES)
+    if batch_draft is not None:
+        return TelegramCategoryPresetAction("batch", "draft", batch_draft)
+    batch_shorts = _match_category_action_prefix(normalized, CATEGORY_BATCH_SHORTS_PREFIXES)
+    if batch_shorts is not None:
+        return TelegramCategoryPresetAction("batch", "shorts", batch_shorts, theme=theme)
+    return None
+
+
 def _batch_request_lines(text: str) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
@@ -2571,6 +2779,16 @@ def handle_ticker_message(
     if _is_content_plan(text):
         client.send_message(chat_id, format_content_plan(), reply_markup=content_plan_keyboard())
         return
+    category_action = _category_preset_action(text)
+    if category_action is not None:
+        category = get_preset_category(category_action.category_name)
+        action_label = "случайного" if category_action.kind == "random" else "пакета"
+        mode_label = "черновика" if category_action.mode == "draft" else "shorts-роликов"
+        client.send_message(
+            chat_id,
+            f"Команда {action_label} {mode_label} категории {category.title} работает в режиме Telegram-очереди.",
+        )
+        return
     if _is_preset_kits(text):
         client.send_message(chat_id, format_preset_kit_list(), reply_markup=preset_kit_inline_keyboard())
         return
@@ -2689,6 +2907,7 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 text = shortcut_text
                             hot_batch = _hot_batch_mode_and_theme(text)
                             shorts_batch = _shorts_batch_theme(text)
+                            category_action = _category_preset_action(text)
                             preset_theme_variants_name = _preset_theme_variants_name(text)
                             preset_kit_name = _preset_kit_name(text)
                             preset_category_name = _preset_category_name(text)
@@ -2726,6 +2945,33 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                     job_queue.enqueue_hot_preset_shorts_with_theme(chat_id, int(update["update_id"]), theme)
                                 else:
                                     job_queue.enqueue_hot_preset_shorts(chat_id, int(update["update_id"]))
+                            elif category_action is not None:
+                                if category_action.kind == "random" and category_action.mode == "draft":
+                                    job_queue.enqueue_random_category_preset_draft(
+                                        chat_id,
+                                        int(update["update_id"]),
+                                        category_action.category_name,
+                                    )
+                                elif category_action.kind == "random":
+                                    job_queue.enqueue_random_category_preset_shorts(
+                                        chat_id,
+                                        int(update["update_id"]),
+                                        category_action.category_name,
+                                        theme=category_action.theme,
+                                    )
+                                elif category_action.mode == "draft":
+                                    job_queue.enqueue_category_preset_drafts(
+                                        chat_id,
+                                        int(update["update_id"]),
+                                        category_action.category_name,
+                                    )
+                                else:
+                                    job_queue.enqueue_category_preset_shorts(
+                                        chat_id,
+                                        int(update["update_id"]),
+                                        category_action.category_name,
+                                        theme=category_action.theme,
+                                    )
                             elif preset_theme_variants_name is not None:
                                 job_queue.enqueue_preset_theme_variants(
                                     chat_id,

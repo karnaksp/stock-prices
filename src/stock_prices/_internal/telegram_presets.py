@@ -318,28 +318,28 @@ PRESETS: tuple[TelegramPreset, ...] = (
 PRESET_CATEGORIES: tuple[TelegramPresetCategory, ...] = (
     TelegramPresetCategory(
         name="quiet",
-        aliases=("тихие", "спокойные", "менее хайповые", "quiet"),
+        aliases=("тихий", "тихие", "спокойный", "спокойные", "менее хайповые", "quiet"),
         title="Тихие российские истории",
         description="Узнаваемые бумаги без ставки только на хайп: банки, дивиденды, госы и понятные бизнесы.",
         preset_names=("bluechips", "banks", "dividends", "stateowned", "vodka"),
     ),
     TelegramPresetCategory(
         name="drama",
-        aliases=("драма", "просадки", "памп", "дамп", "drama"),
+        aliases=("драма", "драматичный", "просадки", "памп", "дамп", "drama"),
         title="Драмы и просадки",
         description="Сюжеты, где аудитория сразу видит цену хайпа, цикла или неудачного выбора.",
         preset_names=("neweconomy", "builders", "wagons", "mechel", "coalminers"),
     ),
     TelegramPresetCategory(
         name="commodities",
-        aliases=("сырье", "сырьевые", "металлы", "commodities"),
+        aliases=("сырье", "сырьевой", "сырьевые", "металлы", "commodities"),
         title="Сырье и циклы",
         description="Металлы, экспортеры и циклические акции с сильными движениями на длинной дистанции.",
         preset_names=("metals", "exporters", "coalminers", "mechel", "dividends"),
     ),
     TelegramPresetCategory(
         name="growth",
-        aliases=("рост", "tech", "тех", "growth"),
+        aliases=("рост", "ростовый", "ростовые", "tech", "тех", "growth"),
         title="Рост и ожидания",
         description="Истории про мечту роста: tech, IPO-эйфория, девелоперы и ожидания будущего.",
         preset_names=("neweconomy", "techru", "builders", "wagons"),
