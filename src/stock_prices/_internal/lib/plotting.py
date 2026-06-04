@@ -171,6 +171,12 @@ def _visible_x_span_days(x_start: pd.Timestamp, frame_date: pd.Timestamp, total_
     return max(1, total_span_days)
 
 
+def _animation_frame_data(combined_df: pd.DataFrame, frame_index: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+    current_data = combined_df.iloc[: frame_index + 1]
+    line_data = combined_df
+    return current_data, line_data
+
+
 def _active_events(events_df: pd.DataFrame, frame_date: pd.Timestamp) -> list[tuple[pd.Timestamp, pd.Timestamp, str, int]]:
     if events_df.empty or "EVENT_NAME" not in events_df:
         return []
@@ -306,13 +312,13 @@ def create_multi_line_animation(
     def animate(frame_number: int):
         clear_transient_artists()
         frame_index = all_frames[frame_number]
-        current_data = combined_df.iloc[: frame_index + 1]
+        current_data, line_data = _animation_frame_data(combined_df, frame_index)
         frame_date = pd.Timestamp(current_data["TRADEDATE"].iloc[-1])
         date_artist.set_text(frame_date.strftime("%d.%m.%Y"))
         visible_x_span_days = _visible_x_span_days(x_start, frame_date, x_span_days)
         ax.set_xlim(x_start, x_start + pd.Timedelta(days=visible_x_span_days * 1.12))
 
-        values = current_data[value_columns].stack().dropna()
+        values = line_data[value_columns].stack().dropna()
         if not values.empty:
             y_min = float(values.min())
             y_max = float(values.max())
@@ -321,31 +327,34 @@ def create_multi_line_animation(
 
         label_targets: list[tuple[str, pd.Timestamp, float, str]] = []
         for name in value_columns:
-            x_data = current_data["TRADEDATE"]
-            y_data = current_data[name]
-            clean = y_data.dropna()
-            if clean.empty:
+            line_x_data = line_data["TRADEDATE"]
+            line_y_data = line_data[name]
+            line_clean = line_y_data.dropna()
+            current_x_data = current_data["TRADEDATE"]
+            current_clean = current_data[name].dropna()
+            if line_clean.empty or current_clean.empty:
                 labels[name].set_text("")
                 summary_artists[name].set_text("")
                 continue
-            line_x = x_data.loc[clean.index]
+            line_x = line_x_data.loc[line_clean.index]
+            current_line_x = current_x_data.loc[current_clean.index]
             if use_gradient:
-                lines[name].set_data(line_x, clean)
+                lines[name].set_data(line_x, line_clean)
                 lines[name].set_alpha(0.42)
                 gradient_tail_points = 180
-                tail_x = line_x.iloc[-gradient_tail_points:]
-                tail_y = clean.iloc[-gradient_tail_points:]
+                tail_x = current_line_x.iloc[-gradient_tail_points:]
+                tail_y = current_clean.iloc[-gradient_tail_points:]
                 before = len(ax.collections)
                 draw_gradient_line(ax, tail_x, tail_y, by_name[name]["color"], name)
                 gradient_collections.extend(ax.collections[before:])
             else:
                 lines[name].set_alpha(0.92)
-                lines[name].set_data(line_x, clean)
-            if len(clean) > 1:
+                lines[name].set_data(line_x, line_clean)
+            if len(line_clean) > 1:
                 fill_artists.append(
                     ax.fill_between(
                         line_x,
-                        clean,
+                        line_clean,
                         ax.get_ylim()[0],
                         color=by_name[name]["color"],
                         alpha=0.045,
@@ -353,14 +362,14 @@ def create_multi_line_animation(
                     )
                 )
 
-            last_idx = clean.index[-1]
-            last_x = x_data.loc[last_idx]
-            last_y = float(clean.iloc[-1])
+            last_idx = current_clean.index[-1]
+            last_x = current_x_data.loc[last_idx]
+            last_y = float(current_clean.iloc[-1])
             basis = current_data[basis_columns[name]] if name in basis_columns else None
-            label_text = _amount_summary(name, clean)
+            label_text = _amount_summary(name, current_clean)
             labels[name].set_text(label_text)
             label_targets.append((name, last_x, last_y, label_text))
-            summary_artists[name].set_text(wrap_text(_return_summary(name, clean, basis), summary_wrap_width))
+            summary_artists[name].set_text(wrap_text(_return_summary(name, current_clean, basis), summary_wrap_width))
 
             dividend_data = current_data[current_data[dividend_columns[name]] > 0]
             if dividend_data.empty:
