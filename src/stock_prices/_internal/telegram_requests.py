@@ -67,6 +67,7 @@ _AMOUNT_WORD_MULTIPLIERS = {
     "тысяча": 1_000,
     "тысячи": 1_000,
 }
+_ZERO_AMOUNT_WORDS = {"zero", "ноль", "нуля", "нулю", "нулем", "нулём"}
 _COMPACT_CURRENCY_SUFFIXES = {
     "$": "USD",
     "₽": "RUB",
@@ -79,13 +80,27 @@ _MONTHLY_WORDS = {"monthly", "ежемесячно", "помесячно"}
 _YEARLY_WORDS = {"yearly", "ежегодно", "ежегодный"}
 _INITIAL_WORDS = {
     "initial",
+    "first",
     "старт",
     "стартовый",
+    "стартового",
     "начальный",
+    "начального",
     "начальное",
+    "начальной",
+    "первый",
+    "первого",
     "первоначальный",
+    "первоначального",
     "первоначально",
     "сначала",
+}
+_INITIAL_CONTRIBUTION_WORDS = {
+    "взнос",
+    "взноса",
+    "взносов",
+    "пополнение",
+    "пополнения",
 }
 _INVEST_WORDS = {
     "invest",
@@ -242,6 +257,8 @@ def _split_compact_currency_suffix(token: str) -> tuple[str, str | None]:
 def _read_first_amount_token(token: str) -> tuple[int | None, bool, str | None]:
     normalized = token.replace("_", "").strip().lower()
     normalized, currency = _split_compact_currency_suffix(normalized)
+    if normalized in _ZERO_AMOUNT_WORDS:
+        return 0, False, currency
     if normalized.isdigit():
         return int(normalized), False, currency
     suffixes = "|".join(
@@ -330,10 +347,16 @@ def _set_periodic_amount(
     amount: int,
     currency: str | None,
 ) -> None:
-    if period_word in _MONTH_WORDS:
+    if period_word in _MONTH_WORDS | _MONTHLY_WORDS:
         _set_investment_amount(updates, "monthly_investment", amount, currency, "monthly")
     else:
         _set_investment_amount(updates, "yearly_investment", amount, currency, "yearly")
+
+
+def _consume_initial_phrase(tokens: list[str], idx: int) -> int:
+    while idx < len(tokens) and tokens[idx].strip().lower() in _INITIAL_WORDS | _INITIAL_CONTRIBUTION_WORDS:
+        idx += 1
+    return idx
 
 
 def _looks_like_ticker(token: str) -> bool:
@@ -485,6 +508,9 @@ def parse_telegram_video_request(
             raise ValueError(f"Unknown option: {key}")
         elif "|" in token:
             specs.append(parse_ticker_spec(token, engine, market))
+        elif lowered in _DATE_FROM_WORDS and idx + 1 < len(tokens) and tokens[idx + 1].strip().lower() in _ZERO_AMOUNT_WORDS:
+            _set_investment_amount(updates, "initial_investment", 0, None, "initial")
+            idx += 1
         elif lowered in _DATE_FROM_WORDS and idx + 1 < len(tokens):
             parsed_date = _parse_date_token(tokens[idx + 1])
             if parsed_date is None:
@@ -502,10 +528,10 @@ def parse_telegram_video_request(
                 idx += 1
             else:
                 amount, next_idx, amount_currency = _read_amount(tokens, idx + 1)
-                has_month, final_idx = _has_period_word_after_amount(tokens, next_idx, _MONTH_WORDS)
+                has_month, final_idx = _has_period_word_after_amount(tokens, next_idx, _MONTH_WORDS | _MONTHLY_WORDS)
                 has_year = False
                 if not has_month:
-                    has_year, final_idx = _has_period_word_after_amount(tokens, next_idx, _YEAR_WORDS)
+                    has_year, final_idx = _has_period_word_after_amount(tokens, next_idx, _YEAR_WORDS | _YEARLY_WORDS)
                 if amount is None or not (has_month or has_year):
                     raise ValueError(f"Cannot parse token: {token}")
                 if has_month:
@@ -573,6 +599,13 @@ def parse_telegram_video_request(
             if amount is None:
                 raise ValueError("initial must be an integer.")
             _set_investment_amount(updates, "initial_investment", amount, amount_currency, "initial")
+            idx = next_idx - 1
+        elif lowered == "без" and idx + 1 < len(tokens):
+            next_word = tokens[idx + 1].strip().lower()
+            if next_word not in _INITIAL_WORDS | _INITIAL_CONTRIBUTION_WORDS:
+                raise ValueError(f"Cannot parse token: {token}")
+            next_idx = _consume_initial_phrase(tokens, idx + 1)
+            _set_investment_amount(updates, "initial_investment", 0, None, "initial")
             idx = next_idx - 1
         elif lowered in {"каждый", "каждую"} and idx + 1 < len(tokens):
             period_word = tokens[idx + 1].strip().lower()

@@ -121,7 +121,7 @@ TICKER|ENGINE|MARKET
 ```text
 /shorts SBER LKOH за год
 сделай шортс про SBER и LKOH за полгода для Пульса
-gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient
+золото серебро палладий 2010-2026 RUB капитал с нуля ежемесячно 30к₽ gradient
 ```
 
 Для контента в Пульсе есть preset-сценарии, категории историй (`категории`, `category drama`, `top quiet`, `random drama`), новые тихие российские сюжеты (`телеком`, `ритейл`, `энергетика`), публикационные пакеты и готовые тексты без LLM. Недельный production-план уже чередует хайп, сырье, банки, связь, ритейл, энергетику и голубые фишки. Подробная справка находится в [docs/telegram.md](docs/telegram.md).
