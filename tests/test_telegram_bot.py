@@ -57,17 +57,13 @@ def test_telegram_bot_command_menu_is_compact() -> None:
     commands = telegram_bot.telegram_bot_command_menu()
 
     assert [item["command"] for item in commands] == [
+        "menu",
         "shoot",
-        "publish_day",
-        "publish_week",
         "shorts",
-        "draft",
         "queue",
-        "today_post",
-        "week_posts",
         "help",
     ]
-    assert len(commands) <= 9
+    assert len(commands) <= 5
     assert all(1 <= len(item["description"]) <= 256 for item in commands)
     assert all("/" not in item["command"] for item in commands)
     assert all(item["command"].replace("_", "").isalnum() and item["command"].islower() for item in commands)
@@ -95,7 +91,7 @@ def test_telegram_client_sets_my_commands(monkeypatch) -> None:
     url, kwargs = calls[0]
     assert url == "https://api.telegram.org/bot123456:SECRET/setMyCommands"
     commands = json.loads(kwargs["data"]["commands"])
-    assert commands[0] == {"command": "shoot", "description": "быстрый пульт для роликов"}
+    assert commands[0] == {"command": "menu", "description": "главный пульт"}
     assert commands[-1]["command"] == "help"
 
 
@@ -1591,7 +1587,7 @@ def test_run_telegram_bot_menu_callback_opens_help(monkeypatch) -> None:
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers == [("callback-menu-help", "Помощь открыта.")]
-    assert "Короткий вход" in client.messages[0][1]
+    assert "Как попросить ролик" in client.messages[0][1]
     assert "ежемесячно 30к₽" in client.messages[0][1]
     assert client.message_markups == [telegram_bot.help_keyboard()]
     assert client.videos == []
@@ -1628,7 +1624,7 @@ def test_run_telegram_bot_menu_callback_opens_reference(monkeypatch) -> None:
     assert client.callback_answers == [("callback-menu-reference", "Справочник открыт.")]
     assert "Справочник" in client.messages[0][1]
     assert "музыка" in client.messages[0][1]
-    assert client.message_markups[0]["inline_keyboard"][0][0] == {"text": "Истории", "callback_data": "menu:preset_categories"}
+    assert client.message_markups[0]["inline_keyboard"][0][0] == {"text": "📚 Истории", "callback_data": "menu:preset_categories"}
     assert client.message_markups == [telegram_bot.reference_keyboard()]
     assert client.videos == []
 
@@ -1889,20 +1885,20 @@ def test_handle_ticker_message_shows_production_guide_without_render(monkeypatch
     assert client.message_markups == [telegram_bot.production_guide_keyboard()]
     assert client.message_markups[0]["inline_keyboard"] == [
         [
-            {"text": "Публикация дня", "callback_data": "menu:publication_day"},
-            {"text": "Неделя публикаций", "callback_data": "menu:publication_week"},
+            {"text": "📅 День", "callback_data": "menu:publication_day"},
+            {"text": "🗓 Неделя", "callback_data": "menu:publication_week"},
         ],
         [
-            {"text": "Пост дня", "callback_data": "menu:daily_post"},
-            {"text": "Пакет дня", "callback_data": "menu:daily_kit"},
+            {"text": "📝 Пост дня", "callback_data": "menu:daily_post"},
+            {"text": "📦 Пакет дня", "callback_data": "menu:daily_kit"},
         ],
         [
-            {"text": "Контент-план", "callback_data": "menu:content_plan"},
-            {"text": "Пакеты", "callback_data": "menu:pack"},
+            {"text": "📊 План", "callback_data": "menu:content_plan"},
+            {"text": "🎵 Музыка", "callback_data": "menu:music"},
         ],
         [
-            {"text": "Справочник", "callback_data": "menu:reference"},
-            {"text": "Очередь", "callback_data": "menu:queue"},
+            {"text": "⏳ Очередь", "callback_data": "menu:queue"},
+            {"text": "🏠 Меню", "callback_data": "menu:main_menu"},
         ],
     ]
     assert client.videos == []
@@ -1924,17 +1920,12 @@ def test_handle_ticker_message_shows_quick_launch_without_render(monkeypatch) ->
 
     quick_text = client.messages[0][1]
     assert "Быстрый запуск" in quick_text
-    assert "/shoot" in quick_text
-    assert "/publish_day" in quick_text
-    assert "top shorts studio" in quick_text
+    assert "Свой ролик" in quick_text
+    assert "/help" in quick_text
+    assert "Top Studio" in quick_text
     assert client.message_markups == [telegram_bot.quick_launch_keyboard()]
     keyboard = client.message_markups[0]["inline_keyboard"]
-    assert keyboard[0][0] == {"text": "Снять день", "callback_data": "menu:publication_day"}
-    assert keyboard[0][1] == {"text": "Снять неделю", "callback_data": "menu:publication_week"}
-    assert keyboard[1][0] == {"text": "Top Studio", "callback_data": "menu:hot_shorts_studio"}
-    assert keyboard[1][1] == {"text": "Случайный", "callback_data": "menu:random_shorts"}
-    assert keyboard[2][0] == {"text": "Очередь", "callback_data": "menu:queue"}
-    assert keyboard[2][1] == {"text": "Меню", "callback_data": "menu:main_menu"}
+    assert keyboard == telegram_bot.main_menu_keyboard()["inline_keyboard"]
     assert client.videos == []
 
 
@@ -3561,11 +3552,10 @@ def test_help_text_is_compact_and_actionable() -> None:
     handle_ticker_message(client, settings, 123, "/help")
 
     help_text = client.messages[0][1]
-    assert "Короткий вход" in help_text
+    assert "Как попросить ролик" in help_text
     assert len(help_text) < 700
     assert len(help_text.splitlines()) <= 14
     assert client.message_markups == [telegram_bot.help_keyboard()]
-    assert "/shoot" in help_text
     assert "/queue" in help_text
     assert "/shorts SBER LKOH за год" in help_text
     assert "top quiet" in help_text
@@ -3599,24 +3589,24 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     handle_ticker_message(client, settings, 123, "/menu")
 
     assert "Меню для Пульса" in client.messages[0][1]
-    assert "/shoot" in client.messages[0][1]
-    assert "/guide" in client.messages[0][1]
+    assert "Шесть частых действий" in client.messages[0][1]
+    assert "Свой запрос" in client.messages[0][1]
     assert "топовые shorts-сценарии" not in client.messages[0][1]
     assert "полный пакет shorts" not in client.messages[0][1]
     assert client.message_markups[0] == telegram_bot.main_menu_keyboard()
     keyboard = client.message_markups[0]["inline_keyboard"]
     assert keyboard == [
         [
-            {"text": "Снять ролик", "callback_data": "menu:quick_launch"},
-            {"text": "День", "callback_data": "menu:publication_day"},
+            {"text": "📅 День", "callback_data": "menu:publication_day"},
+            {"text": "🗓 Неделя", "callback_data": "menu:publication_week"},
         ],
         [
-            {"text": "Неделя", "callback_data": "menu:publication_week"},
-            {"text": "Истории", "callback_data": "menu:preset_categories"},
+            {"text": "✨ Top Studio", "callback_data": "menu:hot_shorts_studio"},
+            {"text": "🎲 Случайный", "callback_data": "menu:random_shorts"},
         ],
         [
-            {"text": "Очередь", "callback_data": "menu:queue"},
-            {"text": "Справка", "callback_data": "menu:help"},
+            {"text": "📚 Истории", "callback_data": "menu:preset_categories"},
+            {"text": "⏳ Очередь", "callback_data": "menu:queue"},
         ],
     ]
     assert client.videos == []
@@ -3692,7 +3682,7 @@ def test_handle_ticker_message_shows_main_menu_with_russian_command() -> None:
     handle_ticker_message(client, settings, 123, "/меню")
 
     assert "Меню для Пульса" in client.messages[0][1]
-    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "menu:quick_launch"
+    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "menu:publication_day"
     assert client.videos == []
 
 

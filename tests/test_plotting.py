@@ -3,7 +3,14 @@ from __future__ import annotations
 import pandas as pd
 
 from stock_prices._internal.lib import dataset_builder
-from stock_prices._internal.lib.plotting import _amount_summary, _combine_data, _return_summary, _visible_x_span_days
+from stock_prices._internal.lib.plotting import (
+    _amount_summary,
+    _animation_frame_data,
+    _combine_data,
+    _return_summary,
+    _visible_x_span_days,
+    create_multi_line_animation,
+)
 from stock_prices._internal.rendering.theme import get_chart_theme, get_theme_names
 
 
@@ -42,6 +49,53 @@ def test_visible_x_span_uses_full_period_to_prevent_expanding_axis() -> None:
     assert _visible_x_span_days(start, start, 1627) == 1627
     assert _visible_x_span_days(start, start + pd.Timedelta(days=10), 1627) == 1627
     assert _visible_x_span_days(start, start + pd.Timedelta(days=120), 1627) == 1627
+
+
+def test_animation_line_data_uses_full_period_for_early_frames() -> None:
+    combined = pd.DataFrame(
+        {
+            "TRADEDATE": pd.to_datetime(["2021-12-17", "2022-01-17", "2022-02-17"]),
+            "SBER": [100.0, 140.0, 90.0],
+        }
+    )
+
+    current_data, line_data = _animation_frame_data(combined, 0)
+
+    assert current_data["TRADEDATE"].tolist() == [pd.Timestamp("2021-12-17")]
+    assert line_data["TRADEDATE"].tolist() == [
+        pd.Timestamp("2021-12-17"),
+        pd.Timestamp("2022-01-17"),
+        pd.Timestamp("2022-02-17"),
+    ]
+    assert line_data["SBER"].tolist() == [100.0, 140.0, 90.0]
+
+
+def test_animation_draws_full_series_lines_on_first_frame_to_prevent_progressive_reveal() -> None:
+    import matplotlib.pyplot as plt
+
+    data_frame = pd.DataFrame(
+        {
+            "TRADEDATE": pd.to_datetime(["2021-12-17", "2022-01-17", "2022-02-17"]),
+            "CLOSE": [100.0, 140.0, 90.0],
+            "DIVIDEND": [0.0, 0.0, 0.0],
+        }
+    )
+    animation = create_multi_line_animation(
+        [{"name": "SBER", "color": "#FFD166", "data": data_frame}],
+        target_duration=1,
+        fps=1,
+        final_frame_duration=0,
+    )
+
+    try:
+        animation._func(0)
+        animation._draw_was_started = True
+        line = animation._fig.axes[0].lines[0]
+
+        assert len(line.get_xdata()) == len(data_frame)
+        assert list(line.get_ydata()) == [100.0, 140.0, 90.0]
+    finally:
+        plt.close(animation._fig)
 
 
 def test_combine_data_handles_invested_series_without_dividends() -> None:
