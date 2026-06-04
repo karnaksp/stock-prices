@@ -16,7 +16,17 @@ class TelegramPreset:
     music_tracks: tuple[str, ...] = ()
     cover_texts: tuple[str, ...] = ()
     aliases: tuple[str, ...] = ()
+    categories: tuple[str, ...] = ()
     button_label: str = ""
+
+
+@dataclass(frozen=True)
+class TelegramPresetCategory:
+    name: str
+    title: str
+    description: str
+    preset_names: tuple[str, ...]
+    aliases: tuple[str, ...] = ()
 
 
 PRESETS: tuple[TelegramPreset, ...] = (
@@ -39,6 +49,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="напряженный synthwave или быстрый электронный бит",
         music_tracks=("Kavinsky - Nightcall", "Carpenter Brut - Turbo Killer", "The Weeknd - Blinding Lights"),
         cover_texts=("IPO-эйфория vs реальность", "30 000 ₽/мес в новую экономику", "Ростовые акции после хайпа"),
+        categories=("drama", "growth", "weekly"),
         button_label="Новая экономика",
     ),
     TelegramPreset(
@@ -60,6 +71,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="ровный cinematic beat с нарастающим финалом",
         music_tracks=("M83 - Outro", "Hans Zimmer - Time", "ODESZA - A Moment Apart"),
         cover_texts=("30 000 ₽/мес в металлы", "Золото vs серебро vs палладий", "Какие металлы спасли рубли?"),
+        categories=("commodities", "weekly"),
         button_label="Металлы",
     ),
     TelegramPreset(
@@ -81,6 +93,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="ироничный funk / disco beat без тяжелого драматизма",
         music_tracks=("ABBA - Money, Money, Money", "Boney M. - Rasputin", "Parov Stelar - Booty Swing"),
         cover_texts=("Алкогольные акции удивили", "Водка против рынка", "Не IT, а график резкий"),
+        categories=("quiet", "weekly"),
         button_label="Алкоголь",
     ),
     TelegramPreset(
@@ -102,6 +115,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="тяжелый industrial beat или драматичный trailer percussion",
         music_tracks=("The Prodigy - Firestarter", "Gesaffelstein - Pursuit", "Nine Inch Nails - The Hand That Feeds"),
         cover_texts=("Мечел: боль или шанс?", "Циклическая акция без жалости", "30 000 ₽/мес в Мечел"),
+        categories=("drama", "commodities", "weekly"),
         button_label="Мечел",
     ),
     TelegramPreset(
@@ -122,6 +136,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="медленный dark beat с резким акцентом на просадках",
         music_tracks=("Depeche Mode - Wrong", "Massive Attack - Angel", "Woodkid - Run Boy Run"),
         cover_texts=("Вагоны против индекса", "Хайп, ожидания, просадка", "Что осталось от истории ОВК?"),
+        categories=("drama", "growth"),
         button_label="Вагоны",
     ),
     TelegramPreset(
@@ -142,6 +157,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="сдержанный драматичный beat с ощущением длинного ожидания",
         music_tracks=("Кино - Группа крови", "Сплин - Выхода нет", "Moby - Extreme Ways"),
         cover_texts=("Госкомпании на длинной дистанции", "Знакомые имена, тяжелый график", "Газпром / Аэрофлот / Сургут"),
+        categories=("quiet",),
         button_label="Госкомпании",
     ),
     TelegramPreset(
@@ -162,6 +178,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="энергичный electronic groove с акцентами на смене лидера",
         music_tracks=("The Chemical Brothers - Galvanize", "Justice - Genesis", "Daft Punk - Harder, Better, Faster, Stronger"),
         cover_texts=("Экспортеры против слабого рубля", "Кто вытянул регулярные покупки?", "Нефть, удобрения, металл"),
+        categories=("commodities",),
         button_label="Экспортёры",
     ),
     TelegramPreset(
@@ -182,6 +199,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="жесткий industrial / breakbeat с резкими паузами на просадках",
         music_tracks=("The Prodigy - Breathe", "Royal Blood - Out of the Black", "The White Stripes - Seven Nation Army"),
         cover_texts=("Угольщики: ракета или ловушка?", "Сырьевой цикл без спокойствия", "MTLR vs RASP"),
+        categories=("drama", "commodities"),
         button_label="Угольщики",
     ),
     TelegramPreset(
@@ -203,6 +221,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="уверенный pop / corporate beat с чистым ритмом",
         music_tracks=("Daft Punk - One More Time", "Phoenix - Lisztomania", "Queen - Don't Stop Me Now"),
         cover_texts=("Скучные акции победили?", "SBER / LKOH / MGNT", "Голубые фишки без хайпа"),
+        categories=("quiet", "weekly"),
         button_label="Голубые фишки",
     ),
     TelegramPreset(
@@ -224,6 +243,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="ровный уверенный beat с легким напряжением на смене лидера",
         music_tracks=("The xx - Intro", "Tame Impala - Let It Happen", "Daft Punk - Instant Crush"),
         cover_texts=("Банки: лидер и отстающие", "SBER / SBERP / VTBR", "30 000 ₽/мес в банковский сектор"),
+        categories=("quiet", "weekly"),
         button_label="Банки",
     ),
     TelegramPreset(
@@ -245,6 +265,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="cinematic groove без лишней драмы, с акцентом на финальный результат",
         music_tracks=("Massive Attack - Teardrop", "M83 - Midnight City", "Bonobo - Kiara"),
         cover_texts=("Дивиденды без иллюзий", "SNGSP / TRNFP / CHMF", "Префы, циклы и регулярные покупки"),
+        categories=("quiet", "commodities", "weekly"),
         button_label="Дивиденды",
     ),
     TelegramPreset(
@@ -266,6 +287,7 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="напряженный electronic beat с заметным падением энергии после пика",
         music_tracks=("Woodkid - Run Boy Run", "Gesaffelstein - OPR", "The Weeknd - False Alarm"),
         cover_texts=("Строители после бума", "PIKK / LSRG / SMLT", "Ипотечная мечта против ставки"),
+        categories=("drama", "growth"),
         button_label="Строители",
     ),
     TelegramPreset(
@@ -287,7 +309,47 @@ PRESETS: tuple[TelegramPreset, ...] = (
         music_mood="быстрый tech house или clean electronic groove",
         music_tracks=("Daft Punk - Technologic", "The Chemical Brothers - Go", "Disclosure - When a Fire Starts to Burn"),
         cover_texts=("Российский tech: мечта или риск?", "YDEX / OZON / VKCO", "Технологии после перезапуска"),
+        categories=("growth",),
         button_label="Российский тех",
+    ),
+)
+
+
+PRESET_CATEGORIES: tuple[TelegramPresetCategory, ...] = (
+    TelegramPresetCategory(
+        name="quiet",
+        aliases=("тихие", "спокойные", "менее хайповые", "quiet"),
+        title="Тихие российские истории",
+        description="Узнаваемые бумаги без ставки только на хайп: банки, дивиденды, госы и понятные бизнесы.",
+        preset_names=("bluechips", "banks", "dividends", "stateowned", "vodka"),
+    ),
+    TelegramPresetCategory(
+        name="drama",
+        aliases=("драма", "просадки", "памп", "дамп", "drama"),
+        title="Драмы и просадки",
+        description="Сюжеты, где аудитория сразу видит цену хайпа, цикла или неудачного выбора.",
+        preset_names=("neweconomy", "builders", "wagons", "mechel", "coalminers"),
+    ),
+    TelegramPresetCategory(
+        name="commodities",
+        aliases=("сырье", "сырьевые", "металлы", "commodities"),
+        title="Сырье и циклы",
+        description="Металлы, экспортеры и циклические акции с сильными движениями на длинной дистанции.",
+        preset_names=("metals", "exporters", "coalminers", "mechel", "dividends"),
+    ),
+    TelegramPresetCategory(
+        name="growth",
+        aliases=("рост", "tech", "тех", "growth"),
+        title="Рост и ожидания",
+        description="Истории про мечту роста: tech, IPO-эйфория, девелоперы и ожидания будущего.",
+        preset_names=("neweconomy", "techru", "builders", "wagons"),
+    ),
+    TelegramPresetCategory(
+        name="weekly",
+        aliases=("неделя", "план", "weekly"),
+        title="Недельный контент-план",
+        description="Семь сценариев для регулярной недели публикаций: от драмы до спокойной базы.",
+        preset_names=("neweconomy", "metals", "banks", "dividends", "vodka", "mechel", "bluechips"),
     ),
 )
 
@@ -375,6 +437,10 @@ _DIRECT_PRESET_BY_NAME = {
     _normalize_name(alias): _PRESET_BY_NAME[_normalize_name(preset_name)]
     for alias, preset_name in _DIRECT_PRESET_ALIASES.items()
 }
+_CATEGORY_BY_NAME = {_normalize_name(category.name): category for category in PRESET_CATEGORIES}
+for _category in PRESET_CATEGORIES:
+    for _alias in _category.aliases:
+        _CATEGORY_BY_NAME[_normalize_name(_alias)] = _category
 
 
 def get_preset(name: str) -> TelegramPreset:
@@ -383,6 +449,19 @@ def get_preset(name: str) -> TelegramPreset:
         return _PRESET_BY_NAME[normalized]
     options = ", ".join(preset.name for preset in PRESETS)
     raise ValueError(f"Unknown preset: {name}. Use one of: {options}.")
+
+
+def get_preset_category(name: str) -> TelegramPresetCategory:
+    normalized = _normalize_name(name)
+    if normalized in _CATEGORY_BY_NAME:
+        return _CATEGORY_BY_NAME[normalized]
+    options = ", ".join(category.name for category in PRESET_CATEGORIES)
+    raise ValueError(f"Unknown preset category: {name}. Use one of: {options}.")
+
+
+def presets_for_category(name: str) -> tuple[TelegramPreset, ...]:
+    category = get_preset_category(name)
+    return tuple(get_preset(preset_name) for preset_name in category.preset_names)
 
 
 def _match_preset_tokens(tokens: list[str]) -> tuple[TelegramPreset, list[str]]:
@@ -470,6 +549,47 @@ def format_preset_list(mode: str = "shorts") -> str:
     if mode == "draft":
         lines.append("Draft-кнопки ниже запустят быстрый черновик: duration=4 fps=8 без gradient.")
         lines.append("Текстом: preset metals draft")
+    return "\n".join(lines).strip()
+
+
+def ready_preset_commands(preset: TelegramPreset) -> tuple[str, ...]:
+    primary_alias = preset.aliases[0] if preset.aliases else preset.name
+    return (
+        f"preset {preset.name}",
+        f"{primary_alias} studio",
+        f"черновик {primary_alias}",
+        f"post {preset.name}",
+    )
+
+
+def format_preset_category_list() -> str:
+    lines = [
+        "Истории для Пульса по категориям:",
+        "",
+    ]
+    for category in PRESET_CATEGORIES:
+        labels = " / ".join(preset_button_label(get_preset(name)) for name in category.preset_names)
+        lines.append(f"{category.title}: {category.description}")
+        lines.append(f"Команда: category {category.name}")
+        lines.append(f"Сюжеты: {labels}")
+        lines.append("")
+    lines.append("Открой категорию кнопкой ниже или напиши: категории, истории, category drama.")
+    return "\n".join(lines).strip()
+
+
+def format_preset_category(category_name: str) -> str:
+    category = get_preset_category(category_name)
+    lines = [
+        f"Категория: {category.title}",
+        category.description,
+        "",
+    ]
+    for preset in presets_for_category(category.name):
+        commands = " / ".join(ready_preset_commands(preset))
+        lines.append(f"{preset_button_label(preset)} - {preset.description}")
+        lines.append(f"Команды: {commands}")
+        lines.append("")
+    lines.append("Кнопки ниже запускают shorts 16s по выбранному сценарию. Для пакета с постом, музыкой и обложкой: kit <name>.")
     return "\n".join(lines).strip()
 
 
