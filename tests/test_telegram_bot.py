@@ -1592,7 +1592,7 @@ def test_run_telegram_bot_menu_callback_opens_help(monkeypatch) -> None:
 
     assert client.callback_answers == [("callback-menu-help", "Помощь открыта.")]
     assert "Короткий вход" in client.messages[0][1]
-    assert "monthly=30000" in client.messages[0][1]
+    assert "ежемесячно 30к₽" in client.messages[0][1]
     assert client.message_markups == [telegram_bot.help_keyboard()]
     assert client.videos == []
 
@@ -3574,8 +3574,8 @@ def test_help_text_is_compact_and_actionable() -> None:
     assert "Справочник" not in help_text
     assert "/draft metals" not in help_text
     assert "AAPL global USD shorts" not in help_text
-    assert "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient" in help_text
-    assert "monthly=30000" in help_text
+    assert "золото серебро палладий 2010-2026 RUB капитал с нуля ежемесячно 30к₽ gradient" in help_text
+    assert "monthly=30000" not in help_text
     assert "top shorts studio" not in help_text
     assert "случайный шортс" not in help_text
     assert "/week_posts" not in help_text
@@ -4524,6 +4524,51 @@ def test_parse_telegram_video_request_accepts_english_k_amount() -> None:
     assert parsed.request.render.currency == "USD"
     assert parsed.request.render.with_investments is True
     assert parsed.request.render.monthly_investment == 30_000
+
+
+def test_parse_telegram_video_request_accepts_zero_initial_phrase() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request("SBER LKOH капитал с нуля ежемесячно 30к рублей", base)
+
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["SBER", "LKOH"]
+    assert parsed.request.render.currency == "RUB"
+    assert parsed.request.render.with_investments is True
+    assert parsed.request.render.initial_investment == 0
+    assert parsed.request.render.monthly_investment == 30_000
+
+
+def test_parse_telegram_video_request_accepts_without_initial_contribution_phrase() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request(
+        "SBER LKOH капитал без первоначального взноса по 30к ежемесячно",
+        base,
+    )
+
+    assert [spec.ticker for spec in parsed.request.ticker_specs] == ["SBER", "LKOH"]
+    assert parsed.request.render.with_investments is True
+    assert parsed.request.render.initial_investment == 0
+    assert parsed.request.render.monthly_investment == 30_000
+
+
+def test_parse_telegram_video_request_accepts_zero_word_initial_amount() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request("SBER LKOH капитал старт ноль каждый месяц 30к", base)
+
+    assert parsed.request.render.with_investments is True
+    assert parsed.request.render.initial_investment == 0
+    assert parsed.request.render.monthly_investment == 30_000
+
+
+def test_parse_telegram_video_request_accepts_periodic_adverb_after_amount() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request("SBER LKOH капитал по 120к ежегодно", base)
+
+    assert parsed.request.render.with_investments is True
+    assert parsed.request.render.yearly_investment == 120_000
 
 
 def test_parse_telegram_video_request_accepts_shorts_mode() -> None:

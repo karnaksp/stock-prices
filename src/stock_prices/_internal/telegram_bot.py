@@ -1755,7 +1755,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "3. /shorts SBER LKOH за год - свой график.\n"
         "4. /queue - активный job и ошибки.\n\n"
         "Пример инвестиционного ролика:\n"
-        "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n\n"
+        "золото серебро палладий 2010-2026 RUB капитал с нуля ежемесячно 30к₽ gradient\n\n"
         "Больше примеров: /guide или кнопка Истории."
     )
 
