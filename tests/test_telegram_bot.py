@@ -16,6 +16,7 @@ from stock_prices._internal.telegram_presets import (
     PRESETS,
     format_pulse_post,
     get_preset,
+    get_preset_category,
     preset_button_label,
     preset_followup_keyboard,
     presets_for_category,
@@ -752,6 +753,12 @@ def test_format_weekly_publication_pack_lists_publication_assets() -> None:
     assert "Д1: Новая экономика 2021-2026" in pack_text
     assert "Шортс: preset neweconomy" in pack_text
     assert "Пост: post neweconomy" in pack_text
+    assert "Д4: Связь и дивиденды" in pack_text
+    assert "Пост: post telecoms" in pack_text
+    assert "Д5: Ритейл после перестройки рынка" in pack_text
+    assert "Пост: post retailers" in pack_text
+    assert "Д6: Электроэнергетика: скучная инфраструктура" in pack_text
+    assert "Пост: post utilities" in pack_text
     assert "Д7: Голубые фишки: скучно или эффективно" in pack_text
     assert "Пост: post bluechips" in pack_text
     assert "Статус рендера: /queue" in pack_text
@@ -806,6 +813,12 @@ def test_run_telegram_bot_queues_weekly_publication_pack(monkeypatch) -> None:
     assert "Недельный выпуск для Пульса" in client.messages[1][1]
     assert "Д1: Новая экономика 2021-2026" in client.messages[1][1]
     assert "Пост: post neweconomy" in client.messages[1][1]
+    assert "Д4: Связь и дивиденды" in client.messages[1][1]
+    assert "Пост: post telecoms" in client.messages[1][1]
+    assert "Д5: Ритейл после перестройки рынка" in client.messages[1][1]
+    assert "Пост: post retailers" in client.messages[1][1]
+    assert "Д6: Электроэнергетика: скучная инфраструктура" in client.messages[1][1]
+    assert "Пост: post utilities" in client.messages[1][1]
     assert "Д7: Голубые фишки: скучно или эффективно" in client.messages[1][1]
     assert "Пост: post bluechips" in client.messages[1][1]
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
@@ -853,9 +866,15 @@ def test_run_telegram_bot_opens_weekly_posts_without_render(monkeypatch) -> None
 
 def test_daily_content_plan_preset_uses_weekday() -> None:
     monday_index, monday_preset = telegram_bot._daily_content_plan_preset(date(2026, 6, 1))
+    thursday_index, thursday_preset = telegram_bot._daily_content_plan_preset(date(2026, 6, 4))
+    friday_index, friday_preset = telegram_bot._daily_content_plan_preset(date(2026, 6, 5))
+    saturday_index, saturday_preset = telegram_bot._daily_content_plan_preset(date(2026, 6, 6))
     sunday_index, sunday_preset = telegram_bot._daily_content_plan_preset(date(2026, 6, 7))
 
     assert (monday_index, monday_preset.name) == (1, "neweconomy")
+    assert (thursday_index, thursday_preset.name) == (4, "telecoms")
+    assert (friday_index, friday_preset.name) == (5, "retailers")
+    assert (saturday_index, saturday_preset.name) == (6, "utilities")
     assert (sunday_index, sunday_preset.name) == (7, "bluechips")
 
 
@@ -3812,6 +3831,9 @@ def test_handle_ticker_message_shows_content_plan() -> None:
     assert keyboard[0][1]["callback_data"] == "menu:weekly_posts"
     assert keyboard[1][0]["callback_data"] == "preset:neweconomy:shorts"
     assert keyboard[1][1]["callback_data"] == "preset:metals:shorts"
+    assert keyboard[2][1]["callback_data"] == "preset:telecoms:shorts"
+    assert keyboard[3][0]["callback_data"] == "preset:retailers:shorts"
+    assert keyboard[3][1]["callback_data"] == "preset:utilities:shorts"
     assert keyboard[-1][1]["callback_data"] == telegram_bot.QUEUE_STATUS_CALLBACK_DATA
     assert client.videos == []
 
@@ -4046,17 +4068,24 @@ def test_handle_ticker_message_lists_pulse_presets_with_russian_command() -> Non
 def test_all_pulse_presets_have_valid_categories() -> None:
     category_names = {category.name for category in PRESET_CATEGORIES}
     preset_names = {preset.name for preset in PRESETS}
+    category_to_presets = {category.name: set(category.preset_names) for category in PRESET_CATEGORIES}
 
     assert category_names == {"quiet", "drama", "commodities", "growth", "weekly"}
     for preset in PRESETS:
         assert preset.categories
         assert set(preset.categories) <= category_names
+        for category_name in preset.categories:
+            assert preset.name in category_to_presets[category_name]
 
     for category in PRESET_CATEGORIES:
         assert category.preset_names
         assert set(category.preset_names) <= preset_names
         for preset_name in category.preset_names:
             assert category.name in get_preset(preset_name).categories
+
+
+def test_weekly_category_matches_production_plan() -> None:
+    assert telegram_bot.CONTENT_PLAN_PRESETS == get_preset_category("weekly").preset_names
 
 
 def test_handle_ticker_message_lists_preset_categories() -> None:
