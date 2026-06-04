@@ -16,7 +16,7 @@ hide:
     <div class="sp-actions">
       <a class="sp-button sp-button--primary" href="runbook/">Запустить локально</a>
       <a class="sp-button" href="docker/">Запустить в Docker</a>
-      <a class="sp-button" href="demo/">Посмотреть возможности</a>
+      <a class="sp-button" href="telegram/">Telegram-запросы</a>
     </div>
   </div>
 </section>
@@ -43,9 +43,9 @@ hide:
     <strong>Много рынков</strong>
     <span>Российские акции, фьючерсы, валюты, иностранные акции, металлы, криптовалюты и индексы.</span>
   </a>
-  <a class="sp-card" href="runbook/#6-проверить-запросы-из-telegram">
-    <strong>Удобная работа через Telegram</strong>
-    <span>Достаточно написать тикер и параметры: бот сам сделает видео и отправит MP4.</span>
+  <a class="sp-card" href="telegram/">
+    <strong>Telegram-first</strong>
+    <span>Короткий запрос, аккуратное меню, очередь рендера и готовый MP4 прямо в чате.</span>
   </a>
   <a class="sp-card" href="docker/">
     <strong>Постоянный запуск</strong>
@@ -78,96 +78,26 @@ hide:
 
     ```text
     /start
-    /menu
-    /меню
-    /quick
-    быстрый запуск
-    /guide
-    шпаргалка
+    /shoot
+    снять
+    /help
     /shorts SBER LKOH за год
     /draft metals
-    /ideas
-    /drafts
-    /идеи
-    /черновики
-    top drafts
-    топ черновики
-    top shorts
-    top shorts studio
-    top shorts aurora
-    топ шортсы
-    топ шортсы студио
-    все шортсы
-    все шортсы студио
-    все шортсы аурора
-    all shorts aurora
-    /all_shorts
-    случайный шортс
-    random shorts
-    /random_shorts
-    случайный черновик
-    random draft
-    /random_draft
-    /queue
-    очередь
-    /pack
-    пакет пульса
-    /plan
-    план пульса
-    контент-план
-    /plan_shorts
-    снять план
-    /week_posts
-    посты недели
-    /publish_week
-    снять неделю
-    /publish_day
     снять день
-    /today
-    шортс дня
-    /today_post
-    пост дня
-    /today_kit
-    пакет дня
-    /kits
-    пакеты
-    SBER LKOH 2020 2024
-    SBER LKOH за 10 лет shorts
-    YDEX OZON за 6 месяцев shorts
-    YDEX OZON за полгода shorts
-    сделай шортс про SBER и LKOH за полгода для Пульса
-    сравни SBER с LKOH за год шортс
-    металлы
-    металлы студио
-    металлы студио 12с
-    studio metals
-    variants metals
-    варианты металлы
-    /kits
-    пакеты
-    kit metals
-    пакет металлы
-    черновик металлы
-    госы
-    экспортёры
-    черновик угольщики
-    банки
-    дивиденды
-    стройка студио
-    preset metals
-    пресет металлы
-    preset neweconomy duration=12 theme=studio
-    сценарий голубые фишки draft
-    AAPL global USD shorts
-    BTC price duration=12 fps=24
-    gold silver palladium RUB capital invest initial=0 monthly=30000 gradient theme=aurora
+    снять неделю
+    /queue
 
-    # одним сообщением, по строке на ролик:
-    металлы
-    черновик угольщики
-    банки
-    SBER LKOH 2020 2024 shorts
+    LKOH
+    SBER LKOH 2020 2024
     ```
+
+## Telegram-меню
+
+`/start`, `/menu` и `/меню` открывают компактное меню. Первый экран ведет в быстрый запуск, очередь, контент-план, пакет для Пульса, публикацию дня, неделю, примеры, пакеты, тексты, музыку, шпаргалку и короткую справку.
+
+Для ежедневной работы быстрее писать `/shoot` или `снять`: бот покажет пульт с действиями `Снять день`, `Снять неделю`, `Top Studio`, `Случайный`, `Пост дня`, `Посты недели`, `Очередь` и `Меню`.
+
+Подробная справка по синтаксису, инвестициям, рынкам и preset-сценариям находится в разделе [Telegram-запросы](telegram.md).
 
 ## Основные разделы
 
@@ -182,7 +112,7 @@ hide:
   </a>
   <a class="sp-card" href="telegram/">
     <strong>Telegram-запросы</strong>
-    <span>Синтаксис сообщений, preset-кнопки, рынки, инвестиции, темы и готовый текст для Пульса.</span>
+    <span>Синтаксис сообщений, кнопки, рынки, инвестиции, темы и готовый текст для Пульса.</span>
   </a>
   <a class="sp-card" href="docker/">
     <strong>Docker</strong>
@@ -193,158 +123,6 @@ hide:
     <span>Публичные Python-точки входа для интеграции генерации видео.</span>
   </a>
 </div>
-
-## Поддерживаемые запросы
-
-```text
-LKOH
-SBER LKOH 2020 2024
-SBER LKOH за 10 лет shorts
-/shorts SBER LKOH за год
-/draft metals
-YDEX OZON за 6 месяцев shorts
-YDEX OZON за полгода shorts
-сделай шортс про SBER и LKOH за полгода для Пульса
-сравни SBER с LKOH за год шортс
-/menu
-/меню
-/start
-/quick
-быстрый запуск
-/shorts SBER LKOH за год
-/draft metals
-/ideas
-/drafts
-/posts
-/pack
-/plan
-/plan_shorts
-/week_posts
-/publish_week
-/today
-/today_post
-/today_kit
-/kits
-/идеи
-/черновики
-посты
-пакет пульса
-план пульса
-контент-план
-снять план
-посты недели
-снять неделю
-шортс дня
-пост дня
-пакет дня
-пакеты
-все черновики
-все шортсы
-все шортсы студио
-все шортсы аурора
-all shorts aurora
-/all_shorts
-top drafts
-топ черновики
-top shorts
-top shorts studio
-top shorts aurora
-variants metals
-варианты металлы
-/plan
-контент-план
-/plan_shorts
-снять план
-/week_posts
-посты недели
-/publish_week
-снять неделю
-/today
-шортс дня
-/today_post
-пост дня
-/today_kit
-пакет дня
-/kits
-пакеты
-kit metals
-пакет металлы
-топ шортсы
-топ шортсы студио
-случайный шортс
-random shorts
-/random_shorts
-случайный черновик
-random draft
-/random_draft
-/queue
-очередь
-кнопка Статус очереди
-статус показывает job id и короткий запрос
-несколько строк одним сообщением: каждая строка - отдельная задача
-Текст для Пульса после каждого MP4
-post LKOH SBER 2020 2024 без рендера дает skeleton текста для Пульса
-/posts открывает кнопки готовых текстовых пакетов без рендера
-/shorts <запрос> ставит обычный запрос как shorts, /draft <запрос> ставит его как быстрый черновик
-/quick и быстрый запуск открывают компактный пульт: снять день, снять неделю, top Studio, случайный шортс, контент-план, посты недели и очередь
-/guide, /workflow и шпаргалка открывают короткий production-workflow без рендера: публикация дня -> пост/обложка/музыка -> очередь
-/pack показывает top-сценарии сразу в трех форматах: шортс, черновик, пост без рендера
-/plan, план пульса и контент-план показывают недельную сетку готовых выпусков с кнопками запуска, /publish_week и снять неделю ставят все shorts этой сетки в очередь и присылают чеклист публикаций, /week_posts и посты недели отправляют все 7 готовых текстов без рендера, /plan_shorts и снять план ставят все shorts этой сетки в очередь без отдельного чеклиста, /publish_day и снять день ставят шортс дня в очередь и сразу отправляют пакет для поста, /today и шортс дня ставят выпуск текущего дня, /today_post и пост дня открывают готовый текст текущего дня без рендера, а /today_kit и пакет дня открывают пакет текущего дня без рендера
-/kits и пакеты открывают кнопочный список публикационных пакетов всех preset-сценариев без рендера
-top shorts studio и top shorts aurora запускают всю top-серию в выбранной теме
-все шортсы и /all_shorts запускают полноценные shorts-ролики по всей preset-библиотеке
-все шортсы студио, все шортсы аурора и all shorts aurora запускают полный выпуск в единой теме
-variants metals и варианты металлы запускают один preset сразу в default, aurora и studio
-kit metals и пакет металлы открывают action-пакет одного preset: шортс, черновик, все темы, 12s, пост
-кнопки /menu открывают быстрый запуск, шпаргалку, помощь, top-shorts сценарии, идеи, примеры, draft-прогоны и очередь
-кнопки /ideas подписаны по-русски
-follow-up кнопки после preset/custom-видео: черновик 4s / шортс 16s / вариант 12s / Aurora / Studio; после preset-видео еще Все темы
-металлы
-металлы студио
-металлы студио 12с
-studio metals
-variants metals
-варианты металлы
-/plan
-план пульса
-/quick
-быстрый запуск
-/plan_shorts
-снять план
-/week_posts
-посты недели
-/publish_week
-снять неделю
-/today
-шортс дня
-/today_post
-пост дня
-/today_kit
-пакет дня
-/kits
-пакеты
-kit metals
-пакет металлы
-черновик металлы
-госы
-экспортёры
-черновик угольщики
-банки
-дивиденды
-стройка студио
-preset metals
-пресет металлы
-preset neweconomy duration=12 theme=studio
-preset metals draft
-AAPL global USD gradient
-SBER LKOH shorts
-gold 2018-2026 USD gradient
-BTC-USD global crypto close
-gold silver palladium RUB capital invest initial=0 monthly=30000 gradient theme=aurora
-золото серебро палладий в рублях капитал каждый месяц 30к шортс
-SiH4 futures 2024 close
-USD000UTSTOM selt 2024 close
-```
 
 ## Как устроено
 
