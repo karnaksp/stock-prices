@@ -124,7 +124,7 @@ TICKER|ENGINE|MARKET
 gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient
 ```
 
-Для контента в Пульсе есть preset-сценарии, категории историй (`категории`, `category drama`, `category quiet`), публикационные пакеты и готовые тексты без LLM. Подробная справка находится в [docs/telegram.md](docs/telegram.md).
+Для контента в Пульсе есть preset-сценарии, категории историй (`категории`, `category drama`, `top quiet`, `random drama`), публикационные пакеты и готовые тексты без LLM. Подробная справка находится в [docs/telegram.md](docs/telegram.md).
 
 Запуск локально:
 

@@ -18,6 +18,7 @@ from stock_prices._internal.telegram_presets import (
     get_preset,
     preset_button_label,
     preset_followup_keyboard,
+    presets_for_category,
 )
 from stock_prices._internal.telegram_requests import parse_telegram_video_request
 from stock_prices._internal.telegram_bot import TelegramApiError, TelegramBotSettings, TelegramClient, cleanup_old_outputs, handle_ticker_message
@@ -1290,6 +1291,144 @@ def test_run_telegram_bot_queues_random_preset_shorts(monkeypatch) -> None:
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
     assert generated == [("tg-48-random-shorts-metals", 16, 24, True, ["GC=F", "SI=F", "PA=F"])]
     assert client.videos == [(123, Path("animations/tg-48-random-shorts-metals.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("шортс тихие", ("batch", "shorts", "quiet", None)),
+        ("тихий шортс", ("batch", "shorts", "quiet", None)),
+        ("top quiet studio", ("batch", "shorts", "quiet", "studio")),
+        ("черновик тихие", ("batch", "draft", "quiet", None)),
+        ("random drama", ("random", "shorts", "drama", None)),
+        ("random draft quiet", ("random", "draft", "quiet", None)),
+        ("category random drama", ("random", "shorts", "drama", None)),
+        ("category drama", None),
+    ],
+)
+def test_category_preset_action_parses_expected_aliases(text: str, expected: tuple[str, str, str, str | None] | None) -> None:
+    action = telegram_bot._category_preset_action(text)
+
+    if expected is None:
+        assert action is None
+    else:
+        assert action is not None
+        assert (action.kind, action.mode, action.category_name, action.theme) == expected
+
+
+def test_run_telegram_bot_queues_category_shorts(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 81, "message": {"text": "top quiet studio", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), theme="default"),
+    )
+    generated: list[tuple[str | None, int, int, bool, str]] = []
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, request.render.duration, request.render.fps, request.render.use_gradient, request.render.theme))
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    presets = presets_for_category("quiet")
+    assert "категории Тихие российские истории в теме studio" in client.messages[0][1]
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
+    assert [job_id for job_id, *_rest in generated] == [
+        f"tg-81-quiet-shorts-studio-{index}-{preset.name}" for index, preset in enumerate(presets, start=1)
+    ]
+    assert all((duration, fps, gradient, theme) == (16, 24, True, "studio") for _job_id, duration, fps, gradient, theme in generated)
+    assert len(client.videos) == len(presets)
+
+
+def test_run_telegram_bot_queues_category_drafts(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 82, "message": {"text": "черновик тихие", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), use_gradient=True),
+    )
+    generated: list[tuple[str | None, int, int, bool]] = []
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, request.render.duration, request.render.fps, request.render.use_gradient))
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    presets = presets_for_category("quiet")
+    assert "draft-черновиков категории Тихие российские истории" in client.messages[0][1]
+    assert [job_id for job_id, *_rest in generated] == [
+        f"tg-82-quiet-draft-{index}-{preset.name}" for index, preset in enumerate(presets, start=1)
+    ]
+    assert all((duration, fps, gradient) == (4, 8, False) for _job_id, duration, fps, gradient in generated)
+    assert len(client.videos) == len(presets)
+
+
+def test_run_telegram_bot_queues_random_category_shorts(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 83, "message": {"text": "random drama", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    selected = get_preset("builders")
+    seen_choices: list[tuple[str, ...]] = []
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), use_gradient=False),
+    )
+    generated: list[tuple[str | None, int, int, bool, list[str]]] = []
+
+    def fake_choice(presets):
+        seen_choices.append(tuple(preset.name for preset in presets))
+        return selected
+
+    def fake_generate(request, job_id=None):
+        generated.append(
+            (
+                job_id,
+                request.render.duration,
+                request.render.fps,
+                request.render.use_gradient,
+                [spec.ticker for spec in request.ticker_specs],
+            )
+        )
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot.random, "choice", fake_choice)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert seen_choices == [tuple(preset.name for preset in presets_for_category("drama"))]
+    assert "Случайный шортс категории Драмы и просадки" in client.messages[0][1]
+    assert generated == [("tg-83-random-drama-shorts-builders", 16, 24, True, ["PIKK", "LSRG", "SMLT"])]
+    assert len(client.videos) == 1
 
 
 def test_run_telegram_bot_queues_all_example_drafts(monkeypatch) -> None:
