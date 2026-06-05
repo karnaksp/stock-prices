@@ -406,7 +406,26 @@ def quick_launch_keyboard() -> dict[str, list[list[dict[str, str]]]]:
 
 
 def help_keyboard() -> dict[str, list[list[dict[str, str]]]]:
-    return main_menu_keyboard()
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "📅 День", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
+                {"text": "🗓 Неделя", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_week"},
+            ],
+            [
+                {"text": "📚 Истории", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
+                {"text": "💬 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}examples"},
+            ],
+            [
+                {"text": "📊 План", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
+                {"text": "🧭 Шпаргалка", "callback_data": f"{MENU_CALLBACK_PREFIX}guide"},
+            ],
+            [
+                {"text": "⏳ Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
+                {"text": "🏠 Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
+            ],
+        ]
+    }
 
 
 def custom_followup_keyboard(request_key: str) -> dict[str, list[list[dict[str, str]]]]:

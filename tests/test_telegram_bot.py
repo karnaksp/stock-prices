@@ -3618,6 +3618,23 @@ def test_help_text_is_compact_and_actionable() -> None:
     assert "SiH4 futures" not in help_text
 
 
+def test_help_keyboard_points_to_guidance_actions() -> None:
+    keyboard = telegram_bot.help_keyboard()
+
+    callbacks = [
+        [button["callback_data"] for button in row]
+        for row in keyboard["inline_keyboard"]
+    ]
+
+    assert callbacks == [
+        ["menu:publication_day", "menu:publication_week"],
+        ["menu:preset_categories", "menu:examples"],
+        ["menu:content_plan", "menu:guide"],
+        [telegram_bot.QUEUE_STATUS_CALLBACK_DATA, "menu:main_menu"],
+    ]
+    assert keyboard != telegram_bot.main_menu_keyboard()
+
+
 def test_handle_ticker_message_shows_main_menu() -> None:
     client = FakeClient()
     settings = TelegramBotSettings(
