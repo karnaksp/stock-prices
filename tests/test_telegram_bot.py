@@ -1577,6 +1577,19 @@ def test_run_telegram_bot_menu_callback_opens_examples(monkeypatch) -> None:
     assert client.videos == []
 
 
+def test_example_keyboard_exposes_batch_actions() -> None:
+    keyboard = telegram_bot.example_inline_keyboard()
+
+    assert keyboard["inline_keyboard"][-2] == [
+        {"text": "🎲 Случайный draft", "callback_data": "menu:random_example"},
+        {"text": "🧪 Все draft", "callback_data": "menu:example_drafts"},
+    ]
+    assert keyboard["inline_keyboard"][-1] == [
+        {"text": "⏳ Очередь", "callback_data": telegram_bot.QUEUE_STATUS_CALLBACK_DATA},
+        {"text": "🏠 Меню", "callback_data": "menu:main_menu"},
+    ]
+
+
 def test_run_telegram_bot_menu_callback_opens_help(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:

@@ -531,7 +531,7 @@ def format_example_list() -> str:
         lines.append(f"{example.button_label}: {example.description}")
         lines.append(example.request)
         lines.append("")
-    lines.append("Нажмите кнопку ниже, чтобы сразу поставить пример в очередь.")
+    lines.append("Нажмите пример, случайный draft или весь набор draft-примеров.")
     lines.append("Это фиксированные рецепты без LLM и автопридумывания идей.")
     return "\n".join(lines).strip()
 
@@ -542,6 +542,18 @@ def example_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, s
         for example in _TELEGRAM_EXAMPLES
     ]
     rows = [buttons[index : index + columns] for index in range(0, len(buttons), columns)]
+    rows.append(
+        [
+            {"text": "🎲 Случайный draft", "callback_data": f"{MENU_CALLBACK_PREFIX}random_example"},
+            {"text": "🧪 Все draft", "callback_data": f"{MENU_CALLBACK_PREFIX}example_drafts"},
+        ]
+    )
+    rows.append(
+        [
+            {"text": "⏳ Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
+            {"text": "🏠 Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
+        ]
+    )
     return {"inline_keyboard": rows}
 
 
