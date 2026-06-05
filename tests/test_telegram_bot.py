@@ -3187,7 +3187,7 @@ def test_run_telegram_bot_queues_multiline_batch(monkeypatch) -> None:
                 {
                     "update_id": 52,
                     "message": {
-                        "text": "LKOH\nSBER 2020 2024\npreset metals draft",
+                        "text": "- LKOH\n1. SBER 2020 2024\n• preset metals draft",
                         "chat": {"id": 123},
                     },
                 }
@@ -3226,8 +3226,20 @@ def test_run_telegram_bot_queues_multiline_batch(monkeypatch) -> None:
     assert ("tg-52-batch-3", ["GC=F", "SI=F", "PA=F"], 4, 8, False) in generated
     assert len(generated) == 3
     assert any("Поставил в очередь 3 задачи" in message for _chat_id, message in client.messages)
+    assert any("1. LKOH" in message for _chat_id, message in client.messages)
+    assert any("2. SBER 2020 2024" in message for _chat_id, message in client.messages)
+    assert any("3. preset metals draft" in message for _chat_id, message in client.messages)
     assert telegram_bot.queue_status_keyboard() in client.message_markups
     assert len(client.videos) == 3
+
+
+def test_batch_request_lines_accept_common_list_markers() -> None:
+    assert telegram_bot._batch_request_lines("- LKOH\n1) SBER 2020 2024\n• preset metals draft\n\n* AAPL global USD") == [
+        "LKOH",
+        "SBER 2020 2024",
+        "preset metals draft",
+        "AAPL global USD",
+    ]
 
 
 def test_handle_ticker_message_mentions_queue_mode_for_multiline_batch() -> None:
