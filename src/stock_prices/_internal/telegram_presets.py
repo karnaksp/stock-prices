@@ -632,7 +632,7 @@ def format_preset_list(mode: str = "shorts") -> str:
     lines.append("Для полного выпуска: все шортсы, все шортсы студио или все шортсы аурора - поставить в очередь shorts-ролики всех сценариев.")
     lines.append("Для отбора идей: все черновики - поставить в очередь draft-прогоны всех сценариев.")
     lines.append("Статус очереди: /queue или очередь.")
-    lines.append("После preset-видео бот покажет кнопки: черновик 4s, шортс 16s и вариант 12s.")
+    lines.append("После preset-видео бот покажет кнопки: Черновик 4s, Шортс 16s, 12s, Aurora 16s и Studio 16s.")
     if mode == "draft":
         lines.append("Draft-кнопки ниже запустят быстрый черновик: duration=4 fps=8 без gradient.")
         lines.append("Текстом: preset metals draft")
@@ -653,19 +653,22 @@ def format_preset_category_list(mode: str = "shorts") -> str:
     if mode not in {"shorts", "draft"}:
         msg = f"Unknown preset category mode: {mode}."
         raise ValueError(msg)
-    title = "Черновики по категориям для Пульса:" if mode == "draft" else "Истории для Пульса по категориям:"
-    action_hint = "Кнопки категорий откроют draft-запуск." if mode == "draft" else "Кнопки категорий откроют shorts-запуск."
+    title = "Черновики по категориям" if mode == "draft" else "Истории для Пульса"
+    action_hint = (
+        "Внутри категории кнопки сразу ставят draft 4s в очередь."
+        if mode == "draft"
+        else "Внутри категории кнопки сразу ставят shorts 16s в очередь."
+    )
+    category_titles = " / ".join(category.title for category in PRESET_CATEGORIES)
     lines = [
         title,
         "",
+        "Выберите категорию кнопкой ниже.",
+        category_titles,
+        action_hint,
+        "Своя идея: /shorts SBER LKOH за год.",
+        "Статус: /queue или статус.",
     ]
-    for category in PRESET_CATEGORIES:
-        labels = " / ".join(preset_button_label(get_preset(name)) for name in category.preset_names)
-        lines.append(f"{category.title}: {category.description}")
-        lines.append(f"Команда: category {category.name}")
-        lines.append(f"Сюжеты: {labels}")
-        lines.append("")
-    lines.append(f"{action_hint} Текстом: категории, истории, category drama.")
     return "\n".join(lines).strip()
 
 
@@ -682,14 +685,13 @@ def format_preset_category(category_name: str, mode: str = "shorts") -> str:
     lines = [
         f"Категория: {category.title}",
         category.description,
+        button_hint,
         "",
     ]
     for preset in presets_for_category(category.name):
-        commands = " / ".join(ready_preset_commands(preset))
         lines.append(f"{preset_button_label(preset)} - {preset.description}")
-        lines.append(f"Команды: {commands}")
-        lines.append("")
-    lines.append(f"{button_hint} Для пакета с постом, музыкой и обложкой: kit <name>.")
+    lines.append("")
+    lines.append("Пакет без рендера: kit <name>. Назад: категории. Статус: /queue.")
     return "\n".join(lines).strip()
 
 
@@ -750,14 +752,14 @@ def preset_followup_keyboard(preset_name: str) -> dict[str, list[list[dict[str, 
                 {"text": "Шортс 16s", "callback_data": f"preset:{preset.name}:shorts"},
             ],
             [
-                {"text": "Вариант 12s", "callback_data": f"preset:{preset.name}:12s"},
+                {"text": "12s", "callback_data": f"preset:{preset.name}:12s"},
             ],
             [
-                {"text": "Aurora", "callback_data": f"preset:{preset.name}:aurora"},
-                {"text": "Studio", "callback_data": f"preset:{preset.name}:studio"},
+                {"text": "Aurora 16s", "callback_data": f"preset:{preset.name}:aurora"},
+                {"text": "Studio 16s", "callback_data": f"preset:{preset.name}:studio"},
             ],
             [
-                {"text": "Все темы", "callback_data": f"preset:{preset.name}:themes"},
+                {"text": "Все темы x3", "callback_data": f"preset:{preset.name}:themes"},
             ],
             [
                 {"text": "Пост", "callback_data": f"post:{preset.name}"},
