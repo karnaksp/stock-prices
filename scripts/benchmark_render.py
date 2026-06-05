@@ -34,29 +34,39 @@ def main() -> int:
     parser.add_argument("--rows", type=int, default=1500)
     parser.add_argument("--duration", type=int, default=3)
     parser.add_argument("--fps", type=int, default=10)
+    parser.add_argument("--final-frame-duration", type=int, default=0)
+    parser.add_argument("--draw-frames", type=int, default=1)
+    parser.add_argument("--gradient", action="store_true")
     args = parser.parse_args()
 
     started_at = time.perf_counter()
-    animation = create_multi_line_animation(
+    chart_animation = create_multi_line_animation(
         _sample_data(args.tickers, args.rows),
         value_column="CAPITAL_REINVEST",
         y_label="RUB",
         target_duration=args.duration,
         fps=args.fps,
-        final_frame_duration=0,
+        final_frame_duration=args.final_frame_duration,
+        use_gradient=args.gradient,
         title="Benchmark",
         under_title="Synthetic render",
     )
     elapsed = time.perf_counter() - started_at
     print(f"prepared animation in {elapsed:.3f}s")
     Path("animations").mkdir(exist_ok=True)
-    animation._init_draw()
-    animation._draw_next_frame(0, blit=False)
-    animation._draw_was_started = True
-    animation._fig.savefig(Path("animations") / "benchmark-frame.png")
+    total_frames = max(1, args.duration * args.fps) + max(0, args.final_frame_duration * args.fps)
+    draw_frames = max(1, min(args.draw_frames, total_frames))
+    started_at = time.perf_counter()
+    chart_animation._init_draw()
+    for frame_number in range(draw_frames):
+        chart_animation._draw_next_frame(frame_number, blit=False)
+    chart_animation._draw_was_started = True
+    draw_elapsed = time.perf_counter() - started_at
+    print(f"drew {draw_frames} frame(s) in {draw_elapsed:.3f}s")
+    chart_animation._fig.savefig(Path("animations") / "benchmark-frame.png")
     import matplotlib.pyplot as plt
 
-    plt.close(animation._fig)
+    plt.close(chart_animation._fig)
     return 0
 
 

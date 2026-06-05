@@ -7,6 +7,7 @@ from stock_prices._internal.lib.plotting import (
     _amount_summary,
     _animation_frame_data,
     _combine_data,
+    _prefix_y_limits,
     _return_summary,
     _visible_x_span_days,
     create_multi_line_animation,
@@ -141,6 +142,53 @@ def test_animation_expands_time_window_while_lines_keep_full_data() -> None:
         assert first_xlim[0] == start_num
         assert first_xlim[1] < middle_xlim[1] < final_xlim[1]
     finally:
+        plt.close(animation._fig)
+
+
+def test_prefix_y_limits_match_visible_prefix_values_with_nans() -> None:
+    values = pd.DataFrame(
+        {
+            "A": [None, 10.0, 7.0, None],
+            "B": [None, None, 20.0, 5.0],
+        }
+    )
+
+    prefix_min, prefix_max = _prefix_y_limits(values)
+
+    assert pd.isna(prefix_min.iloc[0])
+    assert pd.isna(prefix_max.iloc[0])
+    assert prefix_min.iloc[1:].tolist() == [10.0, 7.0, 5.0]
+    assert prefix_max.iloc[1:].tolist() == [10.0, 20.0, 20.0]
+
+
+def test_animation_reuses_duplicate_final_hold_frame_artists() -> None:
+    import matplotlib.pyplot as plt
+
+    data_frame = pd.DataFrame(
+        {
+            "TRADEDATE": pd.to_datetime(["2021-12-17", "2022-01-17", "2022-02-17"]),
+            "CLOSE": [100.0, 140.0, 90.0],
+            "DIVIDEND": [0.0, 0.0, 0.0],
+        }
+    )
+    animation = create_multi_line_animation(
+        [{"name": "SBER", "color": "#FFD166", "data": data_frame}],
+        target_duration=1,
+        fps=1,
+        final_frame_duration=2,
+        use_gradient=True,
+    )
+
+    try:
+        first_final_artists = animation._func(1)
+        first_collection_ids = [id(collection) for collection in animation._fig.axes[0].collections]
+        second_final_artists = animation._func(2)
+        second_collection_ids = [id(collection) for collection in animation._fig.axes[0].collections]
+
+        assert second_final_artists is first_final_artists
+        assert second_collection_ids == first_collection_ids
+    finally:
+        animation._draw_was_started = True
         plt.close(animation._fig)
 
 
