@@ -423,6 +423,10 @@ def custom_followup_keyboard(request_key: str) -> dict[str, list[list[dict[str, 
                 {"text": "Aurora", "callback_data": f"custom:{request_key}:aurora"},
                 {"text": "Studio", "callback_data": f"custom:{request_key}:studio"},
             ],
+            [
+                {"text": "Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
+                {"text": "Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
+            ],
         ]
     }
 

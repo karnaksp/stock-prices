@@ -69,6 +69,25 @@ def test_telegram_bot_command_menu_is_compact() -> None:
     assert all(item["command"].replace("_", "").isalnum() and item["command"].islower() for item in commands)
 
 
+def test_preset_followup_keyboard_keeps_post_render_actions() -> None:
+    keyboard = preset_followup_keyboard("metals")
+
+    assert keyboard["inline_keyboard"][-2] == [
+        {"text": "Пост", "callback_data": "post:metals"},
+        {"text": "Очередь", "callback_data": telegram_bot.QUEUE_STATUS_CALLBACK_DATA},
+    ]
+    assert keyboard["inline_keyboard"][-1] == [{"text": "Меню", "callback_data": "menu:main_menu"}]
+
+
+def test_custom_followup_keyboard_keeps_post_render_actions() -> None:
+    keyboard = telegram_bot.custom_followup_keyboard("tg-53")
+
+    assert keyboard["inline_keyboard"][-1] == [
+        {"text": "Очередь", "callback_data": telegram_bot.QUEUE_STATUS_CALLBACK_DATA},
+        {"text": "Меню", "callback_data": "menu:main_menu"},
+    ]
+
+
 def test_telegram_client_sets_my_commands(monkeypatch) -> None:
     calls = []
 
