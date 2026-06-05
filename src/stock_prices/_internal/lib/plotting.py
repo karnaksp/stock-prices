@@ -168,7 +168,8 @@ def _frame_indexes(row_count: int, target_duration: int, fps: int, final_frame_d
 
 
 def _visible_x_span_days(x_start: pd.Timestamp, frame_date: pd.Timestamp, total_span_days: int) -> int:
-    return max(1, total_span_days)
+    elapsed_days = max(1, int((frame_date - x_start).days))
+    return min(max(1, total_span_days), elapsed_days)
 
 
 def _animation_frame_data(combined_df: pd.DataFrame, frame_index: int) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -318,7 +319,7 @@ def create_multi_line_animation(
         visible_x_span_days = _visible_x_span_days(x_start, frame_date, x_span_days)
         ax.set_xlim(x_start, x_start + pd.Timedelta(days=visible_x_span_days * 1.12))
 
-        values = line_data[value_columns].stack().dropna()
+        values = current_data[value_columns].stack().dropna()
         if not values.empty:
             y_min = float(values.min())
             y_max = float(values.max())
