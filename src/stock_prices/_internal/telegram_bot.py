@@ -157,7 +157,9 @@ class TelegramJob:
 class TelegramQueueSnapshot:
     active_job_id: str | None
     active_preview: str
-    pending_jobs: tuple[tuple[str, str], ...]
+    active_runtime_seconds: int | None
+    active_wait_seconds: int | None
+    pending_jobs: tuple[tuple[str, str, int], ...]
     completed_count: int
     failed_count: int
 
@@ -460,6 +462,17 @@ def _ru_plural(count: int, one: str, few: str, many: str) -> str:
     if count % 10 in {2, 3, 4}:
         return few
     return many
+
+
+def _format_queue_duration(seconds: int) -> str:
+    seconds = max(0, int(seconds))
+    if seconds < 60:
+        return f"{seconds}с"
+    minutes, rest_seconds = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes}м {rest_seconds:02d}с"
+    hours, rest_minutes = divmod(minutes, 60)
+    return f"{hours}ч {rest_minutes:02d}м"
 
 
 def _job_preview(text: str, limit: int = 56) -> str:
@@ -980,6 +993,7 @@ class TelegramJobQueue:
         self._lock = Lock()
         self._pending_jobs: list[TelegramJob] = []
         self._active_job: TelegramJob | None = None
+        self._active_started_at: float | None = None
         self._completed_count = 0
         self._failed_count = 0
         self._followup_texts: dict[str, str] = {}
@@ -1391,10 +1405,22 @@ class TelegramJobQueue:
 
     def snapshot(self) -> TelegramQueueSnapshot:
         with self._lock:
+            now = time.monotonic()
+            active_runtime_seconds: int | None = None
+            active_wait_seconds: int | None = None
+            if self._active_job:
+                active_started_at = self._active_started_at or now
+                active_runtime_seconds = max(0, int(now - active_started_at))
+                active_wait_seconds = max(0, int(active_started_at - self._active_job.queued_at))
             return TelegramQueueSnapshot(
                 active_job_id=self._active_job.job_id if self._active_job else None,
                 active_preview=_job_preview(self._active_job.text) if self._active_job else "",
-                pending_jobs=tuple((job.job_id, _job_preview(job.text)) for job in self._pending_jobs),
+                active_runtime_seconds=active_runtime_seconds,
+                active_wait_seconds=active_wait_seconds,
+                pending_jobs=tuple(
+                    (job.job_id, _job_preview(job.text), max(0, int(now - job.queued_at)))
+                    for job in self._pending_jobs
+                ),
                 completed_count=self._completed_count,
                 failed_count=self._failed_count,
             )
@@ -1404,13 +1430,17 @@ class TelegramJobQueue:
         lines = ["Очередь Telegram"]
         if snapshot.active_job_id:
             lines.append(f"Сейчас: {snapshot.active_job_id} - {snapshot.active_preview}")
+            if snapshot.active_runtime_seconds is not None:
+                lines.append(f"В работе: {_format_queue_duration(snapshot.active_runtime_seconds)}")
+            if snapshot.active_wait_seconds:
+                lines.append(f"Ждал перед стартом: {_format_queue_duration(snapshot.active_wait_seconds)}")
         else:
             lines.append("Сейчас: нет активного рендера")
 
         pending_count = len(snapshot.pending_jobs)
         lines.append(f"Ждет: {pending_count}")
-        for index, (job_id, preview) in enumerate(snapshot.pending_jobs[:8], start=1):
-            lines.append(f"{index}. {job_id} - {preview}")
+        for index, (job_id, preview, wait_seconds) in enumerate(snapshot.pending_jobs[:8], start=1):
+            lines.append(f"{index}. {job_id} - {preview} (ждет {_format_queue_duration(wait_seconds)})")
         if pending_count > 8:
             lines.append(f"... еще {pending_count - 8}")
         lines.append(f"Готово: {snapshot.completed_count}, ошибок: {snapshot.failed_count}")
@@ -1420,11 +1450,13 @@ class TelegramJobQueue:
         with self._lock:
             self._pending_jobs = [pending_job for pending_job in self._pending_jobs if pending_job.job_id != job.job_id]
             self._active_job = job
+            self._active_started_at = time.monotonic()
 
     def _mark_finished(self, job: TelegramJob, success: bool) -> None:
         with self._lock:
             if self._active_job and self._active_job.job_id == job.job_id:
                 self._active_job = None
+                self._active_started_at = None
             if success:
                 self._completed_count += 1
             else:

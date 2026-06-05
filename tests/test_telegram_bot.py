@@ -3523,6 +3523,36 @@ def test_telegram_job_queue_status_truncates_long_request_preview() -> None:
     assert "monthly=30000" not in status
 
 
+def test_telegram_job_queue_status_shows_wait_and_runtime(monkeypatch) -> None:
+    current_time = 1_000.0
+
+    def fake_monotonic() -> float:
+        return current_time
+
+    monkeypatch.setattr(telegram_bot.time, "monotonic", fake_monotonic)
+
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+    queue = telegram_bot.TelegramJobQueue(client, settings)
+
+    job = queue.enqueue(123, "LKOH SBER shorts", 54, notify=False)
+    current_time = 1_125.0
+    pending_status = queue.status_text()
+
+    assert "tg-54 - LKOH SBER shorts (ждет 2м 05с)" in pending_status
+
+    queue._mark_started(job)
+    current_time = 1_251.0
+    active_status = queue.status_text()
+
+    assert "Сейчас: tg-54 - LKOH SBER shorts" in active_status
+    assert "В работе: 2м 06с" in active_status
+    assert "Ждал перед стартом: 2м 05с" in active_status
+
+
 def test_run_telegram_bot_reports_queue_status(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
