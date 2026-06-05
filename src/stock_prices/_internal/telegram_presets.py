@@ -721,21 +721,19 @@ def format_cover_list() -> str:
 
 def format_pulse_post(preset: TelegramPreset) -> str:
     tags = " ".join(preset.tags)
-    music_tracks = ""
-    if preset.music_tracks:
-        music_tracks = f"Треки-референсы (права проверять отдельно): {', '.join(preset.music_tracks)}.\n"
-    cover_texts = ""
-    if preset.cover_texts:
-        cover_texts = f"Текст на обложку: {' / '.join(preset.cover_texts)}.\n"
+    cover_options = "\n".join(f"- {cover}" for cover in preset.cover_texts)
+    track_options = "\n".join(f"- {track}" for track in preset.music_tracks)
     return (
-        "Текст для Пульса:\n"
+        "Пост для Пульса (можно копировать):\n"
         f"{preset.hook}\n\n"
         f"{preset.post_text}\n\n"
-        f"{cover_texts}"
-        f"Музыка/монтаж: {preset.music_mood}.\n"
-        f"{music_tracks}"
         f"{tags}\n\n"
-        "Не является индивидуальной инвестиционной рекомендацией."
+        "Не является индивидуальной инвестиционной рекомендацией.\n\n"
+        "Обложка:\n"
+        f"{cover_options}\n\n"
+        "Монтаж:\n"
+        f"- Настроение: {preset.music_mood}.\n"
+        f"- Треки-референсы (права проверять отдельно):\n{track_options}"
     )
 
 
