@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from queue import Queue
-from threading import Lock, Thread
-from typing import Any
+from threading import Event, Lock, Thread
+from typing import Any, Callable
 
 import requests
 
@@ -47,6 +47,8 @@ TELEGRAM_BOT_COMMANDS: tuple[tuple[str, str], ...] = (
     ("queue", "статус очереди"),
     ("help", "короткая справка"),
 )
+RENDER_PROGRESS_FIRST_NOTICE_SECONDS = 90.0
+RENDER_PROGRESS_REPEAT_SECONDS = 180.0
 
 
 def telegram_bot_command_menu() -> list[dict[str, str]]:
@@ -2667,6 +2669,46 @@ def _custom_music_mood(parsed: ParsedTelegramRequest) -> str:
     return "энергичный темп, короткая пауза на победителе и отстающих"
 
 
+def _start_render_progress_notifier(
+    client: TelegramClient,
+    chat_id: int,
+    job_id: str | None,
+    display_name: str,
+    first_notice_seconds: float = RENDER_PROGRESS_FIRST_NOTICE_SECONDS,
+    repeat_seconds: float = RENDER_PROGRESS_REPEAT_SECONDS,
+) -> Callable[[], None]:
+    stop_event = Event()
+    job_label = job_id or "manual"
+
+    def notify_loop() -> None:
+        if stop_event.wait(max(first_notice_seconds, 0.0)):
+            return
+        notice_count = 1
+        while not stop_event.is_set():
+            try:
+                client.send_message(
+                    chat_id,
+                    f"Рендер еще идет: {display_name}\n"
+                    f"Job {job_label}. Длинные периоды и 3+ тикера могут считаться несколько минут.",
+                    reply_markup=queue_status_keyboard(),
+                )
+                log_event("render", "progress", job_id=job_id, chat_id=chat_id, notice_count=notice_count)
+            except Exception:
+                logging.exception("Failed to send render progress notice for %s", job_label)
+            notice_count += 1
+            if stop_event.wait(max(repeat_seconds, 1.0)):
+                return
+
+    thread = Thread(target=notify_loop, name=f"telegram-render-progress-{job_label}", daemon=True)
+    thread.start()
+
+    def stop() -> None:
+        stop_event.set()
+        thread.join(timeout=1.0)
+
+    return stop
+
+
 def format_generic_pulse_post(parsed: ParsedTelegramRequest) -> str:
     render = parsed.request.render
     period = f"{render.start_date:%d.%m.%Y} - {render.end_date:%d.%m.%Y}"
@@ -2874,7 +2916,11 @@ def handle_ticker_message(
         f"{render.start_date} - {render.end_date}, {render.duration}s/{render.fps}fps\n"
         f"{_render_summary(render)}",
     )
-    output_path = generate_video(parsed.request, job_id=job_id)
+    stop_progress_notifier = _start_render_progress_notifier(client, chat_id, job_id, parsed.display_name)
+    try:
+        output_path = generate_video(parsed.request, job_id=job_id)
+    finally:
+        stop_progress_notifier()
     send_started_at = time.monotonic()
     log_event("send", "started", job_id=job_id, chat_id=chat_id, output_path=str(output_path))
     client.send_video(chat_id, output_path, f"{parsed.display_name}: {render.start_date} - {render.end_date}")
