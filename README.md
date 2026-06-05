@@ -55,6 +55,7 @@ docker compose logs -f stock-prices-bot
 /shoot
 снять
 /help
+/shorts
 /shorts SBER LKOH за год
 /draft metals
 снять день
@@ -116,7 +117,7 @@ TICKER|ENGINE|MARKET
 
 При запуске бот обновляет встроенное меню команд Telegram: `/menu`, `/shoot`, `/shorts`, `/queue`, `/help`. Остальные команды остаются рабочими текстом, но не захламляют меню клиента.
 
-Прямой запуск ролика:
+`/shorts` без текста открывает выбор готовых историй по категориям. `/shorts` с тикерами запускает свой ролик:
 
 ```text
 /shorts SBER LKOH за год

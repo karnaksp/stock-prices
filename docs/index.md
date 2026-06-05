@@ -81,6 +81,7 @@ hide:
     /shoot
     снять
     /help
+    /shorts
     /shorts SBER LKOH за год
     /draft metals
     снять день
