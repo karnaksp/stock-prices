@@ -167,6 +167,30 @@ def _frame_indexes(row_count: int, target_duration: int, fps: int, final_frame_d
     return animated + [final_index] * max(0, int(final_frame_duration * fps))
 
 
+def _prefix_y_limits(values: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+    import numpy as np
+
+    numeric_values = values.apply(pd.to_numeric, errors="coerce")
+    matrix = numeric_values.to_numpy(dtype=float)
+    row_count = len(numeric_values)
+    row_min = np.full(row_count, np.nan)
+    row_max = np.full(row_count, np.nan)
+
+    if row_count:
+        valid_rows = ~np.isnan(matrix).all(axis=1)
+        if valid_rows.any():
+            row_min[valid_rows] = np.nanmin(matrix[valid_rows], axis=1)
+            row_max[valid_rows] = np.nanmax(matrix[valid_rows], axis=1)
+
+    min_input = np.where(np.isnan(row_min), np.inf, row_min)
+    max_input = np.where(np.isnan(row_max), -np.inf, row_max)
+    prefix_min = np.minimum.accumulate(min_input)
+    prefix_max = np.maximum.accumulate(max_input)
+    prefix_min[prefix_min == np.inf] = np.nan
+    prefix_max[prefix_max == -np.inf] = np.nan
+    return pd.Series(prefix_min, index=values.index), pd.Series(prefix_max, index=values.index)
+
+
 def _visible_x_span_days(x_start: pd.Timestamp, frame_date: pd.Timestamp, total_span_days: int) -> int:
     elapsed_days = max(1, int((frame_date - x_start).days))
     return min(max(1, total_span_days), elapsed_days)
@@ -218,6 +242,7 @@ def create_multi_line_animation(
 
     chart_theme = get_chart_theme(theme) if isinstance(theme, str) else theme
     combined_df, value_columns, dividend_columns, basis_columns = _combine_data(data_list, value_column)
+    prefix_y_min, prefix_y_max = _prefix_y_limits(combined_df[value_columns])
     all_frames = _frame_indexes(len(combined_df), target_duration, fps, final_frame_duration)
 
     plt.rcParams["figure.facecolor"] = chart_theme.figure_bg
@@ -301,6 +326,8 @@ def create_multi_line_animation(
             text.set_color(chart_theme.title_color)
 
     event_artists = []
+    last_frame_index: int | None = None
+    last_artists: list[Any] | None = None
 
     def clear_transient_artists() -> None:
         while event_artists:
@@ -311,18 +338,23 @@ def create_multi_line_animation(
             fill_artists.pop().remove()
 
     def animate(frame_number: int):
-        clear_transient_artists()
+        nonlocal last_frame_index, last_artists
         frame_index = all_frames[frame_number]
+        if frame_index == last_frame_index and last_artists is not None:
+            return last_artists
+
+        clear_transient_artists()
         current_data, line_data = _animation_frame_data(combined_df, frame_index)
         frame_date = pd.Timestamp(current_data["TRADEDATE"].iloc[-1])
         date_artist.set_text(frame_date.strftime("%d.%m.%Y"))
         visible_x_span_days = _visible_x_span_days(x_start, frame_date, x_span_days)
         ax.set_xlim(x_start, x_start + pd.Timedelta(days=visible_x_span_days * 1.12))
 
-        values = current_data[value_columns].stack().dropna()
-        if not values.empty:
-            y_min = float(values.min())
-            y_max = float(values.max())
+        y_min_value = prefix_y_min.iloc[frame_index]
+        y_max_value = prefix_y_max.iloc[frame_index]
+        if pd.notna(y_min_value) and pd.notna(y_max_value):
+            y_min = float(y_min_value)
+            y_max = float(y_max_value)
             margin = max((y_max - y_min) * 0.12, abs(y_max) * 0.02, 1.0)
             ax.set_ylim(y_min - margin, y_max + margin)
 
@@ -415,7 +447,7 @@ def create_multi_line_animation(
             )
             event_artists.extend([patch, label])
 
-        return [
+        artists = [
             *fill_artists,
             *lines.values(),
             *labels.values(),
@@ -426,6 +458,9 @@ def create_multi_line_animation(
             *summary_artists.values(),
             *event_artists,
         ]
+        last_frame_index = frame_index
+        last_artists = artists
+        return artists
 
     return animation.FuncAnimation(fig, animate, frames=len(all_frames), interval=1000 / fps, repeat=False, blit=False)
 
