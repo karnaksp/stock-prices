@@ -67,6 +67,7 @@ def test_telegram_bot_command_menu_is_compact() -> None:
     assert all(1 <= len(item["description"]) <= 256 for item in commands)
     assert all("/" not in item["command"] for item in commands)
     assert all(item["command"].replace("_", "").isalnum() and item["command"].islower() for item in commands)
+    assert commands[2] == {"command": "shorts", "description": "истории или свой запрос"}
 
 
 def test_preset_followup_keyboard_keeps_post_render_actions() -> None:
@@ -3634,6 +3635,7 @@ def test_help_text_is_compact_and_actionable() -> None:
     assert len(help_text.splitlines()) <= 14
     assert client.message_markups == [telegram_bot.help_keyboard()]
     assert "/queue" in help_text
+    assert "/shorts без текста" in help_text
     assert "/shorts SBER LKOH за год" in help_text
     assert "top quiet" in help_text
     assert "/guide" in help_text
