@@ -1346,9 +1346,12 @@ class TelegramJobQueue:
         for index, text in enumerate(texts, start=1):
             jobs.append(self.enqueue(chat_id, text, update_id, job_suffix=f"batch-{index}", notify=False))
         task_word = _ru_plural(len(jobs), "задачу", "задачи", "задач")
+        previews = "\n".join(f"{index}. {_job_preview(text, 48)}" for index, text in enumerate(texts[:6], start=1))
+        if len(texts) > 6:
+            previews = f"{previews}\n... еще {len(texts) - 6}"
         self.client.send_message(
             chat_id,
-            f"Поставил в очередь {len(jobs)} {task_word} из одного сообщения.",
+            f"Поставил в очередь {len(jobs)} {task_word} из одного сообщения:\n{previews}",
             reply_markup=queue_status_keyboard(),
         )
         return jobs
@@ -2491,8 +2494,26 @@ def _category_preset_action(text: str) -> TelegramCategoryPresetAction | None:
     return None
 
 
+def _clean_batch_request_line(line: str) -> str:
+    line = line.strip()
+    while line[:1] in {"-", "–", "—", "*", "•"}:
+        line = line[1:].strip()
+    while line:
+        matched_number = False
+        for separator in (".", ")"):
+            prefix, found, rest = line.partition(separator)
+            if found and prefix.isdigit():
+                line = rest.strip()
+                matched_number = True
+                break
+        if not matched_number:
+            break
+    return line
+
+
 def _batch_request_lines(text: str) -> list[str]:
-    return [line.strip() for line in text.splitlines() if line.strip()]
+    lines = [_clean_batch_request_line(line) for line in text.splitlines()]
+    return [line for line in lines if line]
 
 
 def _format_amount(value: int, currency: str) -> str:
