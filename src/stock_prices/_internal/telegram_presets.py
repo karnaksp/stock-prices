@@ -759,6 +759,13 @@ def preset_followup_keyboard(preset_name: str) -> dict[str, list[list[dict[str, 
             [
                 {"text": "Все темы", "callback_data": f"preset:{preset.name}:themes"},
             ],
+            [
+                {"text": "Пост", "callback_data": f"post:{preset.name}"},
+                {"text": "Очередь", "callback_data": "queue:status"},
+            ],
+            [
+                {"text": "Меню", "callback_data": "menu:main_menu"},
+            ],
         ]
     }
 
