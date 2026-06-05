@@ -88,6 +88,31 @@ def test_custom_followup_keyboard_keeps_post_render_actions() -> None:
     ]
 
 
+def test_render_progress_notifier_sends_status_and_stops() -> None:
+    client = FakeClient()
+
+    stop = telegram_bot._start_render_progress_notifier(
+        client,
+        123,
+        "tg-1",
+        "SBER / LKOH",
+        first_notice_seconds=0.01,
+        repeat_seconds=0.02,
+    )
+    deadline = time.monotonic() + 1.0
+    while not client.messages and time.monotonic() < deadline:
+        time.sleep(0.01)
+    stop()
+    message_count = len(client.messages)
+    time.sleep(0.05)
+
+    assert message_count >= 1
+    assert len(client.messages) == message_count
+    assert "Рендер еще идет: SBER / LKOH" in client.messages[0][1]
+    assert "Job tg-1" in client.messages[0][1]
+    assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
+
+
 def test_telegram_client_sets_my_commands(monkeypatch) -> None:
     calls = []
 
