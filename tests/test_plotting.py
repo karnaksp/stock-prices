@@ -43,12 +43,13 @@ def test_return_summary_shows_invested_actual_amount() -> None:
     assert _return_summary("Invested", invested, invested) == "Invested: 60.0K"
 
 
-def test_visible_x_span_uses_full_period_to_prevent_expanding_axis() -> None:
+def test_visible_x_span_tracks_frame_date_to_expand_time_window() -> None:
     start = pd.Timestamp("2021-12-17")
 
-    assert _visible_x_span_days(start, start, 1627) == 1627
-    assert _visible_x_span_days(start, start + pd.Timedelta(days=10), 1627) == 1627
-    assert _visible_x_span_days(start, start + pd.Timedelta(days=120), 1627) == 1627
+    assert _visible_x_span_days(start, start, 1627) == 1
+    assert _visible_x_span_days(start, start + pd.Timedelta(days=10), 1627) == 10
+    assert _visible_x_span_days(start, start + pd.Timedelta(days=120), 1627) == 120
+    assert _visible_x_span_days(start, start + pd.Timedelta(days=2000), 1627) == 1627
 
 
 def test_animation_line_data_uses_full_period_for_early_frames() -> None:
@@ -94,6 +95,51 @@ def test_animation_draws_full_series_lines_on_first_frame_to_prevent_progressive
 
         assert len(line.get_xdata()) == len(data_frame)
         assert list(line.get_ydata()) == [100.0, 140.0, 90.0]
+    finally:
+        plt.close(animation._fig)
+
+
+def test_animation_expands_time_window_while_lines_keep_full_data() -> None:
+    import matplotlib.dates as mdates
+    import matplotlib.pyplot as plt
+
+    data_frame = pd.DataFrame(
+        {
+            "TRADEDATE": pd.to_datetime(["2021-12-17", "2022-01-17", "2022-02-17"]),
+            "CLOSE": [100.0, 140.0, 90.0],
+            "DIVIDEND": [0.0, 0.0, 0.0],
+        }
+    )
+    animation = create_multi_line_animation(
+        [{"name": "SBER", "color": "#FFD166", "data": data_frame}],
+        target_duration=3,
+        fps=1,
+        final_frame_duration=0,
+        use_gradient=True,
+    )
+
+    try:
+        animation._func(0)
+        animation._draw_was_started = True
+        first_xlim = animation._fig.axes[0].get_xlim()
+        line = animation._fig.axes[0].lines[0]
+
+        animation._func(1)
+        middle_xlim = animation._fig.axes[0].get_xlim()
+        gradient_collections = [
+            collection
+            for collection in animation._fig.axes[0].collections
+            if collection.__class__.__name__ == "LineCollection"
+        ]
+
+        animation._func(2)
+        final_xlim = animation._fig.axes[0].get_xlim()
+
+        start_num = mdates.date2num(data_frame["TRADEDATE"].iloc[0])
+        assert len(line.get_xdata()) == len(data_frame)
+        assert gradient_collections
+        assert first_xlim[0] == start_num
+        assert first_xlim[1] < middle_xlim[1] < final_xlim[1]
     finally:
         plt.close(animation._fig)
 
