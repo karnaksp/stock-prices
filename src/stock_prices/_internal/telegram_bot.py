@@ -440,11 +440,11 @@ def custom_followup_keyboard(request_key: str) -> dict[str, list[list[dict[str, 
                 {"text": "Шортс 16s", "callback_data": f"custom:{request_key}:shorts"},
             ],
             [
-                {"text": "Вариант 12s", "callback_data": f"custom:{request_key}:12s"},
+                {"text": "12s", "callback_data": f"custom:{request_key}:12s"},
             ],
             [
-                {"text": "Aurora", "callback_data": f"custom:{request_key}:aurora"},
-                {"text": "Studio", "callback_data": f"custom:{request_key}:studio"},
+                {"text": "Aurora 16s", "callback_data": f"custom:{request_key}:aurora"},
+                {"text": "Studio 16s", "callback_data": f"custom:{request_key}:studio"},
             ],
             [
                 {"text": "Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
@@ -688,8 +688,8 @@ def preset_kit_keyboard(preset_name: str) -> dict[str, list[list[dict[str, str]]
                 {"text": "Черновик 4s", "callback_data": f"preset:{preset.name}:draft"},
             ],
             [
-                {"text": "Все темы", "callback_data": f"preset:{preset.name}:themes"},
-                {"text": "Вариант 12s", "callback_data": f"preset:{preset.name}:12s"},
+                {"text": "Все темы x3", "callback_data": f"preset:{preset.name}:themes"},
+                {"text": "12s", "callback_data": f"preset:{preset.name}:12s"},
             ],
             [
                 {"text": "Пост", "callback_data": f"post:{preset.name}"},
@@ -1030,7 +1030,7 @@ class TelegramJobQueue:
         if notify:
             self.client.send_message(
                 chat_id,
-                f"Задача {job.job_id} поставлена в очередь.\nПозиция: {queue_position}.",
+                f"Задача ID {job.job_id} поставлена в очередь.\nПозиция: {queue_position}.",
                 reply_markup=queue_status_keyboard(),
             )
         with self._lock:
@@ -1429,21 +1429,21 @@ class TelegramJobQueue:
         snapshot = self.snapshot()
         lines = ["Очередь Telegram"]
         if snapshot.active_job_id:
-            lines.append(f"Сейчас: {snapshot.active_job_id} - {snapshot.active_preview}")
+            lines.append(f"В работе: ID {snapshot.active_job_id} - {snapshot.active_preview}")
             if snapshot.active_runtime_seconds is not None:
-                lines.append(f"В работе: {_format_queue_duration(snapshot.active_runtime_seconds)}")
+                lines.append(f"Идет: {_format_queue_duration(snapshot.active_runtime_seconds)}")
             if snapshot.active_wait_seconds:
                 lines.append(f"Ждал перед стартом: {_format_queue_duration(snapshot.active_wait_seconds)}")
         else:
-            lines.append("Сейчас: нет активного рендера")
+            lines.append("В работе: нет активного рендера")
 
         pending_count = len(snapshot.pending_jobs)
-        lines.append(f"Ждет: {pending_count}")
+        lines.append(f"Ожидают: {pending_count}")
         for index, (job_id, preview, wait_seconds) in enumerate(snapshot.pending_jobs[:8], start=1):
-            lines.append(f"{index}. {job_id} - {preview} (ждет {_format_queue_duration(wait_seconds)})")
+            lines.append(f"{index}. ID {job_id} - {preview} (ждет {_format_queue_duration(wait_seconds)})")
         if pending_count > 8:
             lines.append(f"... еще {pending_count - 8}")
-        lines.append(f"Готово: {snapshot.completed_count}, ошибок: {snapshot.failed_count}")
+        lines.append(f"Завершено: {snapshot.completed_count}, ошибки: {snapshot.failed_count}")
         return "\n".join(lines)
 
     def _mark_started(self, job: TelegramJob) -> None:
@@ -1791,8 +1791,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "Примеры:\n"
         "/shorts SBER LKOH за год\n"
         "золото серебро палладий 2010-2026 RUB капитал с нуля ежемесячно 30к₽ gradient\n\n"
-        "Готовые сюжеты: /shorts, истории, top quiet, random shorts.\n"
-        "Статус: /queue. Подробно: /guide."
+        "Готовые сюжеты: /shorts, Истории, Случайный.\n"
+        "Долгий рендер: /queue или статус. Подробно: /guide."
     )
 
 

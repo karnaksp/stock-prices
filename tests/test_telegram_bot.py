@@ -73,6 +73,16 @@ def test_telegram_bot_command_menu_is_compact() -> None:
 def test_preset_followup_keyboard_keeps_post_render_actions() -> None:
     keyboard = preset_followup_keyboard("metals")
 
+    assert keyboard["inline_keyboard"][1] == [
+        {"text": "12s", "callback_data": "preset:metals:12s"},
+    ]
+    assert keyboard["inline_keyboard"][2] == [
+        {"text": "Aurora 16s", "callback_data": "preset:metals:aurora"},
+        {"text": "Studio 16s", "callback_data": "preset:metals:studio"},
+    ]
+    assert keyboard["inline_keyboard"][3] == [
+        {"text": "Все темы x3", "callback_data": "preset:metals:themes"},
+    ]
     assert keyboard["inline_keyboard"][-2] == [
         {"text": "Пост", "callback_data": "post:metals"},
         {"text": "Очередь", "callback_data": telegram_bot.QUEUE_STATUS_CALLBACK_DATA},
@@ -83,6 +93,13 @@ def test_preset_followup_keyboard_keeps_post_render_actions() -> None:
 def test_custom_followup_keyboard_keeps_post_render_actions() -> None:
     keyboard = telegram_bot.custom_followup_keyboard("tg-53")
 
+    assert keyboard["inline_keyboard"][1] == [
+        {"text": "12s", "callback_data": "custom:tg-53:12s"},
+    ]
+    assert keyboard["inline_keyboard"][2] == [
+        {"text": "Aurora 16s", "callback_data": "custom:tg-53:aurora"},
+        {"text": "Studio 16s", "callback_data": "custom:tg-53:studio"},
+    ]
     assert keyboard["inline_keyboard"][-1] == [
         {"text": "Очередь", "callback_data": telegram_bot.QUEUE_STATUS_CALLBACK_DATA},
         {"text": "Меню", "callback_data": "menu:main_menu"},
@@ -1716,7 +1733,8 @@ def test_run_telegram_bot_menu_callback_opens_preset_categories(monkeypatch) -> 
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers == [("callback-menu-preset-categories", "Истории открыты.")]
-    assert "Истории для Пульса по категориям" in client.messages[0][1]
+    assert "Истории для Пульса" in client.messages[0][1]
+    assert "Выберите категорию кнопкой ниже" in client.messages[0][1]
     assert client.message_markups == [telegram_bot.preset_category_inline_keyboard()]
     assert client.videos == []
 
@@ -2688,8 +2706,8 @@ def test_preset_kit_keyboard_points_to_existing_actions() -> None:
 
     assert keyboard[0][0] == {"text": "Шортс 16s", "callback_data": "preset:metals:shorts"}
     assert keyboard[0][1] == {"text": "Черновик 4s", "callback_data": "preset:metals:draft"}
-    assert keyboard[1][0] == {"text": "Все темы", "callback_data": "preset:metals:themes"}
-    assert keyboard[1][1] == {"text": "Вариант 12s", "callback_data": "preset:metals:12s"}
+    assert keyboard[1][0] == {"text": "Все темы x3", "callback_data": "preset:metals:themes"}
+    assert keyboard[1][1] == {"text": "12s", "callback_data": "preset:metals:12s"}
     assert keyboard[2][0] == {"text": "Пост", "callback_data": "post:metals"}
     assert keyboard[2][1] == {"text": "Очередь", "callback_data": "queue:status"}
 
@@ -3467,10 +3485,10 @@ def test_telegram_job_queue_status_tracks_pending_and_finished(monkeypatch) -> N
     pending_status = queue.status_text()
 
     assert "Очередь Telegram" in pending_status
-    assert "Сейчас: нет активного рендера" in pending_status
-    assert "Ждет: 2" in pending_status
-    assert "tg-48 - LKOH" in pending_status
-    assert "tg-49 - SBER" in pending_status
+    assert "В работе: нет активного рендера" in pending_status
+    assert "Ожидают: 2" in pending_status
+    assert "ID tg-48 - LKOH" in pending_status
+    assert "ID tg-49 - SBER" in pending_status
 
     started = Event()
     release = Event()
@@ -3486,9 +3504,9 @@ def test_telegram_job_queue_status_tracks_pending_and_finished(monkeypatch) -> N
     try:
         assert started.wait(timeout=5)
         active_status = queue.status_text()
-        assert "Сейчас: tg-48 - LKOH" in active_status
-        assert "Ждет: 1" in active_status
-        assert "tg-49 - SBER" in active_status
+        assert "В работе: ID tg-48 - LKOH" in active_status
+        assert "Ожидают: 1" in active_status
+        assert "ID tg-49 - SBER" in active_status
 
         release.set()
         queue.join()
@@ -3497,9 +3515,9 @@ def test_telegram_job_queue_status_tracks_pending_and_finished(monkeypatch) -> N
         release.set()
         queue.stop()
 
-    assert "Сейчас: нет активного рендера" in finished_status
-    assert "Ждет: 0" in finished_status
-    assert "Готово: 2, ошибок: 0" in finished_status
+    assert "В работе: нет активного рендера" in finished_status
+    assert "Ожидают: 0" in finished_status
+    assert "Завершено: 2, ошибки: 0" in finished_status
 
 
 def test_telegram_job_queue_status_truncates_long_request_preview() -> None:
@@ -3542,14 +3560,14 @@ def test_telegram_job_queue_status_shows_wait_and_runtime(monkeypatch) -> None:
     current_time = 1_125.0
     pending_status = queue.status_text()
 
-    assert "tg-54 - LKOH SBER shorts (ждет 2м 05с)" in pending_status
+    assert "ID tg-54 - LKOH SBER shorts (ждет 2м 05с)" in pending_status
 
     queue._mark_started(job)
     current_time = 1_251.0
     active_status = queue.status_text()
 
-    assert "Сейчас: tg-54 - LKOH SBER shorts" in active_status
-    assert "В работе: 2м 06с" in active_status
+    assert "В работе: ID tg-54 - LKOH SBER shorts" in active_status
+    assert "Идет: 2м 06с" in active_status
     assert "Ждал перед стартом: 2м 05с" in active_status
 
 
@@ -3575,7 +3593,7 @@ def test_run_telegram_bot_reports_queue_status(monkeypatch) -> None:
 
     telegram_bot.run_telegram_bot(settings)
 
-    assert client.messages == [(123, "Очередь Telegram\nСейчас: нет активного рендера\nЖдет: 0\nГотово: 0, ошибок: 0")]
+    assert client.messages == [(123, "Очередь Telegram\nВ работе: нет активного рендера\nОжидают: 0\nЗавершено: 0, ошибки: 0")]
     assert client.message_markups == [telegram_bot.queue_status_keyboard()]
     assert client.videos == []
 
@@ -3612,7 +3630,7 @@ def test_run_telegram_bot_reports_queue_status_from_button(monkeypatch) -> None:
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers == [("callback-status", "Статус очереди обновлен.")]
-    assert client.messages == [(123, "Очередь Telegram\nСейчас: нет активного рендера\nЖдет: 0\nГотово: 0, ошибок: 0")]
+    assert client.messages == [(123, "Очередь Telegram\nВ работе: нет активного рендера\nОжидают: 0\nЗавершено: 0, ошибки: 0")]
     assert client.message_markups == [telegram_bot.queue_status_keyboard()]
     assert client.videos == []
 
@@ -3667,11 +3685,14 @@ def test_help_text_is_compact_and_actionable() -> None:
     assert "/queue" in help_text
     assert "/shorts без текста" in help_text
     assert "/shorts SBER LKOH за год" in help_text
-    assert "top quiet" in help_text
+    assert "Долгий рендер" in help_text
+    assert "статус" in help_text
     assert "/guide" in help_text
     assert "Истории" in help_text
+    assert "Случайный" in help_text
     assert "Справочник" not in help_text
     assert "/draft metals" not in help_text
+    assert "top quiet" not in help_text
     assert "AAPL global USD shorts" not in help_text
     assert "золото серебро палладий 2010-2026 RUB капитал с нуля ежемесячно 30к₽ gradient" in help_text
     assert "monthly=30000" not in help_text
@@ -3766,9 +3787,13 @@ def test_handle_ticker_message_shorts_slash_without_payload_shows_presets(monkey
 
     handle_ticker_message(client, settings, 123, "/shorts")
 
-    assert "Истории для Пульса по категориям" in client.messages[0][1]
+    assert "Истории для Пульса" in client.messages[0][1]
     assert "Тихие российские истории" in client.messages[0][1]
+    assert "Выберите категорию кнопкой ниже" in client.messages[0][1]
+    assert "shorts 16s" in client.messages[0][1]
+    assert "/shorts SBER LKOH за год" in client.messages[0][1]
     assert "preset metals" not in client.messages[0][1]
+    assert "category drama" not in client.messages[0][1]
     assert client.message_markups == [telegram_bot.preset_category_inline_keyboard(mode="shorts")]
     assert client.videos == []
 
@@ -3787,8 +3812,8 @@ def test_handle_ticker_message_draft_slash_without_payload_shows_draft_presets(m
 
     handle_ticker_message(client, settings, 123, "/draft")
 
-    assert "Черновики по категориям для Пульса" in client.messages[0][1]
-    assert "draft-запуск" in client.messages[0][1]
+    assert "Черновики по категориям" in client.messages[0][1]
+    assert "draft 4s" in client.messages[0][1]
     assert "preset metals" not in client.messages[0][1]
     assert client.message_markups == [telegram_bot.preset_category_inline_keyboard(mode="draft")]
     assert client.message_markups[0]["inline_keyboard"][-1][0] == {
@@ -4161,7 +4186,9 @@ def test_handle_ticker_message_lists_pulse_presets() -> None:
     assert "preset builders" in preset_text
     assert "/queue" in preset_text
     assert "все шортсы" in preset_text
-    assert "вариант 12s" in preset_text
+    assert "12s" in preset_text
+    assert "Aurora 16s" in preset_text
+    assert "Studio 16s" in preset_text
     assert client.message_markups[0] == _expected_preset_keyboard()
     assert client.videos == []
 
@@ -4214,10 +4241,11 @@ def test_handle_ticker_message_lists_preset_categories() -> None:
     handle_ticker_message(client, settings, 123, "категории")
 
     category_text = client.messages[0][1]
-    assert "Истории для Пульса по категориям" in category_text
+    assert "Истории для Пульса" in category_text
     assert "Тихие российские истории" in category_text
     assert "Драмы и просадки" in category_text
-    assert "category drama" in category_text
+    assert "Выберите категорию кнопкой ниже" in category_text
+    assert "category drama" not in category_text
     assert client.message_markups[0] == telegram_bot.preset_category_inline_keyboard()
     assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "category:quiet"
     assert client.videos == []
@@ -4235,8 +4263,9 @@ def test_handle_ticker_message_opens_preset_category() -> None:
     category_text = client.messages[0][1]
     assert "Категория: Драмы и просадки" in category_text
     assert "Новая экономика" in category_text
-    assert "Команды: preset neweconomy" in category_text
-    assert "черновик new" in category_text
+    assert "Кнопки ниже запускают shorts 16s" in category_text
+    assert "Команды:" not in category_text
+    assert "черновик new" not in category_text
     assert client.message_markups[0] == telegram_bot.preset_category_keyboard("drama")
     assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "preset:neweconomy:shorts"
     assert client.videos == []
@@ -4252,8 +4281,8 @@ def test_handle_ticker_message_lists_draft_presets() -> None:
     handle_ticker_message(client, settings, 123, "/drafts")
 
     preset_text = client.messages[0][1]
-    assert "Черновики по категориям для Пульса" in preset_text
-    assert "draft-запуск" in preset_text
+    assert "Черновики по категориям" in preset_text
+    assert "draft 4s" in preset_text
     assert "preset metals" not in preset_text
     assert client.message_markups[0] == telegram_bot.preset_category_inline_keyboard(mode="draft")
     assert client.videos == []
