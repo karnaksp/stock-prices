@@ -157,7 +157,7 @@ def test_handle_ticker_message_generates_video(monkeypatch) -> None:
     assert "Градиент: нет" in client.messages[0][1]
     assert seen_job_ids == ["tg-1"]
     assert len(client.messages) == 2
-    assert "Текст для Пульса" in client.messages[1][1]
+    assert "Пост для Пульса (можно копировать)" in client.messages[1][1]
     assert "LKOH" in client.messages[1][1]
     assert "01.01.2020 - 02.01.2020" in client.messages[1][1]
     assert "#акции" in client.messages[1][1]
@@ -312,7 +312,7 @@ def test_run_telegram_bot_queues_preset_from_inline_button(monkeypatch) -> None:
     assert client.callback_answers == [("callback-1", "Сценарий поставлен в очередь.")]
     assert any("поставлена в очередь" in message for _chat_id, message in client.messages)
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
-    assert any("Текст для Пульса" in message for _chat_id, message in client.messages)
+    assert any("Пост для Пульса (можно копировать)" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/metals.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 
@@ -491,7 +491,7 @@ def test_run_telegram_bot_queues_example_from_inline_button(monkeypatch) -> None
 
     assert client.callback_answers == [("callback-example", "Пример поставлен в очередь.")]
     assert any("tg-52-example-metals-dca" in message for _chat_id, message in client.messages)
-    assert any("Текст для Пульса" in message for _chat_id, message in client.messages)
+    assert any("Пост для Пульса (можно копировать)" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/metals-example.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-12-31")]
 
 
@@ -769,7 +769,7 @@ def test_format_weekly_posts_lists_full_publication_texts() -> None:
     assert "Посты недели для Пульса" in intro
     assert "7 готовых текстов" in intro
     assert "Пост недели: Д1 Новая экономика 2021-2026" in first_post
-    assert "Текст для Пульса" in first_post
+    assert "Пост для Пульса (можно копировать)" in first_post
     assert "IPO-эйфория" in first_post
     assert keyboard["inline_keyboard"][0][0]["callback_data"] == "menu:content_plan"
     assert keyboard["inline_keyboard"][0][1]["callback_data"] == "menu:publication_week"
@@ -853,7 +853,7 @@ def test_run_telegram_bot_opens_weekly_posts_without_render(monkeypatch) -> None
     assert len(client.messages) == len(telegram_bot.CONTENT_PLAN_PRESETS) + 1
     assert "Посты недели для Пульса" in client.messages[0][1]
     assert "Пост недели: Д1 Новая экономика 2021-2026" in client.messages[1][1]
-    assert "Текст для Пульса" in client.messages[1][1]
+    assert "Пост для Пульса (можно копировать)" in client.messages[1][1]
     assert f"Пост недели: Д{len(telegram_bot.CONTENT_PLAN_PRESETS)} Голубые фишки" in client.messages[-1][1]
     assert client.message_markups[0] == telegram_bot.weekly_posts_keyboard()
     assert all(markup is None for markup in client.message_markups[1:])
@@ -890,7 +890,7 @@ def test_format_daily_post_uses_weekday() -> None:
 
     assert "Пост дня: Д3" in post_text
     assert "Сценарий взят из недельного контент-плана" in post_text
-    assert "Текст для Пульса" in post_text
+    assert "Пост для Пульса (можно копировать)" in post_text
     assert "#сбер" in post_text
     assert "#втб" in post_text
     assert keyboard["inline_keyboard"][0][0]["callback_data"] == "menu:daily_short"
@@ -957,7 +957,7 @@ def test_run_telegram_bot_opens_daily_post_without_render(monkeypatch) -> None:
 
     post_text = client.messages[0][1]
     assert "Пост дня: Д3" in post_text
-    assert "Текст для Пульса" in post_text
+    assert "Пост для Пульса (можно копировать)" in post_text
     assert "#сбер" in post_text
     assert "#втб" in post_text
     assert client.message_markups == [telegram_bot.daily_post_keyboard(date(2026, 6, 3))]
@@ -2423,7 +2423,7 @@ def test_run_telegram_bot_menu_callback_opens_daily_post(monkeypatch) -> None:
     assert client.callback_answers == [("callback-menu-daily-post", "Пост дня открыт.")]
     post_text = client.messages[0][1]
     assert "Пост дня: Д3" in post_text
-    assert "Текст для Пульса" in post_text
+    assert "Пост для Пульса (можно копировать)" in post_text
     assert client.message_markups == [telegram_bot.daily_post_keyboard(date(2026, 6, 3))]
     assert client.videos == []
 
@@ -2669,9 +2669,9 @@ def test_run_telegram_bot_opens_preset_post_from_inline_button(monkeypatch) -> N
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers == [("callback-post-metals", "Пост открыт.")]
-    assert "Текст для Пульса" in client.messages[0][1]
+    assert "Пост для Пульса (можно копировать)" in client.messages[0][1]
     assert "Металлы часто воспринимают как защиту" in client.messages[0][1]
-    assert "Текст на обложку" in client.messages[0][1]
+    assert "Обложка:" in client.messages[0][1]
     assert client.message_markups == [None]
     assert client.videos == []
 
@@ -2695,9 +2695,9 @@ def test_run_telegram_bot_opens_preset_post_without_queue(monkeypatch) -> None:
 
     telegram_bot.run_telegram_bot(settings)
 
-    assert "Текст для Пульса" in client.messages[0][1]
+    assert "Пост для Пульса (можно копировать)" in client.messages[0][1]
     assert "Металлы часто воспринимают как защиту" in client.messages[0][1]
-    assert "Текст на обложку" in client.messages[0][1]
+    assert "Обложка:" in client.messages[0][1]
     assert client.message_markups == [None]
     assert client.videos == []
 
@@ -2727,10 +2727,12 @@ def test_run_telegram_bot_opens_custom_post_without_queue(monkeypatch) -> None:
 
     assert client.videos == []
     assert client.message_markups == [None]
-    assert "Текст для Пульса" in client.messages[0][1]
-    assert "Заголовок: LKOH / SBER" in client.messages[0][1]
-    assert "Период: 01.01.2020 - 31.12.2024" in client.messages[0][1]
-    assert "Текст на обложку" in client.messages[0][1]
+    assert "Пост для Пульса (можно копировать)" in client.messages[0][1]
+    assert "Заголовок:" not in client.messages[0][1]
+    assert "Хук:" not in client.messages[0][1]
+    assert "На видео сравнение активов на одной шкале: LKOH / SBER." in client.messages[0][1]
+    assert "Параметры: 01.01.2020 - 31.12.2024, RUB, капитал с реинвестированием." in client.messages[0][1]
+    assert "Обложка:" in client.messages[0][1]
 
 
 def test_handle_ticker_message_opens_custom_post_without_render(monkeypatch) -> None:
@@ -2748,7 +2750,7 @@ def test_handle_ticker_message_opens_custom_post_without_render(monkeypatch) -> 
     handle_ticker_message(client, settings, 123, "текст SBER LKOH за год шортс")
 
     assert client.videos == []
-    assert "Текст для Пульса" in client.messages[0][1]
+    assert "Пост для Пульса (можно копировать)" in client.messages[0][1]
     assert "SBER / LKOH" in client.messages[0][1]
 
 
@@ -3348,12 +3350,14 @@ def test_handle_ticker_message_sends_generic_pulse_copy_for_investment_request(m
     )
 
     pulse_text = client.messages[-1][1]
-    assert "Текст для Пульса" in pulse_text
-    assert "Заголовок: GC=F / SI=F / PA=F - ежемесячные покупки против разных активов" in pulse_text
-    assert "Хук: Если каждый месяц откладывать 30 000 RUB" in pulse_text
-    assert "Текст на обложку: 30 000 RUB/мес: кто выиграл?" in pulse_text
+    assert pulse_text.startswith("Пост для Пульса (можно копировать):")
+    assert "Заголовок:" not in pulse_text
+    assert "Хук:" not in pulse_text
+    assert "Если каждый месяц откладывать 30 000 RUB" in pulse_text
+    assert "На видео ежемесячные покупки против разных активов: GC=F / SI=F / PA=F." in pulse_text
+    assert "Обложка:\n- 30 000 RUB/мес: кто выиграл?" in pulse_text
     assert "Вопрос для обсуждения: вы бы выдержали такую регулярную стратегию" in pulse_text
-    assert "Музыка/монтаж: плотный драматичный бит" in pulse_text
+    assert "Монтаж:\n- Настроение: плотный драматичный бит" in pulse_text
     assert "GC=F / SI=F / PA=F" in pulse_text
     assert "ежемесячно 30 000 RUB" in pulse_text
     assert "#сырье" in pulse_text
@@ -3368,11 +3372,15 @@ def test_format_generic_pulse_post_uses_single_asset_hook() -> None:
 
     pulse_text = telegram_bot.format_generic_pulse_post(parsed)
 
-    assert "Заголовок: LKOH - один актив на истории" in pulse_text
-    assert "Хук: Один график, который быстро показывает характер LKOH" in pulse_text
-    assert "Текст на обложку: LKOH: график без лишних слов" in pulse_text
+    assert pulse_text.startswith("Пост для Пульса (можно копировать):")
+    assert "Заголовок:" not in pulse_text
+    assert "Хук:" not in pulse_text
+    assert "Один график, который быстро показывает характер LKOH" in pulse_text
+    assert "На видео один актив на истории: LKOH." in pulse_text
+    assert "Обложка:\n- LKOH: график без лишних слов" in pulse_text
     assert "Вопрос для обсуждения: это больше похоже на возможность" in pulse_text
-    assert "Музыка/монтаж: минималистичный бит" in pulse_text
+    assert "Монтаж:\n- Настроение: минималистичный бит" in pulse_text
+    assert "Параметры: 01.01.2020 - 31.12.2024, RUB, цена закрытия." in pulse_text
     assert "#акции" in pulse_text
 
 
@@ -3868,7 +3876,7 @@ def test_handle_ticker_message_shows_daily_post(monkeypatch) -> None:
 
     post_text = client.messages[0][1]
     assert "Пост дня: Д3" in post_text
-    assert "Текст для Пульса" in post_text
+    assert "Пост для Пульса (можно копировать)" in post_text
     assert "#сбер" in post_text
     assert "#втб" in post_text
     assert client.message_markups == [telegram_bot.daily_post_keyboard(date(2026, 6, 3))]
@@ -3959,9 +3967,9 @@ def test_handle_ticker_message_shows_preset_post_without_rendering() -> None:
     handle_ticker_message(client, settings, 123, "пост металлы")
 
     post_text = client.messages[0][1]
-    assert "Текст для Пульса" in post_text
+    assert "Пост для Пульса (можно копировать)" in post_text
     assert "Что было бы, если 16 лет подряд" in post_text
-    assert "Текст на обложку" in post_text
+    assert "Обложка:" in post_text
     assert "Треки-референсы" in post_text
     assert client.message_markups == [None]
     assert client.videos == []
@@ -4848,8 +4856,10 @@ def test_handle_ticker_message_sends_pulse_copy_for_preset(monkeypatch) -> None:
 
     assert client.videos == [(123, Path("animations/metals.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
     assert client.messages[-2][0] == 123
-    assert "Текст для Пульса" in client.messages[-2][1]
+    assert "Пост для Пульса (можно копировать)" in client.messages[-2][1]
     assert "Что было бы" in client.messages[-2][1]
+    assert "Обложка:" in client.messages[-2][1]
+    assert "Монтаж:" in client.messages[-2][1]
     assert "#металлы" in client.messages[-2][1]
     assert client.messages[-1] == (123, "Быстрые варианты для этого сценария:")
     assert client.message_markups[-1] == preset_followup_keyboard("metals")
@@ -4872,7 +4882,7 @@ def test_handle_ticker_message_sends_pulse_copy_for_direct_preset(monkeypatch) -
     handle_ticker_message(client, settings, 123, "черновик металлы", job_id="tg-1")
 
     assert client.videos == [(123, Path("animations/metals-draft.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
-    assert "Текст для Пульса" in client.messages[-2][1]
+    assert "Пост для Пульса (можно копировать)" in client.messages[-2][1]
     assert client.message_markups[-1] == preset_followup_keyboard("metals")
 
 
@@ -4931,11 +4941,13 @@ def test_all_pulse_presets_have_ready_post_copy() -> None:
         assert preset.music_mood
         assert preset.music_tracks
         assert preset.cover_texts
-        assert "Текст для Пульса" in post
-        assert "Текст на обложку" in post
+        assert post.startswith("Пост для Пульса (можно копировать):")
+        assert "Обложка:" in post
+        assert "Монтаж:" in post
         assert "Треки-референсы" in post
         assert "права проверять отдельно" in post
         assert "Не является индивидуальной инвестиционной рекомендацией." in post
+        assert post.index("Обложка:") > post.index("Не является индивидуальной инвестиционной рекомендацией.")
 
 
 def test_all_pulse_presets_have_human_button_labels() -> None:
