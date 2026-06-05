@@ -25,6 +25,6 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "python -m stock_prices._internal.healthcheck"]
       interval: 1m
-      timeout: 10s
-      retries: 3
+      timeout: 30s
+      retries: 5
       start_period: 20s

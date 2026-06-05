@@ -46,6 +46,8 @@ docker compose ps
 docker compose logs -f stock-prices-bot
 ```
 
+Во время тяжелого encode контейнер может быть сильно загружен CPU, поэтому healthcheck настроен с запасом по timeout. В Telegram бот дополнительно присылает промежуточный статус для долгих рендеров.
+
 После запуска можно писать боту:
 
 ```text
