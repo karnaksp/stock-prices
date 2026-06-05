@@ -2615,13 +2615,13 @@ def format_generic_pulse_post(parsed: ParsedTelegramRequest) -> str:
     render = parsed.request.render
     period = f"{render.start_date:%d.%m.%Y} - {render.end_date:%d.%m.%Y}"
     story_label = _custom_story_label(parsed)
+    details = f"Параметры: {period}, {render.currency}, {_metric_label(render.value_col)}."
     lines = [
-        "Текст для Пульса:",
-        f"Заголовок: {parsed.display_name} - {story_label}",
-        f"Хук: {_custom_pulse_hook(parsed)}",
-        f"Текст на обложку: {' / '.join(_custom_cover_texts(parsed))}.",
+        "Пост для Пульса (можно копировать):",
+        _custom_pulse_hook(parsed),
         "",
-        f"Период: {period}. Валюта: {render.currency}. Метрика: {_metric_label(render.value_col)}.",
+        f"На видео {story_label}: {parsed.display_name}. "
+        "Это не прогноз, а повод обсудить, где ожидания совпали с графиком, а где картинка оказалась неожиданной.",
     ]
     if render.with_investments:
         parts = [f"старт {_format_amount(render.initial_investment, render.currency)}"]
@@ -2629,15 +2629,21 @@ def format_generic_pulse_post(parsed: ParsedTelegramRequest) -> str:
             parts.append(f"ежемесячно {_format_amount(render.monthly_investment, render.currency)}")
         if render.yearly_investment:
             parts.append(f"ежегодно {_format_amount(render.yearly_investment, render.currency)}")
-        lines.append(f"Сценарий инвестирования: {', '.join(parts)}.")
+        details += f" Инвестиции: {', '.join(parts)}."
     lines.extend(
         [
-            "На видео историческая траектория, а не прогноз. Хороший формат для обсуждения: где график удивляет, где ожидания ломаются, а где регулярные покупки действительно меняют картину.",
-            "",
             _custom_pulse_question(parsed),
-            f"Музыка/монтаж: {_custom_music_mood(parsed)}.",
-            f"{_market_tags(parsed)}",
+            "",
+            _market_tags(parsed),
+            "",
             "Не инвестиционная рекомендация.",
+            "",
+            "Обложка:",
+            *[f"- {cover}" for cover in _custom_cover_texts(parsed)],
+            "",
+            "Монтаж:",
+            f"- Настроение: {_custom_music_mood(parsed)}.",
+            f"- {details}",
         ]
     )
     return "\n".join(lines)
