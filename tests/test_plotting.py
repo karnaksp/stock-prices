@@ -11,9 +11,11 @@ from stock_prices._internal.lib.plotting import (
     _combine_data,
     _event_ranges,
     _prefix_y_limits,
+    _render_output_path,
     _return_summary,
     _visible_x_span_days,
     create_multi_line_animation,
+    render_charts,
 )
 from stock_prices._internal.rendering.theme import get_chart_theme, get_theme_names
 
@@ -379,6 +381,64 @@ def test_combine_data_does_not_forward_fill_flat_tail_after_ticker_history_ends(
     assert combined["SHORT"].tolist()[:2] == [100.0, 120.0]
     assert pd.isna(combined["SHORT"].iloc[-1])
     assert pd.isna(combined[basis_columns["SHORT"]].iloc[-1])
+
+
+def test_render_output_path_is_stable_for_same_request(tmp_path) -> None:
+    class Args:
+        output_dir = tmp_path
+        value_col = "CLOSE"
+        currency = "RUB"
+        duration = 16
+        fps = 24
+        use_gradient = True
+        no_legend = False
+        initial_investment = 0
+        monthly_investment = 30_000
+        yearly_investment = 0
+        with_investments = True
+        title = ""
+        under_title = ""
+        theme = "studio"
+
+    specs = [{"ticker": "SBER", "engine": "stock", "market": "shares"}]
+
+    first = _render_output_path(Args, specs, pd.Timestamp("2020-01-01"), pd.Timestamp("2024-12-31"))
+    second = _render_output_path(Args, specs, pd.Timestamp("2020-01-01"), pd.Timestamp("2024-12-31"))
+
+    assert first == second
+    assert first.name.startswith("SBER_20200101_20241231_")
+
+
+def test_render_charts_reuses_existing_non_empty_video(tmp_path, monkeypatch) -> None:
+    class Args:
+        output_dir = tmp_path
+        value_col = "CLOSE"
+        currency = "RUB"
+        duration = 16
+        fps = 24
+        use_gradient = True
+        no_legend = False
+        initial_investment = 0
+        monthly_investment = 30_000
+        yearly_investment = 0
+        with_investments = True
+        title = ""
+        under_title = ""
+        theme = "studio"
+
+    specs = [{"ticker": "SBER", "engine": "stock", "market": "shares"}]
+    start_date = pd.Timestamp("2020-01-01")
+    end_date = pd.Timestamp("2024-12-31")
+    cached_path = _render_output_path(Args, specs, start_date, end_date)
+    cached_path.parent.mkdir(parents=True, exist_ok=True)
+    cached_path.write_bytes(b"mp4")
+
+    def fail_build_data_list(*_args, **_kwargs):
+        raise AssertionError("cache hit should not rebuild chart data")
+
+    monkeypatch.setattr("stock_prices._internal.lib.plotting.build_data_list", fail_build_data_list)
+
+    assert render_charts(Args, specs, start_date, end_date) == cached_path
 
 
 def test_generate_unique_colors_shuffles_palette(monkeypatch) -> None:
