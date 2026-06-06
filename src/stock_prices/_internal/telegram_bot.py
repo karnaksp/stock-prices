@@ -180,6 +180,7 @@ MENU_ACTIONS = {
     "main_menu",
     "quick_launch",
     "reference",
+    "random_menu",
     "preset_categories",
     "content_plan",
     "content_plan_shorts",
@@ -205,11 +206,25 @@ MENU_ACTIONS = {
     "all_shorts_studio",
     "example_drafts",
     "random_shorts",
+    "random_1",
+    "random_2",
+    "random_3",
+    "random_drama_2",
+    "random_stocks_2",
+    "random_crypto_1",
     "random_draft",
     "random_example",
     "music",
     "covers",
     "queue",
+}
+RANDOM_SHORT_MENU_ACTIONS: dict[str, tuple[str | None, int | None, str]] = {
+    "random_1": (None, 1, "Случайный шортс из 1 тикера поставлен в очередь."),
+    "random_2": (None, 2, "Случайное сравнение из 2 тикеров поставлено в очередь."),
+    "random_3": (None, 3, "Случайное сравнение из 3 тикеров поставлено в очередь."),
+    "random_drama_2": ("drama", 2, "Драматичный random из 2 тикеров поставлен в очередь."),
+    "random_stocks_2": ("stocks", 2, "Random по акциям из 2 тикеров поставлен в очередь."),
+    "random_crypto_1": ("crypto", 1, "Random по крипто из 1 тикера поставлен в очередь."),
 }
 HOT_MENU_PRESETS = (
     ("Металлы", "metals"),
@@ -374,7 +389,7 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             ],
             [
                 {"text": "✨ Top Studio", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_shorts_studio"},
-                {"text": "🎲 Случайный", "callback_data": f"{MENU_CALLBACK_PREFIX}random_shorts"},
+                {"text": "🎲 Random", "callback_data": f"{MENU_CALLBACK_PREFIX}random_menu"},
             ],
             [
                 {"text": "📚 Истории", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
@@ -403,6 +418,31 @@ def reference_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     }
 
 
+def random_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "1 тикер", "callback_data": f"{MENU_CALLBACK_PREFIX}random_1"},
+                {"text": "2 тикера", "callback_data": f"{MENU_CALLBACK_PREFIX}random_2"},
+                {"text": "3 тикера", "callback_data": f"{MENU_CALLBACK_PREFIX}random_3"},
+            ],
+            [
+                {"text": "Драма 2", "callback_data": f"{MENU_CALLBACK_PREFIX}random_drama_2"},
+                {"text": "Акции 2", "callback_data": f"{MENU_CALLBACK_PREFIX}random_stocks_2"},
+                {"text": "Крипто 1", "callback_data": f"{MENU_CALLBACK_PREFIX}random_crypto_1"},
+            ],
+            [
+                {"text": "Быстрый random", "callback_data": f"{MENU_CALLBACK_PREFIX}random_shorts"},
+                {"text": "Черновик", "callback_data": f"{MENU_CALLBACK_PREFIX}random_draft"},
+            ],
+            [
+                {"text": "Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
+                {"text": "Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
+            ],
+        ]
+    }
+
+
 def quick_launch_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return main_menu_keyboard()
 
@@ -415,8 +455,8 @@ def help_keyboard() -> dict[str, list[list[dict[str, str]]]]:
                 {"text": "🗓 Неделя", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_week"},
             ],
             [
+                {"text": "🎲 Random", "callback_data": f"{MENU_CALLBACK_PREFIX}random_menu"},
                 {"text": "📚 Истории", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
-                {"text": "💬 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}examples"},
             ],
             [
                 {"text": "📊 План", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
@@ -1737,13 +1777,22 @@ def _extract_preset_category_callback(update: dict[str, Any]) -> TelegramPresetC
 def _main_menu_text() -> str:
     return (
         "Меню для Пульса\n"
-        "Шесть частых действий без лишних разделов: день, неделя, Top Studio, случайный ролик, истории и очередь. "
+        "Шесть частых действий без лишних разделов: день, неделя, Top Studio, Random, истории и очередь. "
         "Свой запрос можно написать одной строкой."
     )
 
 
 def _send_main_menu(client: TelegramClient, chat_id: int) -> None:
     client.send_message(chat_id, _main_menu_text(), reply_markup=main_menu_keyboard())
+
+
+def format_random_menu() -> str:
+    return (
+        "Random для шортса\n\n"
+        "Выбери размер сравнения или тип истории. Бот сам подберет тикеры из universe, период пересечения истории "
+        "и поставит ролик в очередь.\n\n"
+        "Текстом то же самое: random mixed 1, random mixed 3, random drama 2, random stocks 2."
+    )
 
 
 def format_reference_menu() -> str:
@@ -1760,7 +1809,7 @@ def format_quick_launch() -> str:
         "День - ролик и пакет поста.\n"
         "Неделя - 7 shorts и чеклист.\n"
         "Top Studio - сильные сюжеты в одном стиле.\n"
-        "Случайный - готовый сюжет без выбора.\n\n"
+        "Random - выбор 1/2/3 тикеров или категории.\n\n"
         "Свой ролик: /shorts SBER LKOH за год. Подробности: /help."
     )
 
@@ -1824,15 +1873,14 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "Как попросить ролик\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
         "\n"
-        "Быстро: /menu, День, Неделя, Истории, Случайный.\n"
-        "Random: random mixed 1, random mixed 3, random drama 2, random stocks 2, random crypto 1.\n"
-        "Примеры: /shorts без текста - ручные истории; /plan - недельная random-сетка.\n"
-        "Свой ролик: /shorts + тикеры и период одной строкой.\n\n"
+        "Кнопки: /menu -> День, Неделя, Random, Истории, Очередь.\n"
+        "Random: random mixed 1/2/3, random drama 2, random stocks 2, random crypto 1.\n"
+        "Свой ролик: /shorts + тикеры, период, валюта, invest/monthly.\n"
+        "Истории: /shorts без текста. Недельная сетка: /plan.\n\n"
         "Примеры:\n"
         "/shorts SBER LKOH за год\n"
         "золото серебро палладий 2010-2026 RUB капитал с нуля ежемесячно 30к₽ gradient\n\n"
-        "Долгий рендер: /queue или статус. Больше: /guide.\n"
-        "Готовые примеры фиксированные, без LLM."
+        "Долгий рендер: /queue или статус. Подробный процесс: /guide."
     )
 
 
@@ -3332,6 +3380,13 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 format_reference_menu(),
                                 reply_markup=reference_keyboard(),
                             )
+                        elif menu_callback.action == "random_menu":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Random открыт.")
+                            client.send_message(
+                                menu_callback.chat_id,
+                                format_random_menu(),
+                                reply_markup=random_menu_keyboard(),
+                            )
                         elif menu_callback.action == "help":
                             client.answer_callback_query(menu_callback.callback_query_id, "Помощь открыта.")
                             client.send_message(
@@ -3465,6 +3520,15 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif menu_callback.action == "random_shorts":
                             client.answer_callback_query(menu_callback.callback_query_id, "Случайный шортс поставлен в очередь.")
                             job_queue.enqueue_random_universe_shorts(menu_callback.chat_id, int(update["update_id"]))
+                        elif menu_callback.action in RANDOM_SHORT_MENU_ACTIONS:
+                            category_name, count, answer_text = RANDOM_SHORT_MENU_ACTIONS[menu_callback.action]
+                            client.answer_callback_query(menu_callback.callback_query_id, answer_text)
+                            job_queue.enqueue_random_universe_shorts(
+                                menu_callback.chat_id,
+                                int(update["update_id"]),
+                                category_name=category_name,
+                                count=count,
+                            )
                         elif menu_callback.action == "random_draft":
                             client.answer_callback_query(menu_callback.callback_query_id, "Случайный draft поставлен в очередь.")
                             job_queue.enqueue_random_universe_draft(menu_callback.chat_id, int(update["update_id"]))

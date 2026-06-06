@@ -71,6 +71,23 @@ def test_animation_line_data_uses_current_frame_slice() -> None:
     assert line_data["SBER"].tolist() == [100.0]
 
 
+def test_animation_line_data_uses_same_prefix_as_current_frame() -> None:
+    combined = pd.DataFrame(
+        {
+            "TRADEDATE": pd.to_datetime(["2021-12-17", "2022-01-17", "2022-02-17"]),
+            "SBER": [100.0, 140.0, 90.0],
+        }
+    )
+
+    current_data, line_data = _animation_frame_data(combined, 1)
+
+    expected_dates = [pd.Timestamp("2021-12-17"), pd.Timestamp("2022-01-17")]
+    assert current_data["TRADEDATE"].tolist() == expected_dates
+    assert line_data["TRADEDATE"].tolist() == expected_dates
+    assert current_data["SBER"].tolist() == [100.0, 140.0]
+    assert line_data["SBER"].tolist() == [100.0, 140.0]
+
+
 def test_animation_draws_only_current_frame_slice_on_first_frame() -> None:
     import matplotlib.pyplot as plt
 
@@ -129,19 +146,20 @@ def test_animation_keeps_full_time_window_while_series_uses_current_slice() -> N
 
         animation._func(1)
         middle_xlim = animation._fig.axes[0].get_xlim()
-        middle_line_x = list(line.get_xdata())
         gradient_collections = [
             collection
             for collection in animation._fig.axes[0].collections
             if collection.__class__.__name__ == "LineCollection"
         ]
+        middle_gradient_segments = gradient_collections[-1].get_segments()
 
         animation._func(2)
         final_xlim = animation._fig.axes[0].get_xlim()
 
         start_num = mdates.date2num(data_frame["TRADEDATE"].iloc[0])
-        assert len(middle_line_x) == 2
-        assert middle_line_x[-1] == data_frame["TRADEDATE"].iloc[1]
+        assert list(line.get_xdata()) == []
+        assert line.get_alpha() == 0.0
+        assert abs(middle_gradient_segments[-1][-1][0] - mdates.date2num(data_frame["TRADEDATE"].iloc[1])) < 1e-6
         assert gradient_collections
         assert first_xlim[0] == start_num
         assert first_xlim == middle_xlim == final_xlim
@@ -197,6 +215,7 @@ def test_animation_reuses_duplicate_final_hold_frame_artists() -> None:
 
 
 def test_animation_keeps_line_gradient_and_fill_on_same_frame_slice() -> None:
+    import matplotlib.dates as mdates
     import matplotlib.pyplot as plt
 
     data_frame = pd.DataFrame(
@@ -217,6 +236,7 @@ def test_animation_keeps_line_gradient_and_fill_on_same_frame_slice() -> None:
     try:
         animation._func(1)
         animation._draw_was_started = True
+        ax = animation._fig.axes[0]
         line = animation._fig.axes[0].lines[0]
         fill_collections = [
             collection
@@ -228,13 +248,19 @@ def test_animation_keeps_line_gradient_and_fill_on_same_frame_slice() -> None:
             for collection in animation._fig.axes[0].collections
             if collection.__class__.__name__ == "LineCollection"
         ]
+        gradient_segments = gradient_collections[-1].get_segments()
+        fill_right = fill_collections[-1].get_paths()[0].vertices[:, 0].max()
+        price_label = next(text for text in ax.texts if text.get_text().startswith("SBER:"))
+        expected_label_x = data_frame["TRADEDATE"].iloc[1] + pd.Timedelta(days=62 * 0.025)
 
-        assert list(line.get_xdata()) == [
-            pd.Timestamp("2021-12-17"),
-            pd.Timestamp("2022-01-17"),
-        ]
+        assert list(line.get_xdata()) == []
+        assert line.get_alpha() == 0.0
         assert fill_collections
         assert gradient_collections
+        assert abs(gradient_segments[-1][-1][0] - mdates.date2num(data_frame["TRADEDATE"].iloc[1])) < 1e-6
+        assert abs(fill_right - mdates.date2num(data_frame["TRADEDATE"].iloc[1])) < 1e-6
+        assert price_label.get_position()[1] == 140.0
+        assert price_label.get_position()[0] == expected_label_x
     finally:
         plt.close(animation._fig)
 
