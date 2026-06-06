@@ -18,6 +18,8 @@ from stock_prices._internal.content_universe import (
     GeneratedContentIdea,
     build_random_content_idea,
     build_weekly_content_plan,
+    resolve_universe_category,
+    universe_category_label,
 )
 from stock_prices._internal.models import RenderSettings
 from stock_prices._internal.pipeline import generate_video, log_event
@@ -214,15 +216,6 @@ HOT_MENU_PRESETS = (
     ("Новая экономика", "neweconomy"),
     ("Алкоголь", "vodka"),
     ("Мечел", "mechel"),
-)
-CONTENT_PLAN_PRESETS = (
-    "neweconomy",
-    "metals",
-    "banks",
-    "telecoms",
-    "retailers",
-    "utilities",
-    "bluechips",
 )
 CUSTOM_FOLLOWUP_MODES = {
     "draft": "draft",
@@ -600,10 +593,6 @@ def post_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]
     return {"inline_keyboard": rows}
 
 
-def _content_plan_preset_list() -> tuple:
-    return tuple(get_preset(name) for name in CONTENT_PLAN_PRESETS)
-
-
 def _weekly_content_items(today: date | None = None) -> tuple[GeneratedContentIdea, ...]:
     return build_weekly_content_plan(today)
 
@@ -612,11 +601,11 @@ def _today() -> date:
     return date.today()
 
 
-def _daily_content_plan_preset(today: date | None = None) -> tuple[int, Any]:
-    presets = _content_plan_preset_list()
+def _daily_content_plan_item(today: date | None = None) -> tuple[int, GeneratedContentIdea]:
     day = today or _today()
-    index = (day.isoweekday() - 1) % len(presets)
-    return index + 1, presets[index]
+    plan = _weekly_content_items(day)
+    index = (day.isoweekday() - 1) % len(plan)
+    return index + 1, plan[index]
 
 
 def format_content_plan(plan: tuple[GeneratedContentIdea, ...] | None = None) -> str:
@@ -703,39 +692,51 @@ def preset_kit_keyboard(preset_name: str) -> dict[str, list[list[dict[str, str]]
 
 
 def format_daily_content_kit(today: date | None = None) -> str:
-    day_index, preset = _daily_content_plan_preset(today)
+    day_index, item = _daily_content_plan_item(today)
+    tracks = ", ".join(item.music_tracks)
     return (
-        f"Пакет дня: Д{day_index} {preset.title}\n"
-        "Сценарий взят из недельного контент-плана.\n\n"
-        f"{format_preset_kit(preset.name)}"
+        f"Пакет дня: Д{day_index} {item.title}\n"
+        "Сценарий взят из недельного random-плана тикерной вселенной.\n\n"
+        f"Шортс: {item.request}\n"
+        f"Пост без рендера: пост дня\n"
+        f"Обложка: {item.cover_text}\n"
+        f"Монтаж: {item.music_mood}.\n"
+        f"Треки-референсы: {tracks}.\n\n"
+        f"{item.post_text}\n\n"
+        "Не является индивидуальной инвестиционной рекомендацией."
     )
 
 
 def daily_content_kit_keyboard(today: date | None = None) -> dict[str, list[list[dict[str, str]]]]:
-    _day_index, preset = _daily_content_plan_preset(today)
-    return preset_kit_keyboard(preset.name)
-
-
-def format_daily_post(today: date | None = None) -> str:
-    day_index, preset = _daily_content_plan_preset(today)
-    return (
-        f"Пост дня: Д{day_index} {preset.title}\n"
-        "Сценарий взят из недельного контент-плана.\n\n"
-        f"{format_pulse_post(preset)}"
-    )
-
-
-def daily_post_keyboard(today: date | None = None) -> dict[str, list[list[dict[str, str]]]]:
-    _day_index, preset = _daily_content_plan_preset(today)
     return {
         "inline_keyboard": [
             [
-                {"text": "🎬 Шортс", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_short"},
-                {"text": "📦 Пакет", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_kit"},
+                {"text": "Шортс дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_short"},
+                {"text": "Пост дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_post"},
             ],
             [
-                {"text": "16s", "callback_data": f"preset:{preset.name}:shorts"},
-                {"text": "⏳ Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
+                {"text": "План", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
+                {"text": "Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
+            ],
+        ]
+    }
+
+
+def format_daily_post(today: date | None = None) -> str:
+    day_index, item = _daily_content_plan_item(today)
+    return format_generated_weekly_post(day_index, item)
+
+
+def daily_post_keyboard(today: date | None = None) -> dict[str, list[list[dict[str, str]]]]:
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "Шортс дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_short"},
+                {"text": "Пакет дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_kit"},
+            ],
+            [
+                {"text": "План", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
+                {"text": "Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
             ],
         ]
     }
@@ -1001,6 +1002,14 @@ class TelegramCategoryPresetAction:
     theme: str | None = None
 
 
+@dataclass(frozen=True)
+class TelegramRandomContentAction:
+    mode: str
+    category_name: str | None = None
+    count: int | None = None
+    theme: str | None = None
+
+
 class TelegramJobQueue:
     def __init__(self, client: TelegramClient, settings: TelegramBotSettings) -> None:
         self.client = client
@@ -1182,34 +1191,34 @@ class TelegramJobQueue:
         return jobs
 
     def enqueue_daily_content_plan_short(self, chat_id: int, update_id: int) -> TelegramJob:
-        day_index, preset = _daily_content_plan_preset()
+        day_index, item = _daily_content_plan_item()
         self.client.send_message(
             chat_id,
-            f"Шортс дня: Д{day_index} {preset_button_label(preset)}. Ставлю готовый shorts-ролик в очередь.",
+            f"Шортс дня: Д{day_index} {item.title}. Ставлю random shorts-ролик из тикерной вселенной в очередь.",
             reply_markup=queue_status_keyboard(),
         )
         return self.enqueue(
             chat_id,
-            f"preset {preset.name} shorts",
+            item.request,
             update_id,
-            job_suffix=f"daily-short-{day_index}-{preset.name}",
+            job_suffix=f"daily-short-{day_index}-{item.slug}",
             notify=False,
         )
 
     def enqueue_daily_publication_day(self, chat_id: int, update_id: int) -> TelegramJob:
-        day_index, preset = _daily_content_plan_preset()
+        day_index, item = _daily_content_plan_item()
         self.client.send_message(
             chat_id,
-            f"Публикационный день: Д{day_index} {preset_button_label(preset)}. "
-            "Ставлю shorts-ролик в очередь и отправляю пакет для поста.",
+            f"Публикационный день: Д{day_index} {item.title}. "
+            "Ставлю random shorts-ролик в очередь и отправляю пакет для поста.",
             reply_markup=queue_status_keyboard(),
         )
         self.client.send_message(chat_id, format_daily_content_kit(), reply_markup=daily_content_kit_keyboard())
         return self.enqueue(
             chat_id,
-            f"preset {preset.name} shorts",
+            item.request,
             update_id,
-            job_suffix=f"publication-day-{day_index}-{preset.name}",
+            job_suffix=f"publication-day-{day_index}-{item.slug}",
             notify=False,
         )
 
@@ -1297,76 +1306,89 @@ class TelegramJobQueue:
             )
         return jobs
 
-    def enqueue_random_preset_shorts(self, chat_id: int, update_id: int) -> TelegramJob:
-        item = build_random_content_idea()
+    def enqueue_random_universe_shorts(
+        self,
+        chat_id: int,
+        update_id: int,
+        category_name: str | None = None,
+        count: int | None = None,
+        theme: str | None = None,
+    ) -> TelegramJob:
+        resolved_category = resolve_universe_category(category_name)
+        item = build_random_content_idea(resolved_category, count=count, theme=theme)
+        category_label = f" категории {universe_category_label(resolved_category)}" if resolved_category else ""
+        count_label = f", {count} тикер{'' if count == 1 else 'а' if count in {2, 3} else 'ов'}" if count else ""
+        theme_label = f", тема {theme}" if theme else ""
         self.client.send_message(
             chat_id,
-            f"Случайный шортс: {item.title}. Ставлю shorts-ролик в очередь.",
+            f"Случайный шортс{category_label}{count_label}{theme_label}: {item.title}. Ставлю shorts-ролик в очередь.",
             reply_markup=queue_status_keyboard(),
         )
+        job_suffix_theme = f"-{theme}" if theme else ""
+        job_suffix_count = f"-{count}x" if count else ""
+        job_suffix_category = f"-{resolved_category}" if resolved_category else ""
         return self.enqueue(
             chat_id,
             item.request,
             update_id,
-            job_suffix=f"random-shorts-{item.slug}",
+            job_suffix=f"random{job_suffix_category}-shorts{job_suffix_count}{job_suffix_theme}-{item.slug}",
             notify=False,
         )
 
-    def enqueue_random_preset_draft(self, chat_id: int, update_id: int) -> TelegramJob:
-        item = build_random_content_idea(mode="draft")
+    def enqueue_random_universe_draft(
+        self,
+        chat_id: int,
+        update_id: int,
+        category_name: str | None = None,
+        count: int | None = None,
+    ) -> TelegramJob:
+        resolved_category = resolve_universe_category(category_name)
+        item = build_random_content_idea(resolved_category, count=count, mode="draft")
+        category_label = f" категории {universe_category_label(resolved_category)}" if resolved_category else ""
+        count_label = f", {count} тикер{'' if count == 1 else 'а' if count in {2, 3} else 'ов'}" if count else ""
         self.client.send_message(
             chat_id,
-            f"Случайный черновик: {item.title}. Ставлю короткий draft в очередь.",
+            f"Случайный черновик{category_label}{count_label}: {item.title}. Ставлю короткий draft в очередь.",
             reply_markup=queue_status_keyboard(),
         )
+        job_suffix_count = f"-{count}x" if count else ""
+        job_suffix_category = f"-{resolved_category}" if resolved_category else ""
         return self.enqueue(
             chat_id,
             item.request,
             update_id,
-            job_suffix=f"random-draft-{item.slug}",
+            job_suffix=f"random{job_suffix_category}-draft{job_suffix_count}-{item.slug}",
             notify=False,
         )
 
-    def enqueue_random_category_preset_shorts(
+    def enqueue_random_category_universe_shorts(
         self,
         chat_id: int,
         update_id: int,
         category_name: str,
         theme: str | None = None,
+        count: int | None = None,
     ) -> TelegramJob:
-        category = get_preset_category(category_name)
-        item = build_random_content_idea(category.name, theme=theme)
-        theme_label = f" в теме {theme}" if theme else ""
-        self.client.send_message(
+        return self.enqueue_random_universe_shorts(
             chat_id,
-            f"Случайный шортс категории {category.title}{theme_label}: "
-            f"{item.title}. Ставлю shorts-ролик в очередь.",
-            reply_markup=queue_status_keyboard(),
-        )
-        job_suffix_theme = f"-{theme}" if theme else ""
-        return self.enqueue(
-            chat_id,
-            item.request,
             update_id,
-            job_suffix=f"random-{category.name}-shorts{job_suffix_theme}-{item.slug}",
-            notify=False,
+            category_name=category_name,
+            count=count,
+            theme=theme,
         )
 
-    def enqueue_random_category_preset_draft(self, chat_id: int, update_id: int, category_name: str) -> TelegramJob:
-        category = get_preset_category(category_name)
-        item = build_random_content_idea(category.name, mode="draft")
-        self.client.send_message(
+    def enqueue_random_category_universe_draft(
+        self,
+        chat_id: int,
+        update_id: int,
+        category_name: str,
+        count: int | None = None,
+    ) -> TelegramJob:
+        return self.enqueue_random_universe_draft(
             chat_id,
-            f"Случайный черновик категории {category.title}: "
-            f"{item.title}. Ставлю короткий draft в очередь.",
-            reply_markup=queue_status_keyboard(),
-        )
-        return self.enqueue(
-            chat_id,
-            item.request,
             update_id,
-            job_suffix=f"random-{category.name}-draft-{item.slug}",
-            notify=False,
+            category_name=category_name,
+            count=count,
         )
 
     def enqueue_example_drafts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
@@ -1784,7 +1806,7 @@ def format_production_guide() -> str:
         "Когда нужен выбор сюжета:\n"
         "top drafts - быстро проверить top-сценарии.\n"
         "top shorts studio - снять top-серию в теме Studio.\n"
-        "random shorts - получить один готовый preset без выбора.\n"
+        "random mixed 3 или random drama 2 - собрать случайный шортс из тикерной вселенной.\n"
         "/plan - посмотреть недельную сетку, /plan_shorts - снять весь план, /week_posts - получить все посты недели.\n\n"
         "Когда нужен только текст:\n"
         "post metals - готовый пост по preset.\n"
@@ -1803,7 +1825,8 @@ def _help_text(default_engine: str, default_market: str) -> str:
         f"По умолчанию: {default_engine}|{default_market}\n"
         "\n"
         "Быстро: /menu, День, Неделя, Истории, Случайный.\n"
-        "Готовое: /shorts без текста - выбрать историю; /examples - проверенные запросы.\n"
+        "Random: random mixed 1, random mixed 3, random drama 2, random stocks 2, random crypto 1.\n"
+        "Примеры: /shorts без текста - ручные истории; /plan - недельная random-сетка.\n"
         "Свой ролик: /shorts + тикеры и период одной строкой.\n\n"
         "Примеры:\n"
         "/shorts SBER LKOH за год\n"
@@ -2473,6 +2496,9 @@ def _is_shorts_batch(text: str) -> bool:
 
 def _is_random_shorts(text: str) -> bool:
     normalized = " ".join(text.strip().lower().replace("_", " ").replace("-", " ").split())
+    random_action = _random_content_action(text)
+    if random_action is not None:
+        return random_action.mode == "shorts" and random_action.category_name is None
     return normalized in {
         "/random shorts",
         "/random short",
@@ -2493,6 +2519,9 @@ def _is_random_shorts(text: str) -> bool:
 
 def _is_random_draft(text: str) -> bool:
     normalized = " ".join(text.strip().lower().split())
+    random_action = _random_content_action(text)
+    if random_action is not None:
+        return random_action.mode == "draft" and random_action.category_name is None
     return normalized in {
         "/random",
         "/random_draft",
@@ -2505,6 +2534,64 @@ def _is_random_draft(text: str) -> bool:
         "случайный черновик",
         "черновик случайный",
     }
+
+
+_RANDOM_WORDS = {"random", "случайный", "случайная", "случайное", "случайные"}
+_RANDOM_SHORT_WORDS = {"short", "shorts", "reels", "ролик", "ролики", "шорт", "шортс", "шортсы", "видео"}
+_RANDOM_DRAFT_WORDS = {"draft", "drafts", "preview", "черновик", "черновики", "превью"}
+_RANDOM_MIX_WORDS = {"mix", "mixed", "all", "any", "микс", "смешанный", "смешанные", "разные", "любой", "любые"}
+_RANDOM_COUNT_WORDS = {
+    "1": 1,
+    "one": 1,
+    "один": 1,
+    "одна": 1,
+    "одно": 1,
+    "2": 2,
+    "two": 2,
+    "два": 2,
+    "две": 2,
+    "3": 3,
+    "three": 3,
+    "три": 3,
+}
+
+
+def _random_content_action(text: str) -> TelegramRandomContentAction | None:
+    normalized = " ".join(text.strip().lower().replace("ё", "е").replace("_", " ").replace("-", " ").split())
+    for explicit_prefix in ("category ", "категория "):
+        if normalized.startswith(explicit_prefix):
+            normalized = normalized.removeprefix(explicit_prefix).strip()
+            break
+    normalized, theme = _strip_category_action_theme(normalized)
+    tokens = [token.lstrip("/") for token in normalized.split()]
+    if not tokens or not any(token in _RANDOM_WORDS for token in tokens):
+        return None
+
+    explicit_draft = any(token in _RANDOM_DRAFT_WORDS for token in tokens)
+    explicit_short = any(token in _RANDOM_SHORT_WORDS for token in tokens)
+    count = next((_RANDOM_COUNT_WORDS[token] for token in tokens if token in _RANDOM_COUNT_WORDS), None)
+    mixed = any(token in _RANDOM_MIX_WORDS for token in tokens)
+    category_tokens = [
+        token
+        for token in tokens
+        if token
+        and token not in _RANDOM_WORDS
+        and token not in _RANDOM_SHORT_WORDS
+        and token not in _RANDOM_DRAFT_WORDS
+        and token not in _RANDOM_MIX_WORDS
+        and token not in _RANDOM_COUNT_WORDS
+    ]
+    category_name: str | None = None
+    if category_tokens and not mixed:
+        category_name = resolve_universe_category(" ".join(category_tokens))
+
+    if explicit_draft:
+        mode = "draft"
+    elif explicit_short or category_name is not None or mixed or count is not None:
+        mode = "shorts"
+    else:
+        return None
+    return TelegramRandomContentAction(mode=mode, category_name=category_name, count=count, theme=theme)
 
 
 def _is_queue_status(text: str) -> bool:
@@ -2849,6 +2936,15 @@ def handle_ticker_message(
         theme_label = f" в теме {theme}" if theme else ""
         client.send_message(chat_id, f"Команда {mode_label}{theme_label} работает в режиме Telegram-очереди.")
         return
+    random_content_action = _random_content_action(text)
+    if random_content_action is not None:
+        category_label = ""
+        if random_content_action.category_name:
+            category_label = f" категории {universe_category_label(random_content_action.category_name)}"
+        count_label = f" из {random_content_action.count} тикер(ов)" if random_content_action.count else ""
+        mode_label = "черновика" if random_content_action.mode == "draft" else "shorts-ролика"
+        client.send_message(chat_id, f"Команда случайного {mode_label}{category_label}{count_label} работает в режиме Telegram-очереди.")
+        return
     if _is_random_shorts(text):
         client.send_message(chat_id, "Команда случайного shorts-ролика работает в режиме Telegram-очереди.")
         return
@@ -3054,6 +3150,7 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 text = shortcut_text
                             hot_batch = _hot_batch_mode_and_theme(text)
                             shorts_batch = _shorts_batch_theme(text)
+                            random_content_action = _random_content_action(text)
                             category_action = _category_preset_action(text)
                             preset_theme_variants_name = _preset_theme_variants_name(text)
                             preset_kit_name = _preset_kit_name(text)
@@ -3092,15 +3189,31 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                     job_queue.enqueue_hot_preset_shorts_with_theme(chat_id, int(update["update_id"]), theme)
                                 else:
                                     job_queue.enqueue_hot_preset_shorts(chat_id, int(update["update_id"]))
+                            elif random_content_action is not None:
+                                if random_content_action.mode == "draft":
+                                    job_queue.enqueue_random_universe_draft(
+                                        chat_id,
+                                        int(update["update_id"]),
+                                        category_name=random_content_action.category_name,
+                                        count=random_content_action.count,
+                                    )
+                                else:
+                                    job_queue.enqueue_random_universe_shorts(
+                                        chat_id,
+                                        int(update["update_id"]),
+                                        category_name=random_content_action.category_name,
+                                        count=random_content_action.count,
+                                        theme=random_content_action.theme,
+                                    )
                             elif category_action is not None:
                                 if category_action.kind == "random" and category_action.mode == "draft":
-                                    job_queue.enqueue_random_category_preset_draft(
+                                    job_queue.enqueue_random_category_universe_draft(
                                         chat_id,
                                         int(update["update_id"]),
                                         category_action.category_name,
                                     )
                                 elif category_action.kind == "random":
-                                    job_queue.enqueue_random_category_preset_shorts(
+                                    job_queue.enqueue_random_category_universe_shorts(
                                         chat_id,
                                         int(update["update_id"]),
                                         category_action.category_name,
@@ -3126,9 +3239,9 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                     preset_theme_variants_name,
                                 )
                             elif _is_random_shorts(text):
-                                job_queue.enqueue_random_preset_shorts(chat_id, int(update["update_id"]))
+                                job_queue.enqueue_random_universe_shorts(chat_id, int(update["update_id"]))
                             elif _is_random_draft(text):
-                                job_queue.enqueue_random_preset_draft(chat_id, int(update["update_id"]))
+                                job_queue.enqueue_random_universe_draft(chat_id, int(update["update_id"]))
                             elif _is_example_draft_batch(text):
                                 job_queue.enqueue_example_drafts(chat_id, int(update["update_id"]))
                             elif _is_random_example_draft(text):
@@ -3351,10 +3464,10 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             job_queue.enqueue_example_drafts(menu_callback.chat_id, int(update["update_id"]))
                         elif menu_callback.action == "random_shorts":
                             client.answer_callback_query(menu_callback.callback_query_id, "Случайный шортс поставлен в очередь.")
-                            job_queue.enqueue_random_preset_shorts(menu_callback.chat_id, int(update["update_id"]))
+                            job_queue.enqueue_random_universe_shorts(menu_callback.chat_id, int(update["update_id"]))
                         elif menu_callback.action == "random_draft":
                             client.answer_callback_query(menu_callback.callback_query_id, "Случайный draft поставлен в очередь.")
-                            job_queue.enqueue_random_preset_draft(menu_callback.chat_id, int(update["update_id"]))
+                            job_queue.enqueue_random_universe_draft(menu_callback.chat_id, int(update["update_id"]))
                         elif menu_callback.action == "random_example":
                             client.answer_callback_query(menu_callback.callback_query_id, "Случайный пример поставлен в очередь.")
                             job_queue.enqueue_random_example_draft(menu_callback.chat_id, int(update["update_id"]))
