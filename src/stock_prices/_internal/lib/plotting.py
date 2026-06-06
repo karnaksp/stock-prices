@@ -216,7 +216,10 @@ def _prefix_y_limits(values: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
 
 
 def _visible_x_span_days(x_start: pd.Timestamp, frame_date: pd.Timestamp, total_span_days: int) -> int:
-    return max(1, total_span_days)
+    total_span_days = max(1, total_span_days)
+    elapsed_days = max(1, (frame_date - x_start).days)
+    min_window_days = min(total_span_days, 30)
+    return min(total_span_days, max(min_window_days, elapsed_days))
 
 
 def _animation_frame_data(combined_df: pd.DataFrame, frame_index: int) -> tuple[pd.DataFrame, pd.DataFrame]:
