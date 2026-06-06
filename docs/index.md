@@ -103,7 +103,7 @@ hide:
 | --- | --- |
 | Открыть рабочий пульт | `/start`, `/menu`, `/shoot` или `снять` |
 | Выбрать готовую историю | `/shorts` или кнопка `Истории` |
-| Случайная подборка | `случайный шортс`, `random mixed 1`, `random drama 2`, `random stocks 2` |
+| Случайная подборка | кнопка `Random`, `random mixed 1`, `random mixed 3`, `random drama 2`, `random stocks 2` |
 | Недельный план | `/plan` или `/publish_week` |
 | Снять ролик по тикерам | `/shorts SBER LKOH за год` |
 | Проверить долгий рендер | `/queue`, `статус` или кнопка `Очередь` |

@@ -403,13 +403,10 @@ def create_multi_line_animation(
             line_x = line_x_data.loc[line_clean.index]
             current_line_x = current_x_data.loc[current_clean.index]
             if use_gradient:
-                lines[name].set_data(line_x, line_clean)
-                lines[name].set_alpha(0.42)
-                gradient_tail_points = 180
-                tail_x = current_line_x.iloc[-gradient_tail_points:]
-                tail_y = current_clean.iloc[-gradient_tail_points:]
+                lines[name].set_data([], [])
+                lines[name].set_alpha(0.0)
                 before = len(ax.collections)
-                draw_gradient_line(ax, tail_x, tail_y, by_name[name]["color"], name)
+                draw_gradient_line(ax, current_line_x, current_clean, by_name[name]["color"], name)
                 gradient_collections.extend(ax.collections[before:])
             else:
                 lines[name].set_alpha(0.92)
@@ -445,8 +442,9 @@ def create_multi_line_animation(
         y_bottom, y_top = ax.get_ylim()
         min_gap = (y_top - y_bottom) * 0.065
         used_y: list[float] = []
-        label_x = frame_date + pd.Timedelta(days=visible_x_span_days * 0.105)
-        for name, _last_x, last_y, _label_text in sorted(label_targets, key=lambda item: item[2]):
+        label_x_offset = pd.Timedelta(days=visible_x_span_days * 0.025)
+        label_x_right = x_start + pd.Timedelta(days=visible_x_span_days * 1.105)
+        for name, last_x, last_y, _label_text in sorted(label_targets, key=lambda item: item[2]):
             adjusted_y = min(max(last_y, y_bottom + min_gap), y_top - min_gap)
             while any(abs(adjusted_y - used) < min_gap for used in used_y):
                 adjusted_y += min_gap
@@ -454,7 +452,7 @@ def create_multi_line_animation(
                     adjusted_y = max(y_bottom + min_gap, last_y - min_gap)
                     break
             used_y.append(adjusted_y)
-            labels[name].set_position((label_x, adjusted_y))
+            labels[name].set_position((min(last_x + label_x_offset, label_x_right), adjusted_y))
         for event_index, (start, visible_end, event_name, impact) in enumerate(_active_event_ranges(event_ranges, frame_date)):
             color = event_color(impact)
             patch = ax.axvspan(start, visible_end, alpha=0.12, color=color, linewidth=0, zorder=0)
@@ -479,6 +477,7 @@ def create_multi_line_animation(
 
         artists = [
             *fill_artists,
+            *gradient_collections,
             *lines.values(),
             *labels.values(),
             *dividend_markers.values(),
