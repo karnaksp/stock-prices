@@ -49,13 +49,14 @@ def test_return_summary_shows_invested_actual_amount() -> None:
     assert _return_summary("Invested", invested, invested) == "Invested: 60.0K"
 
 
-def test_visible_x_span_uses_full_period_to_prevent_expanding_axis() -> None:
+def test_visible_x_span_grows_from_zoomed_window_to_full_period() -> None:
     start = pd.Timestamp("2021-12-17")
 
-    assert _visible_x_span_days(start, start, 1627) == 1627
-    assert _visible_x_span_days(start, start + pd.Timedelta(days=10), 1627) == 1627
-    assert _visible_x_span_days(start, start + pd.Timedelta(days=120), 1627) == 1627
+    assert _visible_x_span_days(start, start, 1627) == 30
+    assert _visible_x_span_days(start, start + pd.Timedelta(days=10), 1627) == 30
+    assert _visible_x_span_days(start, start + pd.Timedelta(days=120), 1627) == 120
     assert _visible_x_span_days(start, start + pd.Timedelta(days=2000), 1627) == 1627
+    assert _visible_x_span_days(start, start, 12) == 12
 
 
 def test_animation_line_data_uses_current_frame_slice() -> None:
@@ -134,7 +135,7 @@ def test_animation_draws_only_current_frame_slice_on_first_frame() -> None:
         plt.close(animation._fig)
 
 
-def test_animation_keeps_full_time_window_while_series_uses_current_slice() -> None:
+def test_animation_grows_time_window_while_series_uses_current_slice() -> None:
     import matplotlib.dates as mdates
     import matplotlib.pyplot as plt
 
@@ -177,7 +178,7 @@ def test_animation_keeps_full_time_window_while_series_uses_current_slice() -> N
         assert abs(middle_gradient_segments[-1][-1][0] - mdates.date2num(data_frame["TRADEDATE"].iloc[1])) < 1e-6
         assert gradient_collections
         assert first_xlim[0] == start_num
-        assert first_xlim == middle_xlim == final_xlim
+        assert first_xlim[1] < middle_xlim[1] < final_xlim[1]
     finally:
         plt.close(animation._fig)
 
@@ -266,7 +267,7 @@ def test_animation_keeps_line_gradient_and_fill_on_same_frame_slice() -> None:
         gradient_segments = gradient_collections[-1].get_segments()
         fill_right = fill_collections[-1].get_paths()[0].vertices[:, 0].max()
         price_label = next(text for text in ax.texts if text.get_text().startswith("SBER:"))
-        expected_label_x = data_frame["TRADEDATE"].iloc[1] + pd.Timedelta(days=62 * 0.025)
+        expected_label_x = data_frame["TRADEDATE"].iloc[1] + pd.Timedelta(days=31 * 0.025)
 
         assert list(line.get_xdata()) == []
         assert line.get_alpha() == 0.0
