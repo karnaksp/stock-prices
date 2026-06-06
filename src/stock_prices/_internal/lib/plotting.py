@@ -202,24 +202,42 @@ def _animation_frame_data(combined_df: pd.DataFrame, frame_index: int) -> tuple[
     return current_data, line_data
 
 
-def _active_events(events_df: pd.DataFrame, frame_date: pd.Timestamp) -> list[tuple[pd.Timestamp, pd.Timestamp, str, int]]:
+EventRange = tuple[pd.Timestamp, pd.Timestamp, str, int]
+
+
+def _event_ranges(events_df: pd.DataFrame) -> list[EventRange]:
     if events_df.empty or "EVENT_NAME" not in events_df:
         return []
     events = events_df.dropna(subset=["EVENT_NAME"]).copy()
     if events.empty:
         return []
     events["TRADEDATE"] = pd.to_datetime(events["TRADEDATE"])
+    if "EVENT_IMPACT" in events:
+        events["EVENT_IMPACT"] = pd.to_numeric(events["EVENT_IMPACT"], errors="coerce").fillna(0).astype(int)
+    else:
+        events["EVENT_IMPACT"] = 0
 
-    active = []
+    ranges = []
     for event_name, group in events.groupby("EVENT_NAME"):
         start = group["TRADEDATE"].min()
         end = group["TRADEDATE"].max()
+        impact = int(group["EVENT_IMPACT"].iloc[0])
+        ranges.append((start, end, str(event_name).replace("_", " "), impact))
+    return ranges
+
+
+def _active_event_ranges(event_ranges: list[EventRange], frame_date: pd.Timestamp) -> list[EventRange]:
+    active = []
+    for start, end, event_name, impact in event_ranges:
         if frame_date < start:
             continue
         visible_end = min(frame_date, end)
-        impact = int(group["EVENT_IMPACT"].iloc[0])
-        active.append((start, visible_end, str(event_name).replace("_", " "), impact))
+        active.append((start, visible_end, event_name, impact))
     return active
+
+
+def _active_events(events_df: pd.DataFrame, frame_date: pd.Timestamp) -> list[EventRange]:
+    return _active_event_ranges(_event_ranges(events_df), frame_date)
 
 
 def create_multi_line_animation(
@@ -252,6 +270,8 @@ def create_multi_line_animation(
     x_start = combined_df["TRADEDATE"].min()
     x_end = combined_df["TRADEDATE"].max()
     x_span_days = max(1, (x_end - x_start).days)
+    source_events = data_list[0]["data"] if data_list else pd.DataFrame()
+    event_ranges = _event_ranges(source_events)
     ax.set_xlim(x_start, x_end + pd.Timedelta(days=x_span_days * 0.12))
     ax.grid(True, alpha=0.2, color=chart_theme.grid_color, linewidth=0.8)
     ax.set_ylabel(y_label, color=chart_theme.axis_color, fontsize=14)
@@ -424,8 +444,7 @@ def create_multi_line_animation(
                     break
             used_y.append(adjusted_y)
             labels[name].set_position((label_x, adjusted_y))
-        source_events = data_list[0]["data"] if data_list else pd.DataFrame()
-        for event_index, (start, visible_end, event_name, impact) in enumerate(_active_events(source_events, frame_date)):
+        for event_index, (start, visible_end, event_name, impact) in enumerate(_active_event_ranges(event_ranges, frame_date)):
             color = event_color(impact)
             patch = ax.axvspan(start, visible_end, alpha=0.12, color=color, linewidth=0, zorder=0)
             label_x = start + (visible_end - start) / 2
