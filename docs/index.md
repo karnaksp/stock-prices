@@ -6,17 +6,17 @@ hide:
 
 <section class="sp-hero">
   <div class="sp-hero__content">
-    <span class="sp-kicker">Stock Prices</span>
-    <h1>Видео с рыночными графиками по одному сообщению в Telegram</h1>
+    <span class="sp-kicker">Документация</span>
+    <h1>Stock Prices</h1>
     <p>
-      Проект загружает данные по российским и глобальным инструментам, строит
-      стильный анимированный график и возвращает готовый MP4 через CLI,
-      Python API или постоянно работающего Telegram-бота.
+      Генератор MP4-видео с анимированными рыночными графиками. Можно запустить
+      из CLI, встроить через Python API или держать постоянно работающего
+      Telegram-бота в Docker.
     </p>
     <div class="sp-actions">
-      <a class="sp-button sp-button--primary" href="runbook/">Запустить локально</a>
-      <a class="sp-button" href="docker/">Запустить в Docker</a>
+      <a class="sp-button sp-button--primary" href="#быстрый-старт">Быстрый старт</a>
       <a class="sp-button" href="telegram/">Telegram-запросы</a>
+      <a class="sp-button" href="docker/">Docker</a>
     </div>
   </div>
 </section>
@@ -25,112 +25,91 @@ hide:
   <span>MOEX</span>
   <span>Yahoo Finance</span>
   <span>Telegram Bot API</span>
-  <span>Matplotlib</span>
+  <span>Python API</span>
   <span>Docker Compose</span>
 </div>
 
-## Пример результата
+## Что получится
 
 <figure class="sp-media">
   <img src="assets/demo-sber-lkoh.gif" alt="Анимированный пример графика SBER и LKOH">
-  <figcaption>Ускоренный GIF из реального MP4: видно, как график SBER и LKOH постепенно строится по всей истории.</figcaption>
+  <figcaption>Ускоренный GIF из реального MP4: график SBER и LKOH постепенно строится по всей истории.</figcaption>
 </figure>
 
-## Что умеет проект
-
-<div class="sp-grid">
-  <a class="sp-card" href="demo/#поддерживаемые-рынки-и-активы">
-    <strong>Много рынков</strong>
-    <span>Российские акции, фьючерсы, валюты, иностранные акции, металлы, криптовалюты и индексы.</span>
-  </a>
-  <a class="sp-card" href="telegram/">
-    <strong>Telegram-first</strong>
-    <span>Короткий запрос, аккуратное меню, очередь рендера и готовый MP4 прямо в чате.</span>
-  </a>
-  <a class="sp-card" href="docker/">
-    <strong>Постоянный запуск</strong>
-    <span>Docker-контейнер держит бота онлайн и автоматически перезапускается.</span>
-  </a>
-  <a class="sp-card" href="reference/api/">
-    <strong>Единый pipeline</strong>
-    <span>CLI, Telegram и Python API используют общий `generate_video()` без дублирования логики.</span>
-  </a>
-</div>
-
 ## Быстрый старт
+
+Выберите вход, который нужен прямо сейчас. Для постоянного Telegram-бота удобнее Docker; для локальной проверки быстрее CLI.
 
 === "Docker"
 
     ```powershell
     copy .env.example .env
+    # Заполните TELEGRAM_BOT_TOKEN в .env
     docker compose up -d --build
     docker compose ps
     ```
+
+    После запуска откройте Telegram и отправьте боту `/start`.
 
 === "CLI"
 
     ```powershell
     python -m pip install -e .
-    python -m stock_prices --tickers "SBER|stock|shares" "LKOH|stock|shares" --start_date 2020-01-01 --end_date 2024-12-31
+    python -m stock_prices --tickers "SBER|stock|shares" "LKOH|stock|shares" --start_date 2020-01-01 --end_date 2024-12-31 --currency RUB --duration 20 --fps 20
     ```
+
+    Готовый MP4 появится в `animations/`.
 
 === "Telegram"
 
     ```text
     /start
     /shoot
-    снять
-    /help
     /shorts
     /shorts SBER LKOH за год
-    /draft metals
-    снять день
-    снять неделю
     /queue
-    статус
-
-    LKOH
-    SBER LKOH 2020 2024
     ```
 
-## Telegram-меню
+    Бот не придумывает идеи сам и не использует LLM: `/shorts` открывает готовые истории, а запрос с тикерами ставит в очередь конкретный ролик.
 
-`/start`, `/menu` и `/меню` открывают компактный пульт. Первый экран оставляет только шесть частых действий: день, неделю, Top Studio, случайный ролик, истории и очередь.
-
-Для ежедневной работы быстрее писать `/shoot` или `снять`: бот покажет тот же рабочий пульт без лишних справочных разделов.
-
-Короткий путь к шортсу: `/shorts` без текста открывает готовые истории, `/shorts SBER LKOH за год` ставит в очередь свой ролик. Длинный рендер может идти несколько минут; состояние видно через `/queue`, `статус` или кнопку `Очередь`.
-
-Для выбора сюжета под настроение поста используйте `категории`: тихие российские истории, драмы и просадки, сырьевые циклы, рост и недельный план. Для быстрого запуска работают команды вроде `телеком`, `ритейл`, `энергетика`, `top quiet`, `random drama` и `черновик тихие`.
-
-Недельный production-план для `/publish_week` и `/today_post` теперь чередует хайп, сырье, банки, связь, ритейл, энергетику и голубые фишки.
-
-Самые важные кнопки: `День`, `Неделя`, `Истории`, `Очередь`, `Шортс 16s`, `12s` и `Меню`. Подробная справка по синтаксису, инвестициям, рынкам и preset-сценариям находится в разделе [Telegram-запросы](telegram.md).
-
-## Основные разделы
+## Куда идти дальше
 
 <div class="sp-grid sp-grid--small">
-  <a class="sp-card" href="demo/">
-    <strong>Демонстрация</strong>
-    <span>Возможности, архитектура, рынки, примеры и сценарий показа проекта.</span>
-  </a>
   <a class="sp-card" href="runbook/">
     <strong>Запуск и проверка</strong>
-    <span>Пошаговый runbook для Windows/PowerShell, CLI, Telegram и диагностики.</span>
+    <span>Локальная установка, smoke-проверки, Telegram token, chat id и диагностика.</span>
   </a>
   <a class="sp-card" href="telegram/">
     <strong>Telegram-запросы</strong>
-    <span>Синтаксис сообщений, кнопки, рынки, инвестиции, темы и готовый текст для Пульса.</span>
+    <span>Кнопки, короткий синтаксис, свои ролики, готовые истории и параметры.</span>
   </a>
   <a class="sp-card" href="docker/">
     <strong>Docker</strong>
-    <span>Постоянный Telegram-бот, volume mounts, healthcheck и типовые ошибки.</span>
+    <span>Постоянный бот, volume mounts, healthcheck, логи и типовые ошибки.</span>
+  </a>
+  <a class="sp-card" href="demo/">
+    <strong>Демонстрация</strong>
+    <span>Возможности, рынки, примеры роликов и сценарий показа проекта.</span>
   </a>
   <a class="sp-card" href="reference/api/">
-    <strong>API</strong>
-    <span>Публичные Python-точки входа для интеграции генерации видео.</span>
+    <strong>Python API</strong>
+    <span>Публичные точки входа для интеграции генерации видео.</span>
   </a>
 </div>
+
+## Telegram без перегруза
+
+| Хочу | Что отправить |
+| --- | --- |
+| Открыть рабочий пульт | `/start`, `/menu`, `/shoot` или `снять` |
+| Выбрать готовую историю | `/shorts` или кнопка `Истории` |
+| Снять ролик по тикерам | `/shorts SBER LKOH за год` |
+| Проверить долгий рендер | `/queue`, `статус` или кнопка `Очередь` |
+| Открыть справку | `/help` |
+
+Обычные строки вроде `LKOH`, `SBER LKOH 2020 2024` и `AAPL global USD shorts` тоже работают. Несколько роликов можно отправить одним сообщением: один запрос на строку.
+
+Полный справочник лежит в разделе [Telegram-запросы](telegram.md).
 
 ## Как устроено
 
@@ -139,12 +118,10 @@ flowchart TD
   User["Telegram / CLI / Python API"] --> Request["VideoRequest"]
   Request --> Sources{"Источник данных"}
   Sources --> Moex["MOEX: акции, фьючерсы, валюта"]
-  Sources --> Global["Глобальные акции и ETF"]
-  Sources --> Crypto["Криптовалюты, металлы, FX"]
+  Sources --> Global["Yahoo Finance: акции, ETF, металлы, крипто"]
   Moex --> Dataset["Единый датасет"]
   Global --> Dataset
-  Crypto --> Dataset
-  Dataset --> Render["Стильный график Matplotlib"]
+  Dataset --> Render["Matplotlib renderer"]
   Render --> Video["MP4 через ffmpeg"]
   Video --> Output["Файл или ответ Telegram"]
 ```
