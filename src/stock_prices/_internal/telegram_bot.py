@@ -209,6 +209,7 @@ MENU_ACTIONS = {
     "random_1",
     "random_2",
     "random_3",
+    "random_metals_1",
     "random_drama_2",
     "random_stocks_2",
     "random_crypto_1",
@@ -222,6 +223,7 @@ RANDOM_SHORT_MENU_ACTIONS: dict[str, tuple[str | None, int | None, str]] = {
     "random_1": (None, 1, "Случайный шортс из 1 тикера поставлен в очередь."),
     "random_2": (None, 2, "Случайное сравнение из 2 тикеров поставлено в очередь."),
     "random_3": (None, 3, "Случайное сравнение из 3 тикеров поставлено в очередь."),
+    "random_metals_1": ("metals", 1, "Random по металлам из 1 тикера поставлен в очередь."),
     "random_drama_2": ("drama", 2, "Драматичный random из 2 тикеров поставлен в очередь."),
     "random_stocks_2": ("stocks", 2, "Random по акциям из 2 тикеров поставлен в очередь."),
     "random_crypto_1": ("crypto", 1, "Random по крипто из 1 тикера поставлен в очередь."),
@@ -384,16 +386,16 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return {
         "inline_keyboard": [
             [
-                {"text": "📅 День", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
-                {"text": "🗓 Неделя", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_week"},
-            ],
-            [
-                {"text": "✨ Top Studio", "callback_data": f"{MENU_CALLBACK_PREFIX}hot_shorts_studio"},
+                {"text": "✍️ Свой ролик", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
                 {"text": "🎲 Random", "callback_data": f"{MENU_CALLBACK_PREFIX}random_menu"},
             ],
             [
-                {"text": "📚 Истории", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
+                {"text": "🧩 Серия", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
                 {"text": "⏳ Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
+            ],
+            [
+                {"text": "❔ Help", "callback_data": f"{MENU_CALLBACK_PREFIX}help"},
+                {"text": "📚 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
             ],
         ]
     }
@@ -427,13 +429,13 @@ def random_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
                 {"text": "3 тикера", "callback_data": f"{MENU_CALLBACK_PREFIX}random_3"},
             ],
             [
+                {"text": "Металлы 1", "callback_data": f"{MENU_CALLBACK_PREFIX}random_metals_1"},
                 {"text": "Драма 2", "callback_data": f"{MENU_CALLBACK_PREFIX}random_drama_2"},
-                {"text": "Акции 2", "callback_data": f"{MENU_CALLBACK_PREFIX}random_stocks_2"},
                 {"text": "Крипто 1", "callback_data": f"{MENU_CALLBACK_PREFIX}random_crypto_1"},
             ],
             [
-                {"text": "Быстрый random", "callback_data": f"{MENU_CALLBACK_PREFIX}random_shorts"},
-                {"text": "Черновик", "callback_data": f"{MENU_CALLBACK_PREFIX}random_draft"},
+                {"text": "Акции 2", "callback_data": f"{MENU_CALLBACK_PREFIX}random_stocks_2"},
+                {"text": "Серия", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
             ],
             [
                 {"text": "Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
@@ -451,19 +453,18 @@ def help_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return {
         "inline_keyboard": [
             [
-                {"text": "📅 День", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
-                {"text": "🗓 Неделя", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_week"},
-            ],
-            [
+                {"text": "✍️ Свой ролик", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
                 {"text": "🎲 Random", "callback_data": f"{MENU_CALLBACK_PREFIX}random_menu"},
-                {"text": "📚 Истории", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
             ],
             [
-                {"text": "📊 План", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
+                {"text": "🧩 Серия", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
+                {"text": "📚 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
+            ],
+            [
                 {"text": "🧭 Гайд", "callback_data": f"{MENU_CALLBACK_PREFIX}guide"},
+                {"text": "⏳ Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
             ],
             [
-                {"text": "⏳ Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
                 {"text": "🏠 Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
             ],
         ]
@@ -696,7 +697,7 @@ def format_content_plan(
         lines.append(f"Обложка: {item.cover_text}")
         lines.append(f"Музыка: {track}")
         lines.append("")
-    lines.append(f"Первая кнопка ставит эти {len(items)} shorts в очередь. Для ручных сценариев остаются preset и /ideas.")
+    lines.append(f"Первая кнопка ставит эти {len(items)} shorts в очередь. Свой сценарий можно написать одной строкой.")
     return "\n".join(lines).strip()
 
 
@@ -719,7 +720,7 @@ def content_plan_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str
     rows.append(
         [
             {"text": "🎲 Случайный", "callback_data": f"{MENU_CALLBACK_PREFIX}random_shorts"},
-            {"text": "📚 Preset", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
+            {"text": "📚 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
         ]
     )
     rows.append(
@@ -1841,9 +1842,9 @@ def _extract_preset_category_callback(update: dict[str, Any]) -> TelegramPresetC
 
 def _main_menu_text() -> str:
     return (
-        "Меню для Пульса\n"
-        "Шесть частых действий без лишних разделов: день, неделя, Top Studio, Random, истории и очередь. "
-        "Свой запрос можно написать одной строкой."
+        "Market Motion Bot\n"
+        "Создает короткие видео по любым тикерам, рынкам и инвестиционным сценариям.\n\n"
+        "Напиши запрос одной строкой или выбери быстрый режим ниже."
     )
 
 
@@ -1853,30 +1854,31 @@ def _send_main_menu(client: TelegramClient, chat_id: int) -> None:
 
 def format_random_menu() -> str:
     return (
-        "Random для шортса\n\n"
-        "Выбери размер сравнения или тип истории. Бот сам подберет тикеры из universe, период пересечения истории "
-        "и поставит ролик в очередь.\n\n"
-        "Текстом то же самое: random mixed 1, random mixed 3, random drama 2, random stocks 2.\n"
-        "План серией: plan drama 5 days 2 tickers или plan shorts metals count=1 days=5."
+        "Random video\n"
+        "Бот сам выбирает тикеры из universe, берет пересечение истории и ставит ролик в очередь.\n\n"
+        "Размер: 1, 2 или 3 тикера.\n"
+        "Фильтр: mixed, metals, drama, stocks, crypto.\n\n"
+        "Команды: random mixed 2, random metals 1, random drama 2."
     )
 
 
 def format_reference_menu() -> str:
     return (
-        "Справочник\n\n"
-        "Разделы без немедленного рендера: истории по категориям, проверенные запросы, "
-        "готовые тексты, музыка и обложки."
+        "Примеры и материалы\n\n"
+        "Здесь не основной сценарий, а ориентиры: проверенные истории, готовые запросы, "
+        "посты, музыка и обложки."
     )
 
 
 def format_quick_launch() -> str:
     return (
-        "Быстрый запуск\n\n"
-        "День - ролик и пакет поста.\n"
-        "Неделя - 7 shorts и чеклист.\n"
-        "Top Studio - сильные сюжеты в одном стиле.\n"
-        "Random - выбор 1/2/3 тикеров или категории.\n\n"
-        "Свой ролик: /shorts SBER LKOH за год. Подробности: /help."
+        "Свой ролик\n"
+        "Напиши тикеры, период, валюту и режим. Бот скачает данные, построит график и пришлет MP4.\n\n"
+        "Примеры:\n"
+        "/shorts SBER LKOH за год\n"
+        "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n"
+        "AAPL MSFT NVDA global USD shorts\n\n"
+        "Нужен подбор без ручного выбора тикеров: random mixed 2."
     )
 
 
@@ -1888,19 +1890,15 @@ def production_guide_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return {
         "inline_keyboard": [
             [
-                {"text": "📅 День", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_day"},
-                {"text": "🗓 Неделя", "callback_data": f"{MENU_CALLBACK_PREFIX}publication_week"},
+                {"text": "✍️ Свой ролик", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
+                {"text": "🎲 Random", "callback_data": f"{MENU_CALLBACK_PREFIX}random_menu"},
             ],
             [
-                {"text": "📝 Пост дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_post"},
-                {"text": "📦 Пакет дня", "callback_data": f"{MENU_CALLBACK_PREFIX}daily_kit"},
-            ],
-            [
-                {"text": "📊 План", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
-                {"text": "🎵 Музыка", "callback_data": f"{MENU_CALLBACK_PREFIX}music"},
-            ],
-            [
+                {"text": "🧩 Серия", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
                 {"text": "⏳ Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
+            ],
+            [
+                {"text": "📚 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
                 {"text": "🏠 Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
             ],
         ]
@@ -1909,46 +1907,38 @@ def production_guide_keyboard() -> dict[str, list[list[dict[str, str]]]]:
 
 def format_production_guide() -> str:
     return (
-        "Шпаргалка производства шортсов для Пульса\n\n"
-        "Самый короткий вход: /quick, /shoot или снять - компактный пульт с частыми действиями.\n\n"
-        "Быстрый дневной процесс:\n"
-        "1. /publish_day или снять день - поставить шортс дня в очередь и сразу получить пакет для поста.\n"
-        "2. /today_post или пост дня - взять готовый текст публикации без рендера.\n"
-        "3. /queue или кнопка Очередь - проверить, что рендер дошел до MP4.\n"
-        "Если нужен только пакет без рендера: /today_kit или пакет дня.\n\n"
-        "Быстрый недельный процесс:\n"
-        "/publish_week или снять неделю - поставить 7 shorts в очередь и получить чеклист постов, обложек и музыки.\n\n"
-        "Когда нужен выбор сюжета:\n"
-        "top drafts - быстро проверить top-сценарии.\n"
-        "top shorts studio - снять top-серию в теме Studio.\n"
-        "random mixed 3 или random drama 2 - собрать случайный шортс из тикерной вселенной.\n"
-        "/plan - посмотреть недельную сетку, /plan_shorts - снять весь план, /week_posts - получить все посты недели.\n"
-        "plan drama 5 days 2 tickers - собрать короткую сетку из 5 идей по 2 тикера.\n\n"
-        "Когда нужен только текст:\n"
-        "post metals - готовый пост по preset.\n"
-        "post LKOH SBER 2020 2024 - skeleton по своему запросу.\n"
-        "/posts, /music, /covers - отдельные пакеты текста, треков и обложек.\n\n"
-        "Своя идея одной строкой:\n"
+        "Product guide\n\n"
+        "Ценность бота - универсальное видео из одной строки, а не список пресетов.\n\n"
+        "1. Свой ролик\n"
         "/shorts SBER LKOH за год\n"
-        "золото серебро палладий с 2010 по 2026 в рублях капитал инвестируя каждый месяц 30к₽ шортс\n\n"
-        "Это справка без рендера: кнопки ниже либо открывают пакет, либо ставят уже выбранный ролик в очередь."
+        "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n\n"
+        "2. Подбор тикеров\n"
+        "random mixed 2 - любой рынок\n"
+        "random metals 1 - один металл\n"
+        "random drama 2 - две волатильные истории\n\n"
+        "3. Серия\n"
+        "plan drama 5 days 2 tickers - показать сетку\n"
+        "plan shorts metals count=1 days=5 - поставить серию в очередь\n\n"
+        "4. Контроль\n"
+        "/queue или статус - очередь и ошибки.\n\n"
+        "Пресеты и примеры остаются как ориентиры, но рабочий путь - свой запрос, random или серия."
     )
 
 
 def _help_text(default_engine: str, default_market: str) -> str:
     return (
-        "Как попросить ролик\n"
+        "Market Motion: как сделать ролик\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
         "\n"
-        "Кнопки: /menu -> День, Неделя, Random, Истории, Очередь.\n"
-        "Random: random mixed 1/2/3, random drama 2, random stocks 2, random crypto 1.\n"
-        "План: plan, plan drama 5 days 2 tickers, plan shorts metals count=1 days=5.\n"
-        "Свой ролик: /shorts + тикеры, период, валюта, invest/monthly.\n"
-        "Истории: /shorts без текста. Недельная сетка: /plan.\n\n"
+        "Свой: /shorts + тикеры + период + валюта + invest/monthly.\n"
+        "Random: random mixed 1/2/3, random metals 1, random drama 2.\n"
+        "Серия: plan drama 5 days 2 tickers или plan shorts metals count=1 days=5.\n"
+        "Статус: /queue или статус.\n\n"
         "Примеры:\n"
         "/shorts SBER LKOH за год\n"
-        "золото серебро палладий 2010-2026 RUB капитал с нуля ежемесячно 30к₽ gradient\n\n"
-        "Долгий рендер: /queue или статус. Подробный процесс: /guide."
+        "золото серебро палладий 2010-2026 RUB капитал с нуля ежемесячно 30к₽ gradient\n"
+        "AAPL MSFT NVDA global USD shorts\n\n"
+        "Меню: /menu. Подробный процесс: /guide."
     )
 
 
