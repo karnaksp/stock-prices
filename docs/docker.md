@@ -23,6 +23,7 @@ STOCK_PRICES_FPS=20
 STOCK_PRICES_THEME=default
 STOCK_PRICES_OUTPUT_DIR=animations
 STOCK_PRICES_RETENTION_DAYS=0
+STOCK_PRICES_UNIVERSE_FILE=
 STOCK_PRICES_ALLOWED_CHAT_IDS=
 ```
 
@@ -77,7 +78,9 @@ logs/        логи
 
 Эти папки остаются на хосте и переживают пересборку контейнера. Исторические данные не сохраняются в parquet: бот скачивает их для конкретного запроса и передает дальше в памяти.
 
-`STOCK_PRICES_RETENTION_DAYS=0` удаляет MP4 сразу после успешной отправки. Если указать положительное число, бот будет оставлять ролики младше заданного количества дней и удалять более старые `.mp4` из output-директории.
+`STOCK_PRICES_RETENTION_DAYS=0` удаляет MP4 сразу после успешной отправки. Это рабочий production-режим: видео не кешируются и не накапливаются. Положительное значение стоит использовать только временно для ручной отладки.
+
+`STOCK_PRICES_UNIVERSE_FILE` можно указать на metadata-only JSON, созданный `python scripts/collect_moex_universe.py --output config/moex_universe.json`. Этот файл расширяет random/day/week подборки тикерами MOEX, но не хранит ценовые данные.
 
 ## Проверка без запуска бота
 
