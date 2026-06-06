@@ -4,9 +4,12 @@ import pandas as pd
 
 from stock_prices._internal.lib import dataset_builder
 from stock_prices._internal.lib.plotting import (
+    _active_event_ranges,
+    _active_events,
     _amount_summary,
     _animation_frame_data,
     _combine_data,
+    _event_ranges,
     _prefix_y_limits,
     _return_summary,
     _visible_x_span_days,
@@ -190,6 +193,54 @@ def test_animation_reuses_duplicate_final_hold_frame_artists() -> None:
     finally:
         animation._draw_was_started = True
         plt.close(animation._fig)
+
+
+def test_precomputed_event_ranges_match_active_events() -> None:
+    events = pd.DataFrame(
+        {
+            "TRADEDATE": pd.to_datetime(["2020-01-01", "2020-01-15", "2020-02-01"]),
+            "EVENT_NAME": ["OIL_DROP", "OIL_DROP", "FOMC"],
+            "EVENT_IMPACT": [-2, -2, 1],
+        }
+    )
+    frame_date = pd.Timestamp("2020-01-10")
+
+    ranges = _event_ranges(events)
+
+    assert _active_event_ranges(ranges, frame_date) == _active_events(events, frame_date)
+    assert _active_event_ranges(ranges, frame_date) == [
+        (pd.Timestamp("2020-01-01"), frame_date, "OIL DROP", -2)
+    ]
+
+
+def test_event_ranges_handle_missing_or_invalid_impact() -> None:
+    events = pd.DataFrame(
+        {
+            "TRADEDATE": pd.to_datetime(["2020-01-01", "2020-01-15"]),
+            "EVENT_NAME": ["FOMC", "OIL_DROP"],
+            "EVENT_IMPACT": [None, "bad"],
+        }
+    )
+
+    ranges = _event_ranges(events)
+
+    assert ranges == [
+        (pd.Timestamp("2020-01-01"), pd.Timestamp("2020-01-01"), "FOMC", 0),
+        (pd.Timestamp("2020-01-15"), pd.Timestamp("2020-01-15"), "OIL DROP", 0),
+    ]
+
+
+def test_event_ranges_default_to_neutral_impact_when_column_missing() -> None:
+    events = pd.DataFrame(
+        {
+            "TRADEDATE": pd.to_datetime(["2020-01-01"]),
+            "EVENT_NAME": ["FOMC"],
+        }
+    )
+
+    assert _event_ranges(events) == [
+        (pd.Timestamp("2020-01-01"), pd.Timestamp("2020-01-01"), "FOMC", 0)
+    ]
 
 
 def test_combine_data_handles_invested_series_without_dividends() -> None:
