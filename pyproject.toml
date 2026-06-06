@@ -35,7 +35,6 @@ dependencies = [
     "matplotlib>=3.8",
     "numpy>=1.26",
     "pandas>=2.2",
-    "pyarrow>=15",
     "requests>=2.31",
     "yfinance>=0.2",
 ]
