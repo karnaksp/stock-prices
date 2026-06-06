@@ -832,12 +832,12 @@ def test_run_telegram_bot_queues_content_plan_shorts(monkeypatch) -> None:
     assert "shorts-роликов контент-плана" in client.messages[0][1]
     assert "Д1" in client.messages[0][1]
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
-    assert len(generated) == len(telegram_bot.CONTENT_PLAN_PRESETS)
+    assert len(generated) == len(_generated_weekly_plan())
     assert generated[0] == ("tg-104-plan-shorts-1-sber-lkoh", 16, 24, True, "studio")
     assert generated[1] == ("tg-104-plan-shorts-2-sber-vtbr", 16, 24, True, "aurora")
     assert generated[-1][0] == "tg-104-plan-shorts-7-sber-posi"
-    assert len({job_id for job_id, *_rest in generated}) == len(telegram_bot.CONTENT_PLAN_PRESETS)
-    assert len(client.videos) == len(telegram_bot.CONTENT_PLAN_PRESETS)
+    assert len({job_id for job_id, *_rest in generated}) == len(_generated_weekly_plan())
+    assert len(client.videos) == len(_generated_weekly_plan())
 
 
 def test_format_weekly_publication_pack_lists_publication_assets(monkeypatch) -> None:
@@ -911,12 +911,12 @@ def test_run_telegram_bot_queues_weekly_publication_pack(monkeypatch) -> None:
     assert "Д7: SBER / POSI: день 7" in client.messages[1][1]
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
     assert client.message_markups[1] == telegram_bot.weekly_publication_pack_keyboard()
-    assert len(generated) == len(telegram_bot.CONTENT_PLAN_PRESETS)
+    assert len(generated) == len(_generated_weekly_plan())
     assert generated[0] == ("tg-110-publication-week-1-sber-lkoh", 16, 24, True, "studio")
     assert generated[1] == ("tg-110-publication-week-2-sber-vtbr", 16, 24, True, "aurora")
     assert generated[-1][0] == "tg-110-publication-week-7-sber-posi"
-    assert len({job_id for job_id, *_rest in generated}) == len(telegram_bot.CONTENT_PLAN_PRESETS)
-    assert len(client.videos) == len(telegram_bot.CONTENT_PLAN_PRESETS)
+    assert len({job_id for job_id, *_rest in generated}) == len(_generated_weekly_plan())
+    assert len(client.videos) == len(_generated_weekly_plan())
 
 
 def test_run_telegram_bot_opens_weekly_posts_without_render(monkeypatch) -> None:
@@ -943,7 +943,7 @@ def test_run_telegram_bot_opens_weekly_posts_without_render(monkeypatch) -> None
 
     telegram_bot.run_telegram_bot(settings)
 
-    assert len(client.messages) == len(telegram_bot.CONTENT_PLAN_PRESETS) + 1
+    assert len(client.messages) == len(_generated_weekly_plan()) + 1
     assert "Посты недели для Пульса" in client.messages[0][1]
     assert "Пост недели: Д1 SBER / LKOH: день 1" in client.messages[1][1]
     assert "Пост для Пульса (можно копировать)" in client.messages[1][1]
@@ -953,42 +953,46 @@ def test_run_telegram_bot_opens_weekly_posts_without_render(monkeypatch) -> None
     assert client.videos == []
 
 
-def test_daily_content_plan_preset_uses_weekday() -> None:
-    monday_index, monday_preset = telegram_bot._daily_content_plan_preset(date(2026, 6, 1))
-    thursday_index, thursday_preset = telegram_bot._daily_content_plan_preset(date(2026, 6, 4))
-    friday_index, friday_preset = telegram_bot._daily_content_plan_preset(date(2026, 6, 5))
-    saturday_index, saturday_preset = telegram_bot._daily_content_plan_preset(date(2026, 6, 6))
-    sunday_index, sunday_preset = telegram_bot._daily_content_plan_preset(date(2026, 6, 7))
+def test_daily_content_plan_item_uses_weekday(monkeypatch) -> None:
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
 
-    assert (monday_index, monday_preset.name) == (1, "neweconomy")
-    assert (thursday_index, thursday_preset.name) == (4, "telecoms")
-    assert (friday_index, friday_preset.name) == (5, "retailers")
-    assert (saturday_index, saturday_preset.name) == (6, "utilities")
-    assert (sunday_index, sunday_preset.name) == (7, "bluechips")
+    monday_index, monday_item = telegram_bot._daily_content_plan_item(date(2026, 6, 1))
+    thursday_index, thursday_item = telegram_bot._daily_content_plan_item(date(2026, 6, 4))
+    friday_index, friday_item = telegram_bot._daily_content_plan_item(date(2026, 6, 5))
+    saturday_index, saturday_item = telegram_bot._daily_content_plan_item(date(2026, 6, 6))
+    sunday_index, sunday_item = telegram_bot._daily_content_plan_item(date(2026, 6, 7))
+
+    assert (monday_index, monday_item.tickers) == (1, ("SBER", "LKOH"))
+    assert (thursday_index, thursday_item.tickers) == (4, ("SBER", "NLMK"))
+    assert (friday_index, friday_item.tickers) == (5, ("SBER", "MGNT"))
+    assert (saturday_index, saturday_item.tickers) == (6, ("SBER", "SMLT"))
+    assert (sunday_index, sunday_item.tickers) == (7, ("SBER", "POSI"))
 
 
-def test_format_daily_content_kit_uses_weekday() -> None:
+def test_format_daily_content_kit_uses_weekday(monkeypatch) -> None:
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
+
     kit_text = telegram_bot.format_daily_content_kit(date(2026, 6, 3))
 
     assert "Пакет дня: Д3" in kit_text
-    assert "Пакет сценария" in kit_text
-    assert "Шортс: preset banks" in kit_text
-    assert "Пост без рендера: post banks" in kit_text
-    assert telegram_bot.daily_content_kit_keyboard(date(2026, 6, 3)) == telegram_bot.preset_kit_keyboard("banks")
+    assert "недельного random-плана" in kit_text
+    assert "Шортс: SBER MTLR from=2014-01-01" in kit_text
+    assert "Пост без рендера: пост дня" in kit_text
+    assert telegram_bot.daily_content_kit_keyboard(date(2026, 6, 3))["inline_keyboard"][0][0]["callback_data"] == "menu:daily_short"
 
 
-def test_format_daily_post_uses_weekday() -> None:
+def test_format_daily_post_uses_weekday(monkeypatch) -> None:
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
+
     post_text = telegram_bot.format_daily_post(date(2026, 6, 3))
     keyboard = telegram_bot.daily_post_keyboard(date(2026, 6, 3))
 
-    assert "Пост дня: Д3" in post_text
-    assert "Сценарий взят из недельного контент-плана" in post_text
+    assert "Пост недели: Д3 SBER / MTLR: день 3" in post_text
     assert "Пост для Пульса (можно копировать)" in post_text
-    assert "#сбер" in post_text
-    assert "#втб" in post_text
+    assert "SBER MTLR from=2014-01-01" in post_text
     assert keyboard["inline_keyboard"][0][0]["callback_data"] == "menu:daily_short"
     assert keyboard["inline_keyboard"][0][1]["callback_data"] == "menu:daily_kit"
-    assert keyboard["inline_keyboard"][1][0]["callback_data"] == "preset:banks:shorts"
+    assert keyboard["inline_keyboard"][1][0]["callback_data"] == "menu:content_plan"
     assert keyboard["inline_keyboard"][1][1]["callback_data"] == telegram_bot.QUEUE_STATUS_CALLBACK_DATA
 
 
@@ -1011,6 +1015,7 @@ def test_run_telegram_bot_opens_daily_content_kit_without_render(monkeypatch) ->
         raise AssertionError("daily content kit must not render video")
 
     monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
     monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
     monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
 
@@ -1018,9 +1023,9 @@ def test_run_telegram_bot_opens_daily_content_kit_without_render(monkeypatch) ->
 
     kit_text = client.messages[0][1]
     assert "Пакет дня: Д3" in kit_text
-    assert "Шортс: preset banks" in kit_text
-    assert "Пост без рендера: post banks" in kit_text
-    assert client.message_markups == [telegram_bot.preset_kit_keyboard("banks")]
+    assert "Шортс: SBER MTLR from=2014-01-01" in kit_text
+    assert "Пост без рендера: пост дня" in kit_text
+    assert client.message_markups == [telegram_bot.daily_content_kit_keyboard(date(2026, 6, 3))]
     assert client.videos == []
 
 
@@ -1043,16 +1048,16 @@ def test_run_telegram_bot_opens_daily_post_without_render(monkeypatch) -> None:
         raise AssertionError("daily post command must not render video")
 
     monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
     monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
     monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
 
     telegram_bot.run_telegram_bot(settings)
 
     post_text = client.messages[0][1]
-    assert "Пост дня: Д3" in post_text
+    assert "Пост недели: Д3 SBER / MTLR: день 3" in post_text
     assert "Пост для Пульса (можно копировать)" in post_text
-    assert "#сбер" in post_text
-    assert "#втб" in post_text
+    assert "SBER MTLR from=2014-01-01" in post_text
     assert client.message_markups == [telegram_bot.daily_post_keyboard(date(2026, 6, 3))]
     assert client.videos == []
 
@@ -1081,6 +1086,7 @@ def test_run_telegram_bot_queues_daily_content_plan_short(monkeypatch) -> None:
         return Path(f"animations/{job_id}.mp4")
 
     monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
     monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
     monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
 
@@ -1089,7 +1095,7 @@ def test_run_telegram_bot_queues_daily_content_plan_short(monkeypatch) -> None:
     assert "Шортс дня" in client.messages[0][1]
     assert "Д3" in client.messages[0][1]
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
-    assert generated == [("tg-105-daily-short-3-banks", 16, 24, True, "default")]
+    assert generated == [("tg-105-daily-short-3-sber-mtlr", 16, 24, True, "aurora")]
     assert len(client.videos) == 1
 
 
@@ -1117,17 +1123,18 @@ def test_run_telegram_bot_queues_daily_publication_day(monkeypatch) -> None:
         return Path(f"animations/{job_id}.mp4")
 
     monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
     monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
     monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
 
     telegram_bot.run_telegram_bot(settings)
 
-    assert "Публикационный день: Д3 Банки" in client.messages[0][1]
+    assert "Публикационный день: Д3 SBER / MTLR: день 3" in client.messages[0][1]
     assert "Пакет дня: Д3" in client.messages[1][1]
-    assert "Пост без рендера: post banks" in client.messages[1][1]
+    assert "Пост без рендера: пост дня" in client.messages[1][1]
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
-    assert client.message_markups[1] == telegram_bot.preset_kit_keyboard("banks")
-    assert generated == [("tg-108-publication-day-3-banks", 16, 24, True, "default")]
+    assert client.message_markups[1] == telegram_bot.daily_content_kit_keyboard(date(2026, 6, 3))
+    assert generated == [("tg-108-publication-day-3-sber-mtlr", 16, 24, True, "aurora")]
     assert len(client.videos) == 1
 
 
@@ -1313,7 +1320,7 @@ def test_run_telegram_bot_queues_styled_hot_preset_shorts(monkeypatch) -> None:
     assert len(client.videos) == 4
 
 
-def test_run_telegram_bot_queues_random_preset_draft(monkeypatch) -> None:
+def test_run_telegram_bot_queues_random_universe_draft(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
             super().__init__()
@@ -1358,7 +1365,7 @@ def test_run_telegram_bot_queues_random_preset_draft(monkeypatch) -> None:
     assert client.videos == [(123, Path("animations/tg-47-random-draft-gc-f-si-f-pa-f.mp4"), "GC=F / SI=F / PA=F: 2014-01-01 - 2026-06-01")]
 
 
-def test_run_telegram_bot_queues_random_preset_shorts(monkeypatch) -> None:
+def test_run_telegram_bot_queues_random_universe_shorts(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
             super().__init__()
@@ -1401,6 +1408,53 @@ def test_run_telegram_bot_queues_random_preset_shorts(monkeypatch) -> None:
     assert client.videos == [(123, Path("animations/tg-48-random-shorts-sber-lkoh.mp4"), "SBER / LKOH: 2014-01-01 - 2026-06-01")]
 
 
+def test_run_telegram_bot_queues_random_mixed_single_ticker(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 49, "message": {"text": "random mixed 1 studio", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    selected = _generated_idea(("SBER",), mode="shorts", theme="studio", title="SBER: одиночная история")
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), use_gradient=False),
+    )
+    generated: list[tuple[str | None, int, int, bool, str, list[str]]] = []
+
+    def fake_build_random(category_name=None, **kwargs):
+        assert category_name is None
+        assert kwargs["count"] == 1
+        assert kwargs["theme"] == "studio"
+        return selected
+
+    def fake_generate(request, job_id=None):
+        generated.append(
+            (
+                job_id,
+                request.render.duration,
+                request.render.fps,
+                request.render.use_gradient,
+                request.render.theme,
+                [spec.ticker for spec in request.ticker_specs],
+            )
+        )
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "build_random_content_idea", fake_build_random)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert "1 тикер" in client.messages[0][1]
+    assert "тема studio" in client.messages[0][1]
+    assert generated == [("tg-49-random-shorts-1x-studio-sber", 16, 24, True, "studio", ["SBER"])]
+
+
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
@@ -1422,6 +1476,28 @@ def test_category_preset_action_parses_expected_aliases(text: str, expected: tup
     else:
         assert action is not None
         assert (action.kind, action.mode, action.category_name, action.theme) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("random mixed 3", ("shorts", None, 3, None)),
+        ("случайный микс 1 studio", ("shorts", None, 1, "studio")),
+        ("random drama 2", ("shorts", "drama", 2, None)),
+        ("random stocks 2", ("shorts", "stocks", 2, None)),
+        ("random crypto 1", ("shorts", "crypto", 1, None)),
+        ("random draft quiet 1", ("draft", "quiet", 1, None)),
+        ("random", None),
+    ],
+)
+def test_random_content_action_parses_controls(text: str, expected: tuple[str, str | None, int | None, str | None] | None) -> None:
+    action = telegram_bot._random_content_action(text)
+
+    if expected is None:
+        assert action is None
+    else:
+        assert action is not None
+        assert (action.mode, action.category_name, action.count, action.theme) == expected
 
 
 def test_run_telegram_bot_queues_category_shorts(monkeypatch) -> None:
@@ -1532,7 +1608,7 @@ def test_run_telegram_bot_queues_random_category_shorts(monkeypatch) -> None:
 
     telegram_bot.run_telegram_bot(settings)
 
-    assert "Случайный шортс категории Драмы и просадки" in client.messages[0][1]
+    assert "Случайный шортс категории драмы и просадки" in client.messages[0][1]
     assert selected.title in client.messages[0][1]
     assert generated == [("tg-83-random-drama-shorts-pikk-lsrg-smlt", 16, 24, True, ["PIKK", "LSRG", "SMLT"])]
     assert len(client.videos) == 1
@@ -2320,10 +2396,10 @@ def test_run_telegram_bot_menu_callback_queues_content_plan_shorts(monkeypatch) 
     assert client.callback_answers == [("callback-menu-content-plan-shorts", "Контент-план поставлен в очередь.")]
     assert "shorts-роликов контент-плана" in client.messages[0][1]
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
-    assert len(generated) == len(telegram_bot.CONTENT_PLAN_PRESETS)
+    assert len(generated) == len(_generated_weekly_plan())
     assert generated[0] == ("tg-74-plan-shorts-1-sber-lkoh", 16, 24, True)
     assert generated[-1][0] == "tg-74-plan-shorts-7-sber-posi"
-    assert len(client.videos) == len(telegram_bot.CONTENT_PLAN_PRESETS)
+    assert len(client.videos) == len(_generated_weekly_plan())
 
 
 def test_run_telegram_bot_menu_callback_queues_weekly_publication_pack(monkeypatch) -> None:
@@ -2366,10 +2442,10 @@ def test_run_telegram_bot_menu_callback_queues_weekly_publication_pack(monkeypat
     assert "Недельный выпуск для Пульса" in client.messages[1][1]
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
     assert client.message_markups[1] == telegram_bot.weekly_publication_pack_keyboard()
-    assert len(generated) == len(telegram_bot.CONTENT_PLAN_PRESETS)
+    assert len(generated) == len(_generated_weekly_plan())
     assert generated[0] == ("tg-111-publication-week-1-sber-lkoh", 16, 24, True, "studio")
     assert generated[-1][0] == "tg-111-publication-week-7-sber-posi"
-    assert len(client.videos) == len(telegram_bot.CONTENT_PLAN_PRESETS)
+    assert len(client.videos) == len(_generated_weekly_plan())
 
 
 def test_run_telegram_bot_menu_callback_opens_weekly_posts(monkeypatch) -> None:
@@ -2406,7 +2482,7 @@ def test_run_telegram_bot_menu_callback_opens_weekly_posts(monkeypatch) -> None:
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers == [("callback-menu-weekly-posts", "Посты недели открыты.")]
-    assert len(client.messages) == len(telegram_bot.CONTENT_PLAN_PRESETS) + 1
+    assert len(client.messages) == len(_generated_weekly_plan()) + 1
     assert "Посты недели для Пульса" in client.messages[0][1]
     assert "Пост недели: Д1 SBER / LKOH: день 1" in client.messages[1][1]
     assert "Пост недели: Д7 SBER / POSI: день 7" in client.messages[-1][1]
@@ -2444,6 +2520,7 @@ def test_run_telegram_bot_menu_callback_queues_daily_content_plan_short(monkeypa
         return Path(f"animations/{job_id}.mp4")
 
     monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
     monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
     monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
 
@@ -2452,7 +2529,7 @@ def test_run_telegram_bot_menu_callback_queues_daily_content_plan_short(monkeypa
     assert client.callback_answers == [("callback-menu-daily-short", "Шортс дня поставлен в очередь.")]
     assert "Шортс дня" in client.messages[0][1]
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
-    assert generated == [("tg-75-daily-short-3-banks", 16, 24, True, "default")]
+    assert generated == [("tg-75-daily-short-3-sber-mtlr", 16, 24, True, "aurora")]
     assert len(client.videos) == 1
 
 
@@ -2486,17 +2563,18 @@ def test_run_telegram_bot_menu_callback_queues_daily_publication_day(monkeypatch
         return Path(f"animations/{job_id}.mp4")
 
     monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
     monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
     monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
 
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers == [("callback-menu-publication-day", "Публикационный день поставлен в очередь.")]
-    assert "Публикационный день: Д3 Банки" in client.messages[0][1]
+    assert "Публикационный день: Д3 SBER / MTLR: день 3" in client.messages[0][1]
     assert "Пакет дня: Д3" in client.messages[1][1]
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
-    assert client.message_markups[1] == telegram_bot.preset_kit_keyboard("banks")
-    assert generated == [("tg-109-publication-day-3-banks", 16, 24, True, "default")]
+    assert client.message_markups[1] == telegram_bot.daily_content_kit_keyboard(date(2026, 6, 3))
+    assert generated == [("tg-109-publication-day-3-sber-mtlr", 16, 24, True, "aurora")]
     assert len(client.videos) == 1
 
 
@@ -2528,6 +2606,7 @@ def test_run_telegram_bot_menu_callback_opens_daily_post(monkeypatch) -> None:
         raise AssertionError("daily post callback must not render video")
 
     monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
     monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
     monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
 
@@ -2535,7 +2614,7 @@ def test_run_telegram_bot_menu_callback_opens_daily_post(monkeypatch) -> None:
 
     assert client.callback_answers == [("callback-menu-daily-post", "Пост дня открыт.")]
     post_text = client.messages[0][1]
-    assert "Пост дня: Д3" in post_text
+    assert "Пост недели: Д3 SBER / MTLR: день 3" in post_text
     assert "Пост для Пульса (можно копировать)" in post_text
     assert client.message_markups == [telegram_bot.daily_post_keyboard(date(2026, 6, 3))]
     assert client.videos == []
@@ -2569,6 +2648,7 @@ def test_run_telegram_bot_menu_callback_opens_daily_content_kit(monkeypatch) -> 
         raise AssertionError("daily kit callback must not render video")
 
     monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
     monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
     monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
 
@@ -2577,8 +2657,8 @@ def test_run_telegram_bot_menu_callback_opens_daily_content_kit(monkeypatch) -> 
     assert client.callback_answers == [("callback-menu-daily-kit", "Пакет дня открыт.")]
     kit_text = client.messages[0][1]
     assert "Пакет дня: Д3" in kit_text
-    assert "Шортс: preset banks" in kit_text
-    assert client.message_markups == [telegram_bot.preset_kit_keyboard("banks")]
+    assert "Шортс: SBER MTLR from=2014-01-01" in kit_text
+    assert client.message_markups == [telegram_bot.daily_content_kit_keyboard(date(2026, 6, 3))]
     assert client.videos == []
 
 
@@ -3221,7 +3301,7 @@ def test_run_telegram_bot_menu_callback_queues_random_example(monkeypatch) -> No
     assert client.videos == [(123, Path("animations/tg-59-random-example-metals-dca.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-12-31")]
 
 
-def test_run_telegram_bot_menu_callback_queues_random_preset_shorts(monkeypatch) -> None:
+def test_run_telegram_bot_menu_callback_queues_random_universe_shorts(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
             super().__init__()
@@ -3743,6 +3823,8 @@ def test_help_text_is_compact_and_actionable() -> None:
     assert "/queue" in help_text
     assert "/shorts без текста" in help_text
     assert "/shorts SBER LKOH за год" in help_text
+    assert "random mixed 3" in help_text
+    assert "random stocks 2" in help_text
     assert "Долгий рендер" in help_text
     assert "статус" in help_text
     assert "/guide" in help_text
@@ -4046,15 +4128,16 @@ def test_handle_ticker_message_shows_daily_content_kit(monkeypatch) -> None:
         raise AssertionError("daily content kit must not render video")
 
     monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
     monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
 
     handle_ticker_message(client, settings, 123, "пакет дня")
 
     kit_text = client.messages[0][1]
     assert "Пакет дня: Д3" in kit_text
-    assert "Шортс: preset banks" in kit_text
-    assert "Пост без рендера: post banks" in kit_text
-    assert client.message_markups == [telegram_bot.preset_kit_keyboard("banks")]
+    assert "Шортс: SBER MTLR from=2014-01-01" in kit_text
+    assert "Пост без рендера: пост дня" in kit_text
+    assert client.message_markups == [telegram_bot.daily_content_kit_keyboard(date(2026, 6, 3))]
     assert client.videos == []
 
 
@@ -4069,15 +4152,15 @@ def test_handle_ticker_message_shows_daily_post(monkeypatch) -> None:
         raise AssertionError("daily post must not render video")
 
     monkeypatch.setattr(telegram_bot, "_today", lambda: date(2026, 6, 3))
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
     monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
 
     handle_ticker_message(client, settings, 123, "/today_post")
 
     post_text = client.messages[0][1]
-    assert "Пост дня: Д3" in post_text
+    assert "Пост недели: Д3 SBER / MTLR: день 3" in post_text
     assert "Пост для Пульса (можно копировать)" in post_text
-    assert "#сбер" in post_text
-    assert "#втб" in post_text
+    assert "SBER MTLR from=2014-01-01" in post_text
     assert client.message_markups == [telegram_bot.daily_post_keyboard(date(2026, 6, 3))]
     assert client.videos == []
 
@@ -4123,7 +4206,7 @@ def test_handle_ticker_message_shows_weekly_posts_without_render(monkeypatch) ->
 
     handle_ticker_message(client, settings, 123, "посты недели")
 
-    assert len(client.messages) == len(telegram_bot.CONTENT_PLAN_PRESETS) + 1
+    assert len(client.messages) == len(_generated_weekly_plan()) + 1
     assert "Посты недели для Пульса" in client.messages[0][1]
     assert "Пост недели: Д1 SBER / LKOH: день 1" in client.messages[1][1]
     assert "Пост недели: Д7 SBER / POSI: день 7" in client.messages[-1][1]
@@ -4282,10 +4365,6 @@ def test_all_pulse_presets_have_valid_categories() -> None:
         assert set(category.preset_names) <= preset_names
         for preset_name in category.preset_names:
             assert category.name in get_preset(preset_name).categories
-
-
-def test_weekly_category_matches_production_plan() -> None:
-    assert telegram_bot.CONTENT_PLAN_PRESETS == get_preset_category("weekly").preset_names
 
 
 def test_handle_ticker_message_lists_preset_categories() -> None:
