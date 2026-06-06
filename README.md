@@ -1,98 +1,43 @@
 # Stock Prices
 
-Stock Prices генерирует стильные MP4-видео с анимированными рыночными графиками. Проект можно запускать из CLI, через Python API или как постоянно работающего Telegram-бота в Docker.
+Stock Prices генерирует MP4-видео с анимированными рыночными графиками. Один и тот же pipeline работает из CLI, Python API и Telegram-бота.
 
-## Единый вход в документацию
+## Единый вход
 
-Основная документация находится в [docs/index.md](docs/index.md). Локально красивую версию сайта можно открыть через MkDocs:
+Основная русская документация живет на сайте MkDocs: [docs/index.md](docs/index.md).
 
-```bash
+Локально сайт открывается так:
+
+```powershell
 python -m mkdocs serve
 ```
 
 После запуска откройте `http://127.0.0.1:8000`.
 
-Ветки разработки:
+Разработка ведется в `develop`, стабильная версия и GitHub Pages публикуются из `main`. CI запускается для `main`, `develop` и pull request в эти ветки.
 
-- `develop` - интеграционная ветка для рабочих улучшений и проверок.
-- `main` - стабильная ветка, из которой публикуется GitHub Pages.
+## Быстрый старт
 
-CI запускается для `main`, `develop` и pull request в эти ветки. GitHub Pages публикуется автоматически через `.github/workflows/pages.yml` только при push в `main`.
+### Docker-бот
 
-## Быстрый запуск в Docker
-
-1. Создайте `.env` в корне проекта:
-
-```env
-TELEGRAM_BOT_TOKEN=<botfather-token>
-STOCK_PRICES_DEFAULT_ENGINE=stock
-STOCK_PRICES_DEFAULT_MARKET=shares
-STOCK_PRICES_CURRENCY=RUB
-STOCK_PRICES_DURATION=30
-STOCK_PRICES_FPS=20
-STOCK_PRICES_THEME=default
-STOCK_PRICES_OUTPUT_DIR=animations
-STOCK_PRICES_RETENTION_DAYS=0
-```
-
-2. Запустите контейнер:
-
-```bash
+```powershell
+copy .env.example .env
+# Заполните TELEGRAM_BOT_TOKEN в .env
 docker compose up -d --build
+docker compose ps
 ```
 
-3. Проверьте состояние:
+Логи:
 
-```bash
-docker compose ps
+```powershell
 docker compose logs -f stock-prices-bot
 ```
 
-После этого можно писать Telegram-боту:
+### CLI
 
-```text
-/start
-/shoot
-снять
-/help
-/shorts
-/shorts SBER LKOH за год
-/draft metals
-снять день
-снять неделю
-/queue
-статус
-
-LKOH
-SBER LKOH 2020 2024
-```
-
-Можно отправить несколько роликов одним сообщением, по одному запросу на строку. Строки можно писать как список с `-`, `1.`, `1)` или `•`:
-
-```text
-металлы
-черновик угольщики
-SBER LKOH 2020 2024 shorts
-```
-
-## Локальный CLI
-
-Установка в режиме разработки:
-
-```bash
-pip install -e .
-```
-
-Российская акция:
-
-```bash
-stock-prices --tickers LKOH --start_date 2015-01-01 --end_date 2026-05-26 --currency RUB --duration 20 --fps 20
-```
-
-Глобальный инструмент:
-
-```bash
-stock-prices --tickers "AAPL|global|shares" --start_date 2015-01-01 --end_date 2026-05-26 --currency USD
+```powershell
+python -m pip install -e .
+python -m stock_prices --tickers "SBER|stock|shares" "LKOH|stock|shares" --start_date 2020-01-01 --end_date 2024-12-31 --currency RUB --duration 20 --fps 20
 ```
 
 Формат тикера:
@@ -104,37 +49,30 @@ TICKER|ENGINE|MARKET
 
 Если указан только `TICKER`, используется рынок по умолчанию: `stock|shares`.
 
-## Telegram-бот
+## Telegram
 
-Бот использует тот же pipeline, что CLI: загружает данные, готовит датасет, рендерит MP4 и отправляет ролик обратно в чат.
+Бот не придумывает идеи сам и не использует LLM. Он принимает команду или текстовый запрос, ставит генерацию в очередь, рендерит MP4 и отправляет результат обратно в чат.
 
-Главные входы:
+Минимальный набор:
 
-- `/menu`, `/start`, `/меню` - компактный пульт для Пульса: день, неделя, Top Studio, случайный ролик, истории и очередь.
-- `/quick`, `/shoot`, `снять` - тот же быстрый пульт: день, неделя, Top Studio, случайный ролик, истории и очередь.
-- `/help` - короткая справка по синтаксису.
-- `/guide` или `шпаргалка` - рабочий процесс публикации без длинного списка команд.
-- `/queue`, `статус` или `очередь` - статус активной и ожидающих задач.
+| Задача | Что отправить |
+| --- | --- |
+| Открыть меню | `/start` или `/menu` |
+| Быстро снять ролик | `/shoot` или `снять` |
+| Выбрать готовую историю | `/shorts` |
+| Снять свой шортс | `/shorts SBER LKOH за год` |
+| Проверить очередь | `/queue` или `статус` |
+| Посмотреть справку | `/help` |
 
-При запуске бот обновляет встроенное меню команд Telegram: `/menu`, `/shoot`, `/shorts`, `/queue`, `/help`. Остальные команды остаются рабочими текстом, но не захламляют меню клиента.
-
-Короткий путь к шортсу: `/shorts` без текста открывает готовые истории по категориям, а `/shorts SBER LKOH за год` ставит в очередь свой ролик по тикерам. Если рендер идет несколько минут, проверяйте `/queue`, `статус` или кнопку `Очередь`.
+Обычный запрос тоже работает:
 
 ```text
-/shorts SBER LKOH за год
-сделай шортс про SBER и LKOH за полгода для Пульса
-золото серебро палладий 2010-2026 RUB капитал с нуля ежемесячно 30к₽ gradient
+LKOH
+SBER LKOH 2020 2024
+gold silver palladium 2018-2026 RUB capital invest initial=0 monthly=30000 gradient
 ```
 
-Для контента в Пульсе есть preset-сценарии, категории историй (`категории`, `category drama`, `top quiet`, `random drama`), новые тихие российские сюжеты (`телеком`, `ритейл`, `энергетика`), публикационные пакеты и готовые тексты без LLM. Недельный production-план уже чередует хайп, сырье, банки, связь, ритейл, энергетику и голубые фишки. Подробная справка находится в [docs/telegram.md](docs/telegram.md).
-
-Самые важные кнопки: `День`, `Неделя`, `Истории`, `Очередь`, `Шортс 16s`, `12s` и `Меню`.
-
-Запуск локально:
-
-```bash
-stock-prices bot --allowed_chat_id 123456789
-```
+Подробный синтаксис: [docs/telegram.md](docs/telegram.md).
 
 ## Python API
 
@@ -159,7 +97,7 @@ print(path)
 
 ## Проверки
 
-```bash
+```powershell
 $env:PYTHONPATH = "src"
 python -m pytest -q
 python -m mkdocs build --strict
@@ -168,8 +106,9 @@ python -m compileall -q src tests scripts
 
 ## Разделы документации
 
+- [Главная страница сайта](docs/index.md)
 - [Демонстрация возможностей](docs/demo.md)
-- [Как писать запросы в Telegram](docs/telegram.md)
+- [Telegram-запросы](docs/telegram.md)
 - [Запуск и проверка](docs/runbook.md)
 - [Docker и постоянный бот](docs/docker.md)
 - [API](docs/reference/api.md)
