@@ -501,13 +501,14 @@ def build_weekly_content_plan(
     year, week, _day = active_today.isocalendar()
     plan_date = date.fromisocalendar(year, week, 1)
     rng = random.Random(f"{year}-W{week}")
-    category_pool = tuple(normalize_universe_category(category) for category in categories) if categories is not None else available_universe_categories(universe)
+    explicit_categories = categories is not None
+    category_pool = tuple(normalize_universe_category(category) for category in categories) if explicit_categories else available_universe_categories(universe)
     category_pool = tuple(category for category in category_pool if category is not None and entries_for_category(category, universe))
     if not category_pool:
         category_pool = (None,)
     return tuple(
         build_random_content_idea(
-            None if index % 3 == 0 else rng.choice(category_pool),
+            rng.choice(category_pool) if explicit_categories else None if index % 3 == 0 else rng.choice(category_pool),
             count=count or rng.randint(1, 3),
             rng=rng,
             today=plan_date,
