@@ -198,6 +198,46 @@ def test_animation_reuses_duplicate_final_hold_frame_artists() -> None:
         plt.close(animation._fig)
 
 
+def test_animation_reuses_static_fill_artists_between_frames() -> None:
+    import matplotlib.pyplot as plt
+
+    data_frame = pd.DataFrame(
+        {
+            "TRADEDATE": pd.to_datetime(["2021-12-17", "2022-01-17", "2022-02-17"]),
+            "CLOSE": [100.0, 140.0, 90.0],
+            "DIVIDEND": [0.0, 0.0, 0.0],
+        }
+    )
+    animation = create_multi_line_animation(
+        [{"name": "SBER", "color": "#FFD166", "data": data_frame}],
+        target_duration=3,
+        fps=1,
+        final_frame_duration=0,
+        use_gradient=True,
+    )
+
+    try:
+        animation._func(0)
+        animation._draw_was_started = True
+        first_fill_ids = [
+            id(collection)
+            for collection in animation._fig.axes[0].collections
+            if collection.get_alpha() == 0.045
+        ]
+
+        animation._func(1)
+        second_fill_ids = [
+            id(collection)
+            for collection in animation._fig.axes[0].collections
+            if collection.get_alpha() == 0.045
+        ]
+
+        assert first_fill_ids
+        assert second_fill_ids == first_fill_ids
+    finally:
+        plt.close(animation._fig)
+
+
 def test_precomputed_event_ranges_match_active_events() -> None:
     events = pd.DataFrame(
         {
