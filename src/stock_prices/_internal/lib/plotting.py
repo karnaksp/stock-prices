@@ -14,6 +14,8 @@ from stock_prices._internal.models import TickerSpec
 from stock_prices._internal.rendering.theme import ChartTheme, get_chart_theme
 from stock_prices._internal.rendering.filenames import safe_video_stem
 
+MAX_FRAME_RENDER_POINTS = 360
+
 
 def event_color(impact: int) -> str:
     if impact <= -3:
@@ -112,6 +114,20 @@ def draw_gradient_line(ax, x_data, y_data, start_color: str, name: str, n_segmen
     collection.set_array(np.linspace(0, 1, len(segments)))
     ax.add_collection(collection)
     return end_color
+
+
+def _sample_frame_series(
+    x_data: pd.Series,
+    y_data: pd.Series,
+    max_points: int = MAX_FRAME_RENDER_POINTS,
+) -> tuple[pd.Series, pd.Series]:
+    import numpy as np
+
+    if len(y_data) <= max_points:
+        return x_data, y_data
+    point_count = max(2, max_points)
+    positions = np.unique(np.linspace(0, len(y_data) - 1, num=point_count, dtype=int))
+    return x_data.iloc[positions], y_data.iloc[positions]
 
 
 def _configure_ffmpeg() -> None:
@@ -402,20 +418,22 @@ def create_multi_line_animation(
                 continue
             line_x = line_x_data.loc[line_clean.index]
             current_line_x = current_x_data.loc[current_clean.index]
+            sampled_line_x, sampled_line_y = _sample_frame_series(line_x, line_clean)
             if use_gradient:
                 lines[name].set_data([], [])
                 lines[name].set_alpha(0.0)
+                gradient_x, gradient_y = _sample_frame_series(current_line_x, current_clean)
                 before = len(ax.collections)
-                draw_gradient_line(ax, current_line_x, current_clean, by_name[name]["color"], name)
+                draw_gradient_line(ax, gradient_x, gradient_y, by_name[name]["color"], name)
                 gradient_collections.extend(ax.collections[before:])
             else:
                 lines[name].set_alpha(0.92)
-                lines[name].set_data(line_x, line_clean)
+                lines[name].set_data(sampled_line_x, sampled_line_y)
             if len(line_clean) > 1:
                 fill_artists.append(
                     ax.fill_between(
-                        line_x,
-                        line_clean,
+                        sampled_line_x,
+                        sampled_line_y,
                         ax.get_ylim()[0],
                         color=by_name[name]["color"],
                         alpha=0.045,
