@@ -215,6 +215,12 @@ def _prefix_y_limits(values: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
     return pd.Series(prefix_min, index=values.index), pd.Series(prefix_max, index=values.index)
 
 
+def _y_limits_with_margin(y_min: float, y_max: float) -> tuple[float, float]:
+    y_range = y_max - y_min
+    margin = max(y_range * 0.12, abs(y_max) * 0.02, abs(y_min) * 0.02, 1.0)
+    return y_min - margin, y_max + margin
+
+
 def _visible_x_span_days(x_start: pd.Timestamp, frame_date: pd.Timestamp, total_span_days: int) -> int:
     total_span_days = max(1, total_span_days)
     elapsed_days = max(1, (frame_date - x_start).days)
@@ -309,8 +315,8 @@ def create_multi_line_animation(
     if not full_values.empty:
         y_min = float(full_values.min())
         y_max = float(full_values.max())
-        margin = max((y_max - y_min) * 0.12, abs(y_max) * 0.02, 1.0)
-        ax.set_ylim(y_min - margin, y_max + margin)
+        ax.set_ylim(*_y_limits_with_margin(y_min, y_max))
+    prefix_y_min, prefix_y_max = _prefix_y_limits(combined_df[value_columns])
     ax.grid(True, alpha=0.2, color=chart_theme.grid_color, linewidth=0.8)
     ax.set_ylabel(y_label, color=chart_theme.axis_color, fontsize=14)
     ax.tick_params(axis="both", labelcolor=chart_theme.axis_color, labelsize=11, colors=chart_theme.axis_color)
@@ -407,6 +413,10 @@ def create_multi_line_animation(
         date_artist.set_text(frame_date.strftime("%d.%m.%Y"))
         visible_x_span_days = _visible_x_span_days(x_start, frame_date, x_span_days)
         ax.set_xlim(x_start, x_start + pd.Timedelta(days=visible_x_span_days * 1.12))
+        frame_y_min = prefix_y_min.iloc[frame_index]
+        frame_y_max = prefix_y_max.iloc[frame_index]
+        if pd.notna(frame_y_min) and pd.notna(frame_y_max):
+            ax.set_ylim(*_y_limits_with_margin(float(frame_y_min), float(frame_y_max)))
 
         label_targets: list[tuple[str, pd.Timestamp, float, str]] = []
         for name in value_columns:

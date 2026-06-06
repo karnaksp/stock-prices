@@ -15,6 +15,7 @@ from stock_prices._internal.lib.plotting import (
     _return_summary,
     _sample_frame_series,
     _visible_x_span_days,
+    _y_limits_with_margin,
     create_multi_line_animation,
 )
 from stock_prices._internal.rendering.theme import get_chart_theme, get_theme_names
@@ -129,8 +130,8 @@ def test_animation_draws_only_current_frame_slice_on_first_frame() -> None:
 
         assert len(line.get_xdata()) == 1
         assert list(line.get_ydata()) == [100.0]
-        assert y_bottom < 90.0
-        assert y_top > 140.0
+        assert 90.0 < y_bottom < 100.0
+        assert 100.0 < y_top < 140.0
     finally:
         plt.close(animation._fig)
 
@@ -179,6 +180,42 @@ def test_animation_grows_time_window_while_series_uses_current_slice() -> None:
         assert gradient_collections
         assert first_xlim[0] == start_num
         assert first_xlim[1] < middle_xlim[1] < final_xlim[1]
+    finally:
+        plt.close(animation._fig)
+
+
+def test_animation_grows_y_window_with_visible_prefix() -> None:
+    import matplotlib.pyplot as plt
+
+    data_frame = pd.DataFrame(
+        {
+            "TRADEDATE": pd.to_datetime(["2021-12-17", "2022-01-17", "2022-02-17"]),
+            "CLOSE": [100.0, 105.0, 1000.0],
+            "DIVIDEND": [0.0, 0.0, 0.0],
+        }
+    )
+    animation = create_multi_line_animation(
+        [{"name": "SBER", "color": "#FFD166", "data": data_frame}],
+        target_duration=3,
+        fps=1,
+        final_frame_duration=0,
+    )
+
+    try:
+        animation._func(0)
+        animation._draw_was_started = True
+        first_ylim = animation._fig.axes[0].get_ylim()
+
+        animation._func(1)
+        middle_ylim = animation._fig.axes[0].get_ylim()
+
+        animation._func(2)
+        final_ylim = animation._fig.axes[0].get_ylim()
+
+        assert first_ylim == _y_limits_with_margin(100.0, 100.0)
+        assert middle_ylim == _y_limits_with_margin(100.0, 105.0)
+        assert final_ylim == _y_limits_with_margin(100.0, 1000.0)
+        assert first_ylim[1] < middle_ylim[1] < final_ylim[1]
     finally:
         plt.close(animation._fig)
 
