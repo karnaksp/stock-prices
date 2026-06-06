@@ -43,7 +43,7 @@ def generate_video(request: VideoRequest, job_id: str | None = None) -> Path:
     download_started_at = time.monotonic()
     log_event("download", "started", job_id=job_id, ticker_count=len(specs), currency=request.render.currency)
     try:
-        download_ticker_history(specs, start_date, end_date, request.render.currency)
+        source_data = download_ticker_history(specs, start_date, end_date, request.render.currency)
     except Exception as exc:
         log_event("download", "failed", job_id=job_id, elapsed_ms=_elapsed_ms(download_started_at), error=str(exc))
         log_event("request", "failed", job_id=job_id, error=str(exc))
@@ -53,7 +53,7 @@ def generate_video(request: VideoRequest, job_id: str | None = None) -> Path:
     render_started_at = time.monotonic()
     log_event("render", "started", job_id=job_id, output_dir=str(request.render.output_dir))
     try:
-        output_path = render_charts(request.render, specs, start_date, end_date)
+        output_path = render_charts(request.render, specs, start_date, end_date, source_data)
     except Exception as exc:
         log_event("render", "failed", job_id=job_id, elapsed_ms=_elapsed_ms(render_started_at), error=str(exc))
         log_event("request", "failed", job_id=job_id, error=str(exc))

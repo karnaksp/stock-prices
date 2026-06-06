@@ -16,7 +16,6 @@ hide:
 - `apimoex` и MOEX ISS для российских инструментов.
 - `yfinance` для глобальных инструментов.
 - `requests` для Telegram Bot API и HTTP-запросов.
-- `pyarrow` для parquet-кэша.
 - `pytest`, `MkDocs` и `compileall` для проверок качества.
 
 ## Авторы

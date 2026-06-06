@@ -18,10 +18,6 @@ services:
       - ./src:/app/src:ro
       - ./animations:/app/animations
       - ./logs:/app/logs
-      - ./stock:/app/stock
-      - ./global:/app/global
-      - ./currency:/app/currency
-      - ./futures:/app/futures
     healthcheck:
       test: ["CMD-SHELL", "python -m stock_prices._internal.healthcheck"]
       interval: 1m

@@ -7,7 +7,6 @@ import logging
 import pandas as pd
 
 from stock_prices._internal.lib.events import add_events, load_events
-from stock_prices._internal.lib.file_utils import save_to_parquet
 
 
 def get_ticker_currency(ticker: str) -> str:
@@ -130,12 +129,11 @@ def download_global_data(
     start_date: pd.Timestamp,
     end_date: pd.Timestamp,
     currency: str | None = None,
-) -> None:
+) -> pd.DataFrame:
     rub_variants = {"RUB", "R", "РУБЛЬ", "РУБ", "₽", "Р"}
     convert_to_rub = bool(currency and str(currency).strip().upper() in rub_variants)
     start_date = pd.Timestamp(start_date).tz_localize(None)
     end_date = pd.Timestamp(end_date).tz_localize(None)
-    date_str = f"{start_date:%Y%m%d}_{end_date:%Y%m%d}"
 
     logging.info("[%s] Downloading %s to %s", ticker, start_date.date(), end_date.date())
     base_currency = get_ticker_currency(ticker)
@@ -151,4 +149,4 @@ def download_global_data(
     df.attrs["ticker"] = ticker
     df.attrs["base_currency"] = base_currency
     df.attrs["target_currency"] = "RUB" if convert_to_rub else base_currency
-    save_to_parquet(df, engine, market, ticker, date_str)
+    return df

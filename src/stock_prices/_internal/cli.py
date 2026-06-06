@@ -93,7 +93,12 @@ def get_bot_parser() -> argparse.ArgumentParser:
     parser.add_argument("--currency", default=os.getenv("STOCK_PRICES_CURRENCY", "RUB"))
     parser.add_argument("--theme", default=os.getenv("STOCK_PRICES_THEME", "default"), choices=get_theme_names())
     parser.add_argument("--output_dir", default=os.getenv("STOCK_PRICES_OUTPUT_DIR", "animations"))
-    parser.add_argument("--retention_days", type=int, default=get_cleanup_retention_days(), help="Delete generated MP4 files older than this many days. 0 disables cleanup.")
+    parser.add_argument(
+        "--retention_days",
+        type=int,
+        default=get_cleanup_retention_days(),
+        help="Telegram cleanup policy: 0 deletes the sent MP4 immediately, positive values keep newer files for this many days.",
+    )
     parser.add_argument("--poll_timeout", type=int, default=30)
     parser.add_argument("--once", action="store_true", help="Process currently available updates once and exit.")
     return parser

@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import logging
 import random
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import pandas as pd
 
 from stock_prices._internal.portfolio.calculations import InvestmentPlan, calculate_capital_with_reinvest
 from stock_prices._internal.rendering.theme import get_chart_theme
+
+HistoryKey = tuple[str, str, str]
 
 
 def generate_unique_colors(n: int, palette_name: str = "tab10", palette: Sequence[str] | None = None) -> list[str]:
@@ -55,11 +57,20 @@ def prepare_dataset(
     monthly_investment: int = 0,
     yearly_investment: int = 0,
     investment_plan: InvestmentPlan | None = None,
+    source_data: Mapping[HistoryKey, pd.DataFrame] | None = None,
 ) -> pd.DataFrame:
-    from stock_prices._internal.lib.file_utils import load_latest_parquet, load_ticker_df
-
-    parquet_path = load_latest_parquet(engine, market, ticker)
-    df_raw = load_ticker_df(parquet_path, start_date, end_date)
+    if source_data is None:
+        raise ValueError(f"No downloaded data for {ticker} ({engine}/{market})")
+    else:
+        try:
+            df_raw = source_data[(engine, market, ticker)].copy()
+        except KeyError as exc:
+            raise ValueError(f"No downloaded data for {ticker} ({engine}/{market})") from exc
+        df_raw["TRADEDATE"] = pd.to_datetime(df_raw["TRADEDATE"]).dt.floor("D")
+        df_raw = df_raw.sort_values("TRADEDATE")
+        df_raw = df_raw[df_raw["TRADEDATE"] >= pd.Timestamp(start_date).floor("D")]
+        df_raw = df_raw[df_raw["TRADEDATE"] <= pd.Timestamp(end_date).floor("D")]
+        df_raw = df_raw.reset_index(drop=True)
     return calculate_capital_with_reinvest(
         df_raw,
         initial_investment=initial_investment,
@@ -70,7 +81,7 @@ def prepare_dataset(
     )
 
 
-def build_data_list(args: Any, build_args: Any, start_date, end_date) -> list[dict[str, Any]]:
+def build_data_list(args: Any, build_args: Any, start_date, end_date, source_data: Mapping[HistoryKey, pd.DataFrame] | None = None) -> list[dict[str, Any]]:
     tickers = list(getattr(build_args, "ticker", []))
     engines = list(getattr(build_args, "engine", []))
     markets = list(getattr(build_args, "market", []))
@@ -97,6 +108,7 @@ def build_data_list(args: Any, build_args: Any, start_date, end_date) -> list[di
                 getattr(args, "monthly_investment", 0),
                 getattr(args, "yearly_investment", 0),
                 investment_plan,
+                source_data,
             )
         except Exception:
             logging.exception("Failed to prepare dataset for %s", ticker)

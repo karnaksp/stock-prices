@@ -14,6 +14,11 @@ from typing import Any, Callable
 import requests
 
 from stock_prices._internal.env import get_cleanup_retention_days
+from stock_prices._internal.content_universe import (
+    GeneratedContentIdea,
+    build_random_content_idea,
+    build_weekly_content_plan,
+)
 from stock_prices._internal.models import RenderSettings
 from stock_prices._internal.pipeline import generate_video, log_event
 from stock_prices._internal.telegram_presets import (
@@ -599,6 +604,10 @@ def _content_plan_preset_list() -> tuple:
     return tuple(get_preset(name) for name in CONTENT_PLAN_PRESETS)
 
 
+def _weekly_content_items(today: date | None = None) -> tuple[GeneratedContentIdea, ...]:
+    return build_weekly_content_plan(today)
+
+
 def _today() -> date:
     return date.today()
 
@@ -610,49 +619,43 @@ def _daily_content_plan_preset(today: date | None = None) -> tuple[int, Any]:
     return index + 1, presets[index]
 
 
-def format_content_plan() -> str:
+def format_content_plan(plan: tuple[GeneratedContentIdea, ...] | None = None) -> str:
+    items = plan or _weekly_content_items()
     lines = [
         "Контент-план для Пульса:",
         "",
-        "7 выпусков без LLM и автопридумывания идей: мечта роста, металлы, банки, связь, ритейл, энергетика и спокойная база.",
-        "Можно поставить весь план в очередь одной кнопкой или выпускать по одному ролику в день.",
+        "7 выпусков без LLM: тикеры случайно комбинируются из расширяемой вселенной по категориям и пересечению истории.",
+        "Можно поставить весь план в очередь одной кнопкой или взять отдельный запрос из списка.",
         "",
     ]
-    for index, preset in enumerate(_content_plan_preset_list(), start=1):
-        cover = preset.cover_texts[0] if preset.cover_texts else preset.title
-        track = preset.music_tracks[0] if preset.music_tracks else preset.music_mood
-        lines.append(f"День {index}: {preset.title}")
-        lines.append(f"Шортс: preset {preset.name}")
-        lines.append(f"Пост: post {preset.name}")
-        lines.append(f"Обложка: {cover}")
+    for index, item in enumerate(items, start=1):
+        track = item.music_tracks[0] if item.music_tracks else item.music_mood
+        lines.append(f"День {index}: {item.title}")
+        lines.append(f"Запрос: {item.request}")
+        lines.append(f"Обложка: {item.cover_text}")
         lines.append(f"Музыка: {track}")
         lines.append("")
-    lines.append("Первая кнопка ставит все 7 shorts в очередь. Тексты постов отдельно: /posts или post <name>.")
+    lines.append("Первая кнопка ставит эти 7 shorts в очередь. Для ручных сценариев остаются preset и /ideas.")
     return "\n".join(lines).strip()
 
 
 def content_plan_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
-    buttons = [
-        {"text": f"Д{index} {preset_button_label(preset)}", "callback_data": f"preset:{preset.name}:shorts"}
-        for index, preset in enumerate(_content_plan_preset_list(), start=1)
-    ]
     rows = [
         [
             {"text": "🎬 Весь план", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan_shorts"},
             {"text": "📝 Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}weekly_posts"},
         ]
     ]
-    rows.extend(buttons[index : index + columns] for index in range(0, len(buttons), columns))
     rows.append(
         [
-            {"text": "📝 Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
-            {"text": "🎵 Музыка", "callback_data": f"{MENU_CALLBACK_PREFIX}music"},
+            {"text": "🎲 Случайный", "callback_data": f"{MENU_CALLBACK_PREFIX}random_shorts"},
+            {"text": "📚 Preset", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
         ]
     )
     rows.append(
         [
-            {"text": "🖼 Обложки", "callback_data": f"{MENU_CALLBACK_PREFIX}covers"},
             {"text": "⏳ Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
+            {"text": "🏠 Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
         ]
     )
     return {"inline_keyboard": rows}
@@ -754,6 +757,20 @@ def format_weekly_post(day_index: int, preset_name: str) -> str:
     )
 
 
+def format_generated_weekly_post(day_index: int, item: GeneratedContentIdea) -> str:
+    tracks = ", ".join(item.music_tracks)
+    return (
+        f"Пост недели: Д{day_index} {item.title}\n"
+        "Пост для Пульса (можно копировать):\n\n"
+        f"{item.post_text}\n\n"
+        f"Запрос: {item.request}\n"
+        f"Обложка: {item.cover_text}\n"
+        f"Монтаж: {item.music_mood}.\n"
+        f"Треки-референсы: {tracks}.\n\n"
+        "Не является индивидуальной инвестиционной рекомендацией."
+    )
+
+
 def weekly_posts_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return {
         "inline_keyboard": [
@@ -769,28 +786,28 @@ def weekly_posts_keyboard() -> dict[str, list[list[dict[str, str]]]]:
 
 
 def send_weekly_posts(client: TelegramClient, chat_id: int) -> None:
+    plan = _weekly_content_items()
     client.send_message(chat_id, format_weekly_post_intro(), reply_markup=weekly_posts_keyboard())
-    for index, preset in enumerate(_content_plan_preset_list(), start=1):
-        client.send_message(chat_id, format_weekly_post(index, preset.name))
+    for index, item in enumerate(plan, start=1):
+        client.send_message(chat_id, format_generated_weekly_post(index, item))
 
 
-def format_weekly_publication_pack() -> str:
+def format_weekly_publication_pack(plan: tuple[GeneratedContentIdea, ...] | None = None) -> str:
+    items = plan or _weekly_content_items()
     lines = [
         "Недельный выпуск для Пульса:",
         "",
-        "Ставлю 7 shorts в очередь и даю компактный чеклист публикаций: хайп, сырье и тихие российские истории в одной неделе.",
+        "Ставлю 7 shorts в очередь и даю компактный чеклист публикаций. План собран случайно из тикерной вселенной.",
         "",
     ]
-    for index, preset in enumerate(_content_plan_preset_list(), start=1):
-        cover = preset.cover_texts[0] if preset.cover_texts else preset.title
-        track = preset.music_tracks[0] if preset.music_tracks else preset.music_mood
-        lines.append(f"Д{index}: {preset.title}")
-        lines.append(f"Шортс: preset {preset.name}")
-        lines.append(f"Пост: post {preset.name}")
-        lines.append(f"Обложка: {cover}")
+    for index, item in enumerate(items, start=1):
+        track = item.music_tracks[0] if item.music_tracks else item.music_mood
+        lines.append(f"Д{index}: {item.title}")
+        lines.append(f"Шортс: {item.request}")
+        lines.append(f"Обложка: {item.cover_text}")
         lines.append(f"Музыка: {track}")
         lines.append("")
-    lines.append("Для деталей по дню: kit <name> или пакет дня. Статус рендера: /queue.")
+    lines.append("Статус рендера: /queue. Ручные fixed-сценарии остаются в /ideas.")
     return "\n".join(lines).strip()
 
 
@@ -1144,21 +1161,21 @@ class TelegramJobQueue:
         return self._enqueue_category_presets(chat_id, update_id, category_name, "draft")
 
     def enqueue_content_plan_shorts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
-        presets = _content_plan_preset_list()
-        labels = ", ".join(f"Д{index} {preset_button_label(preset)}" for index, preset in enumerate(presets, start=1))
+        plan = _weekly_content_items()
+        labels = ", ".join(f"Д{index} {' / '.join(item.tickers)}" for index, item in enumerate(plan, start=1))
         self.client.send_message(
             chat_id,
-            f"Ставлю в очередь {len(presets)} shorts-роликов контент-плана: {labels}.",
+            f"Ставлю в очередь {len(plan)} shorts-роликов контент-плана: {labels}.",
             reply_markup=queue_status_keyboard(),
         )
         jobs: list[TelegramJob] = []
-        for index, preset in enumerate(presets, start=1):
+        for index, item in enumerate(plan, start=1):
             jobs.append(
                 self.enqueue(
                     chat_id,
-                    f"preset {preset.name} shorts",
+                    item.request,
                     update_id,
-                    job_suffix=f"plan-shorts-{index}-{preset.name}",
+                    job_suffix=f"plan-shorts-{index}-{item.slug}",
                     notify=False,
                 )
             )
@@ -1197,26 +1214,26 @@ class TelegramJobQueue:
         )
 
     def enqueue_weekly_publication_pack(self, chat_id: int, update_id: int) -> list[TelegramJob]:
-        presets = _content_plan_preset_list()
-        labels = ", ".join(f"Д{index} {preset_button_label(preset)}" for index, preset in enumerate(presets, start=1))
+        plan = _weekly_content_items()
+        labels = ", ".join(f"Д{index} {' / '.join(item.tickers)}" for index, item in enumerate(plan, start=1))
         self.client.send_message(
             chat_id,
-            f"Недельный выпуск: ставлю в очередь {len(presets)} shorts-роликов контент-плана: {labels}.",
+            f"Недельный выпуск: ставлю в очередь {len(plan)} shorts-роликов контент-плана: {labels}.",
             reply_markup=queue_status_keyboard(),
         )
         self.client.send_message(
             chat_id,
-            format_weekly_publication_pack(),
+            format_weekly_publication_pack(plan),
             reply_markup=weekly_publication_pack_keyboard(),
         )
         jobs: list[TelegramJob] = []
-        for index, preset in enumerate(presets, start=1):
+        for index, item in enumerate(plan, start=1):
             jobs.append(
                 self.enqueue(
                     chat_id,
-                    f"preset {preset.name} shorts",
+                    item.request,
                     update_id,
-                    job_suffix=f"publication-week-{index}-{preset.name}",
+                    job_suffix=f"publication-week-{index}-{item.slug}",
                     notify=False,
                 )
             )
@@ -1281,32 +1298,32 @@ class TelegramJobQueue:
         return jobs
 
     def enqueue_random_preset_shorts(self, chat_id: int, update_id: int) -> TelegramJob:
-        preset = random.choice(PRESETS)
+        item = build_random_content_idea()
         self.client.send_message(
             chat_id,
-            f"Случайный шортс: {preset_button_label(preset)}. Ставлю готовый shorts-ролик в очередь.",
+            f"Случайный шортс: {item.title}. Ставлю shorts-ролик в очередь.",
             reply_markup=queue_status_keyboard(),
         )
         return self.enqueue(
             chat_id,
-            f"preset {preset.name} shorts",
+            item.request,
             update_id,
-            job_suffix=f"random-shorts-{preset.name}",
+            job_suffix=f"random-shorts-{item.slug}",
             notify=False,
         )
 
     def enqueue_random_preset_draft(self, chat_id: int, update_id: int) -> TelegramJob:
-        preset = random.choice(PRESETS)
+        item = build_random_content_idea(mode="draft")
         self.client.send_message(
             chat_id,
-            f"Случайный черновик: {preset_button_label(preset)}. Ставлю короткий draft в очередь.",
+            f"Случайный черновик: {item.title}. Ставлю короткий draft в очередь.",
             reply_markup=queue_status_keyboard(),
         )
         return self.enqueue(
             chat_id,
-            f"preset {preset.name} draft",
+            item.request,
             update_id,
-            job_suffix=f"random-draft-{preset.name}",
+            job_suffix=f"random-draft-{item.slug}",
             notify=False,
         )
 
@@ -1318,38 +1335,37 @@ class TelegramJobQueue:
         theme: str | None = None,
     ) -> TelegramJob:
         category = get_preset_category(category_name)
-        preset = random.choice(presets_for_category(category.name))
-        theme_suffix = f" theme={theme}" if theme else ""
+        item = build_random_content_idea(category.name, theme=theme)
         theme_label = f" в теме {theme}" if theme else ""
         self.client.send_message(
             chat_id,
             f"Случайный шортс категории {category.title}{theme_label}: "
-            f"{preset_button_label(preset)}. Ставлю готовый shorts-ролик в очередь.",
+            f"{item.title}. Ставлю shorts-ролик в очередь.",
             reply_markup=queue_status_keyboard(),
         )
         job_suffix_theme = f"-{theme}" if theme else ""
         return self.enqueue(
             chat_id,
-            f"preset {preset.name} shorts{theme_suffix}",
+            item.request,
             update_id,
-            job_suffix=f"random-{category.name}-shorts{job_suffix_theme}-{preset.name}",
+            job_suffix=f"random-{category.name}-shorts{job_suffix_theme}-{item.slug}",
             notify=False,
         )
 
     def enqueue_random_category_preset_draft(self, chat_id: int, update_id: int, category_name: str) -> TelegramJob:
         category = get_preset_category(category_name)
-        preset = random.choice(presets_for_category(category.name))
+        item = build_random_content_idea(category.name, mode="draft")
         self.client.send_message(
             chat_id,
             f"Случайный черновик категории {category.title}: "
-            f"{preset_button_label(preset)}. Ставлю короткий draft в очередь.",
+            f"{item.title}. Ставлю короткий draft в очередь.",
             reply_markup=queue_status_keyboard(),
         )
         return self.enqueue(
             chat_id,
-            f"preset {preset.name} draft",
+            item.request,
             update_id,
-            job_suffix=f"random-{category.name}-draft-{preset.name}",
+            job_suffix=f"random-{category.name}-draft-{item.slug}",
             notify=False,
         )
 
@@ -2975,9 +2991,16 @@ def handle_ticker_message(
                 "Быстрые варианты для этого запроса:",
                 reply_markup=custom_followup_keyboard(custom_followup_key),
             )
-    removed = cleanup_old_outputs(render.output_dir, settings.cleanup_retention_days, keep={output_path})
-    if removed:
-        log_event("cleanup", "completed", job_id=job_id, removed_count=len(removed), retention_days=settings.cleanup_retention_days)
+    if settings.cleanup_retention_days <= 0:
+        try:
+            output_path.unlink(missing_ok=True)
+            log_event("cleanup", "completed", job_id=job_id, removed_count=1, retention_days=0)
+        except OSError as exc:
+            logging.warning("Failed to delete sent output %s: %s", output_path, exc)
+    else:
+        removed = cleanup_old_outputs(render.output_dir, settings.cleanup_retention_days, keep={output_path})
+        if removed:
+            log_event("cleanup", "completed", job_id=job_id, removed_count=len(removed), retention_days=settings.cleanup_retention_days)
 
 
 def run_telegram_bot(settings: TelegramBotSettings) -> None:

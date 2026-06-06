@@ -1,21 +1,18 @@
 from __future__ import annotations
 
 import logging
-import hashlib
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import matplotlib.animation as animation
 import pandas as pd
 
 from stock_prices._internal.lib.dataset_builder import build_data_list
 from stock_prices._internal.models import TickerSpec
-from stock_prices._internal.rendering.filenames import safe_video_stem
 from stock_prices._internal.rendering.theme import ChartTheme, get_chart_theme
-
-RENDER_CACHE_VERSION = "frame-sync-v1"
+from stock_prices._internal.rendering.filenames import safe_video_stem
 
 
 def event_color(impact: int) -> str:
@@ -250,35 +247,10 @@ def _active_events(events_df: pd.DataFrame, frame_date: pd.Timestamp) -> list[Ev
     return _active_event_ranges(_event_ranges(events_df), frame_date)
 
 
-def _render_cache_digest(args: Any, specs: list[dict[str, str]], start_date: pd.Timestamp, end_date: pd.Timestamp) -> str:
-    payload = {
-        "version": RENDER_CACHE_VERSION,
-        "specs": specs,
-        "start_date": f"{start_date:%Y-%m-%d}",
-        "end_date": f"{end_date:%Y-%m-%d}",
-        "value_col": getattr(args, "value_col", "CAPITAL_REINVEST"),
-        "currency": getattr(args, "currency", ""),
-        "duration": int(getattr(args, "duration", 30)),
-        "fps": int(getattr(args, "fps", 20)),
-        "use_gradient": bool(getattr(args, "use_gradient", False)),
-        "show_legend": not bool(getattr(args, "no_legend", False)),
-        "initial_investment": int(getattr(args, "initial_investment", 10000)),
-        "monthly_investment": int(getattr(args, "monthly_investment", 0)),
-        "yearly_investment": int(getattr(args, "yearly_investment", 0)),
-        "with_investments": bool(getattr(args, "with_investments", False)),
-        "title": getattr(args, "title", "") or "",
-        "under_title": getattr(args, "under_title", "") or "",
-        "theme": getattr(args, "theme", "default"),
-    }
-    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:10]
-
-
 def _render_output_path(args: Any, specs: list[dict[str, str]], start_date: pd.Timestamp, end_date: pd.Timestamp) -> Path:
     output_dir = Path(getattr(args, "output_dir", "animations"))
     ticker_specs = [TickerSpec(item["ticker"], item["engine"], item["market"]) for item in specs]
-    digest = _render_cache_digest(args, specs, start_date, end_date)
-    filename = f"{safe_video_stem(ticker_specs)}_{start_date:%Y%m%d}_{end_date:%Y%m%d}_{digest}.mp4"
+    filename = f"{safe_video_stem(ticker_specs)}_{start_date:%Y%m%d}_{end_date:%Y%m%d}_{uuid4().hex[:8]}.mp4"
     return output_dir / filename
 
 
@@ -531,12 +503,15 @@ class BuildArgs:
     with_investments: bool = False
 
 
-def render_charts(args: Any, specs: list[dict[str, str]], start_date: pd.Timestamp, end_date: pd.Timestamp) -> Path:
+def render_charts(
+    args: Any,
+    specs: list[dict[str, str]],
+    start_date: pd.Timestamp,
+    end_date: pd.Timestamp,
+    source_data: dict[tuple[str, str, str], pd.DataFrame] | None = None,
+) -> Path:
     filepath = _render_output_path(args, specs, start_date, end_date)
     filepath.parent.mkdir(parents=True, exist_ok=True)
-    if filepath.exists() and filepath.stat().st_size > 0:
-        logging.info("Using cached animation: %s", filepath)
-        return filepath
 
     logging.info("Preparing chart datasets...")
     build_args = BuildArgs(
@@ -545,7 +520,7 @@ def render_charts(args: Any, specs: list[dict[str, str]], start_date: pd.Timesta
         market=[item["market"] for item in specs],
         with_investments=getattr(args, "with_investments", False),
     )
-    data_list = build_data_list(args, build_args, start_date, end_date)
+    data_list = build_data_list(args, build_args, start_date, end_date, source_data)
     default_title = " / ".join(build_args.ticker)
     default_subtitle = f"{start_date:%d.%m.%Y} - {end_date:%d.%m.%Y}"
 

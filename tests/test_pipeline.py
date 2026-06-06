@@ -11,10 +11,10 @@ from stock_prices._internal.models import RenderSettings, TickerSpec, VideoReque
 
 
 def test_generate_video_logs_structured_stages(monkeypatch, caplog: pytest.LogCaptureFixture) -> None:
-    def fake_download(_specs, _start_date, _end_date, _currency) -> None:
-        return None
+    def fake_download(_specs, _start_date, _end_date, _currency) -> dict:
+        return {}
 
-    def fake_render(_render, _specs, _start_date, _end_date) -> Path:
+    def fake_render(_render, _specs, _start_date, _end_date, _source_data) -> Path:
         return Path("animations/LKOH.mp4")
 
     monkeypatch.setattr(pipeline, "download_ticker_history", fake_download)
