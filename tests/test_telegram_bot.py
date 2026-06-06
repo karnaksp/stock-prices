@@ -1776,6 +1776,51 @@ def test_run_telegram_bot_menu_callback_opens_help(monkeypatch) -> None:
     assert client.videos == []
 
 
+def test_run_telegram_bot_menu_callback_opens_random_menu(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 61,
+                    "callback_query": {
+                        "id": "callback-menu-random",
+                        "data": "menu:random_menu",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("random menu must not render video")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-random", "Random открыт.")]
+    assert "Random для шортса" in client.messages[0][1]
+    assert "random mixed 1" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.random_menu_keyboard()]
+    keyboard = client.message_markups[0]["inline_keyboard"]
+    assert keyboard[0] == [
+        {"text": "1 тикер", "callback_data": "menu:random_1"},
+        {"text": "2 тикера", "callback_data": "menu:random_2"},
+        {"text": "3 тикера", "callback_data": "menu:random_3"},
+    ]
+    assert client.videos == []
+
+
 def test_run_telegram_bot_menu_callback_opens_reference(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -3351,6 +3396,53 @@ def test_run_telegram_bot_menu_callback_queues_random_universe_shorts(monkeypatc
     assert client.videos == [(123, Path("animations/tg-60-random-shorts-gc-f-si-f-pa-f.mp4"), "GC=F / SI=F / PA=F: 2014-01-01 - 2026-06-01")]
 
 
+def test_run_telegram_bot_menu_callback_queues_random_three_tickers(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 61,
+                    "callback_query": {
+                        "id": "callback-menu-random-3",
+                        "data": "menu:random_3",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), use_gradient=False),
+    )
+    generated: list[tuple[str | None, list[str]]] = []
+    build_calls: list[tuple[str | None, int | None]] = []
+    selected = _generated_idea(("GC=F", "SI=F", "PA=F"), title="GC=F / SI=F / PA=F: случайное сравнение")
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, [spec.ticker for spec in request.ticker_specs]))
+        return Path(f"animations/{job_id}.mp4")
+
+    def fake_build_random(category_name=None, **kwargs):
+        build_calls.append((category_name, kwargs.get("count")))
+        return selected
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+    monkeypatch.setattr(telegram_bot, "build_random_content_idea", fake_build_random)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-random-3", "Случайное сравнение из 3 тикеров поставлено в очередь.")]
+    assert build_calls == [(None, 3)]
+    assert generated == [("tg-61-random-shorts-3x-gc-f-si-f-pa-f", ["GC=F", "SI=F", "PA=F"])]
+    assert telegram_bot.queue_status_keyboard() in client.message_markups
+
+
 def test_run_telegram_bot_queues_multiline_batch(monkeypatch) -> None:
     class FakePollingClient(FakeClient):
         def __init__(self, *_args, **_kwargs) -> None:
@@ -3823,13 +3915,13 @@ def test_help_text_is_compact_and_actionable() -> None:
     assert "/queue" in help_text
     assert "/shorts без текста" in help_text
     assert "/shorts SBER LKOH за год" in help_text
-    assert "random mixed 3" in help_text
+    assert "random mixed 1/2/3" in help_text
     assert "random stocks 2" in help_text
     assert "Долгий рендер" in help_text
     assert "статус" in help_text
     assert "/guide" in help_text
     assert "Истории" in help_text
-    assert "Случайный" in help_text
+    assert "Random" in help_text
     assert "Справочник" not in help_text
     assert "/draft metals" not in help_text
     assert "top quiet" not in help_text
@@ -3859,7 +3951,7 @@ def test_help_keyboard_points_to_guidance_actions() -> None:
 
     assert callbacks == [
         ["menu:publication_day", "menu:publication_week"],
-        ["menu:preset_categories", "menu:examples"],
+        ["menu:random_menu", "menu:preset_categories"],
         ["menu:content_plan", "menu:guide"],
         [telegram_bot.QUEUE_STATUS_CALLBACK_DATA, "menu:main_menu"],
     ]
@@ -3889,7 +3981,7 @@ def test_handle_ticker_message_shows_main_menu() -> None:
         ],
         [
             {"text": "✨ Top Studio", "callback_data": "menu:hot_shorts_studio"},
-            {"text": "🎲 Случайный", "callback_data": "menu:random_shorts"},
+            {"text": "🎲 Random", "callback_data": "menu:random_menu"},
         ],
         [
             {"text": "📚 Истории", "callback_data": "menu:preset_categories"},

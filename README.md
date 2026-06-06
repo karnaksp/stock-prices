@@ -60,7 +60,7 @@ TICKER|ENGINE|MARKET
 | Открыть меню | `/start` или `/menu` |
 | Быстро снять ролик | `/shoot` или `снять` |
 | Выбрать готовую историю | `/shorts` |
-| Случайный шортс | `случайный шортс`, `random mixed 1`, `random drama 2`, `random stocks 2`, `random crypto 1` |
+| Случайный шортс | кнопка `Random`, `random mixed 1`, `random mixed 3`, `random drama 2`, `random stocks 2`, `random crypto 1` |
 | Недельный план | `/plan` или `/publish_week` |
 | Снять свой шортс | `/shorts SBER LKOH за год` |
 | Проверить очередь | `/queue` или `статус` |
