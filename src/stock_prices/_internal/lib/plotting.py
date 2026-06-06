@@ -205,7 +205,7 @@ def _visible_x_span_days(x_start: pd.Timestamp, frame_date: pd.Timestamp, total_
 
 def _animation_frame_data(combined_df: pd.DataFrame, frame_index: int) -> tuple[pd.DataFrame, pd.DataFrame]:
     current_data = combined_df.iloc[: frame_index + 1]
-    line_data = combined_df
+    line_data = current_data
     return current_data, line_data
 
 
@@ -335,15 +335,12 @@ def create_multi_line_animation(
     lines = {}
     labels = {}
     dividend_markers = {}
-    series_data = {}
     gradient_collections = []
+    fill_artists = []
     for name in value_columns:
         color = by_name[name]["color"]
         (line,) = ax.plot([], [], color=color, linewidth=3.0, alpha=0.92, label=name, solid_capstyle="round")
-        line_clean = combined_df[name].dropna()
-        line_x = combined_df["TRADEDATE"].loc[line_clean.index]
         lines[name] = line
-        series_data[name] = (line_x, line_clean)
         labels[name] = ax.text(
             combined_df["TRADEDATE"].iloc[0],
             0,
@@ -360,23 +357,6 @@ def create_multi_line_animation(
         for text in legend.get_texts():
             text.set_color(chart_theme.title_color)
 
-    static_fill_artists = []
-    fill_baseline = ax.get_ylim()[0]
-    for name in value_columns:
-        line_x, line_clean = series_data[name]
-        if len(line_clean) > 1:
-            static_fill_artists.append(
-                ax.fill_between(
-                    line_x,
-                    line_clean,
-                    fill_baseline,
-                    color=by_name[name]["color"],
-                    alpha=0.045,
-                    linewidth=0,
-                    zorder=1,
-                )
-            )
-
     event_artists = []
     last_frame_index: int | None = None
     last_artists: list[Any] | None = None
@@ -386,6 +366,8 @@ def create_multi_line_animation(
             event_artists.pop().remove()
         while gradient_collections:
             gradient_collections.pop().remove()
+        while fill_artists:
+            fill_artists.pop().remove()
 
     def animate(frame_number: int):
         nonlocal last_frame_index, last_artists
@@ -402,13 +384,16 @@ def create_multi_line_animation(
 
         label_targets: list[tuple[str, pd.Timestamp, float, str]] = []
         for name in value_columns:
-            line_x, line_clean = series_data[name]
+            line_x_data = line_data["TRADEDATE"]
+            line_y_data = line_data[name]
+            line_clean = line_y_data.dropna()
             current_x_data = current_data["TRADEDATE"]
             current_clean = current_data[name].dropna()
             if line_clean.empty or current_clean.empty:
                 labels[name].set_text("")
                 summary_artists[name].set_text("")
                 continue
+            line_x = line_x_data.loc[line_clean.index]
             current_line_x = current_x_data.loc[current_clean.index]
             if use_gradient:
                 lines[name].set_data(line_x, line_clean)
@@ -422,6 +407,17 @@ def create_multi_line_animation(
             else:
                 lines[name].set_alpha(0.92)
                 lines[name].set_data(line_x, line_clean)
+            if len(line_clean) > 1:
+                fill_artists.append(
+                    ax.fill_between(
+                        line_x,
+                        line_clean,
+                        ax.get_ylim()[0],
+                        color=by_name[name]["color"],
+                        alpha=0.045,
+                        linewidth=0,
+                    )
+                )
 
             last_idx = current_clean.index[-1]
             last_x = current_x_data.loc[last_idx]
@@ -475,7 +471,7 @@ def create_multi_line_animation(
             event_artists.extend([patch, label])
 
         artists = [
-            *static_fill_artists,
+            *fill_artists,
             *lines.values(),
             *labels.values(),
             *dividend_markers.values(),

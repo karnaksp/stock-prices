@@ -56,7 +56,7 @@ def test_visible_x_span_uses_full_period_to_prevent_expanding_axis() -> None:
     assert _visible_x_span_days(start, start + pd.Timedelta(days=2000), 1627) == 1627
 
 
-def test_animation_line_data_uses_full_period_for_early_frames() -> None:
+def test_animation_line_data_uses_current_frame_slice() -> None:
     combined = pd.DataFrame(
         {
             "TRADEDATE": pd.to_datetime(["2021-12-17", "2022-01-17", "2022-02-17"]),
@@ -67,15 +67,11 @@ def test_animation_line_data_uses_full_period_for_early_frames() -> None:
     current_data, line_data = _animation_frame_data(combined, 0)
 
     assert current_data["TRADEDATE"].tolist() == [pd.Timestamp("2021-12-17")]
-    assert line_data["TRADEDATE"].tolist() == [
-        pd.Timestamp("2021-12-17"),
-        pd.Timestamp("2022-01-17"),
-        pd.Timestamp("2022-02-17"),
-    ]
-    assert line_data["SBER"].tolist() == [100.0, 140.0, 90.0]
+    assert line_data["TRADEDATE"].tolist() == [pd.Timestamp("2021-12-17")]
+    assert line_data["SBER"].tolist() == [100.0]
 
 
-def test_animation_draws_full_series_lines_on_first_frame_to_prevent_progressive_reveal() -> None:
+def test_animation_draws_only_current_frame_slice_on_first_frame() -> None:
     import matplotlib.pyplot as plt
 
     data_frame = pd.DataFrame(
@@ -98,15 +94,15 @@ def test_animation_draws_full_series_lines_on_first_frame_to_prevent_progressive
         line = animation._fig.axes[0].lines[0]
         y_bottom, y_top = animation._fig.axes[0].get_ylim()
 
-        assert len(line.get_xdata()) == len(data_frame)
-        assert list(line.get_ydata()) == [100.0, 140.0, 90.0]
+        assert len(line.get_xdata()) == 1
+        assert list(line.get_ydata()) == [100.0]
         assert y_bottom < 90.0
         assert y_top > 140.0
     finally:
         plt.close(animation._fig)
 
 
-def test_animation_keeps_full_time_window_while_labels_move_through_full_data() -> None:
+def test_animation_keeps_full_time_window_while_series_uses_current_slice() -> None:
     import matplotlib.dates as mdates
     import matplotlib.pyplot as plt
 
@@ -133,6 +129,7 @@ def test_animation_keeps_full_time_window_while_labels_move_through_full_data() 
 
         animation._func(1)
         middle_xlim = animation._fig.axes[0].get_xlim()
+        middle_line_x = list(line.get_xdata())
         gradient_collections = [
             collection
             for collection in animation._fig.axes[0].collections
@@ -143,7 +140,8 @@ def test_animation_keeps_full_time_window_while_labels_move_through_full_data() 
         final_xlim = animation._fig.axes[0].get_xlim()
 
         start_num = mdates.date2num(data_frame["TRADEDATE"].iloc[0])
-        assert len(line.get_xdata()) == len(data_frame)
+        assert len(middle_line_x) == 2
+        assert middle_line_x[-1] == data_frame["TRADEDATE"].iloc[1]
         assert gradient_collections
         assert first_xlim[0] == start_num
         assert first_xlim == middle_xlim == final_xlim
@@ -198,7 +196,7 @@ def test_animation_reuses_duplicate_final_hold_frame_artists() -> None:
         plt.close(animation._fig)
 
 
-def test_animation_reuses_static_fill_artists_between_frames() -> None:
+def test_animation_keeps_line_gradient_and_fill_on_same_frame_slice() -> None:
     import matplotlib.pyplot as plt
 
     data_frame = pd.DataFrame(
@@ -217,23 +215,26 @@ def test_animation_reuses_static_fill_artists_between_frames() -> None:
     )
 
     try:
-        animation._func(0)
-        animation._draw_was_started = True
-        first_fill_ids = [
-            id(collection)
-            for collection in animation._fig.axes[0].collections
-            if collection.get_alpha() == 0.045
-        ]
-
         animation._func(1)
-        second_fill_ids = [
-            id(collection)
+        animation._draw_was_started = True
+        line = animation._fig.axes[0].lines[0]
+        fill_collections = [
+            collection
             for collection in animation._fig.axes[0].collections
             if collection.get_alpha() == 0.045
         ]
+        gradient_collections = [
+            collection
+            for collection in animation._fig.axes[0].collections
+            if collection.__class__.__name__ == "LineCollection"
+        ]
 
-        assert first_fill_ids
-        assert second_fill_ids == first_fill_ids
+        assert list(line.get_xdata()) == [
+            pd.Timestamp("2021-12-17"),
+            pd.Timestamp("2022-01-17"),
+        ]
+        assert fill_collections
+        assert gradient_collections
     finally:
         plt.close(animation._fig)
 
