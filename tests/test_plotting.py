@@ -4,6 +4,7 @@ import pandas as pd
 
 from stock_prices._internal.lib import dataset_builder
 from stock_prices._internal.lib.plotting import (
+    MAX_FRAME_RENDER_POINTS,
     _active_event_ranges,
     _active_events,
     _amount_summary,
@@ -12,6 +13,7 @@ from stock_prices._internal.lib.plotting import (
     _event_ranges,
     _prefix_y_limits,
     _return_summary,
+    _sample_frame_series,
     _visible_x_span_days,
     create_multi_line_animation,
 )
@@ -86,6 +88,19 @@ def test_animation_line_data_uses_same_prefix_as_current_frame() -> None:
     assert line_data["TRADEDATE"].tolist() == expected_dates
     assert current_data["SBER"].tolist() == [100.0, 140.0]
     assert line_data["SBER"].tolist() == [100.0, 140.0]
+
+
+def test_sample_frame_series_keeps_first_and_last_points() -> None:
+    x_data = pd.Series(pd.date_range("2020-01-01", periods=1000, freq="D"))
+    y_data = pd.Series(range(1000), dtype=float)
+
+    sampled_x, sampled_y = _sample_frame_series(x_data, y_data, max_points=120)
+
+    assert len(sampled_y) <= 120
+    assert sampled_x.iloc[0] == x_data.iloc[0]
+    assert sampled_x.iloc[-1] == x_data.iloc[-1]
+    assert sampled_y.iloc[0] == y_data.iloc[0]
+    assert sampled_y.iloc[-1] == y_data.iloc[-1]
 
 
 def test_animation_draws_only_current_frame_slice_on_first_frame() -> None:
@@ -261,6 +276,54 @@ def test_animation_keeps_line_gradient_and_fill_on_same_frame_slice() -> None:
         assert abs(fill_right - mdates.date2num(data_frame["TRADEDATE"].iloc[1])) < 1e-6
         assert price_label.get_position()[1] == 140.0
         assert price_label.get_position()[0] == expected_label_x
+    finally:
+        plt.close(animation._fig)
+
+
+def test_animation_downsamples_gradient_and_fill_without_moving_frame_endpoint() -> None:
+    import matplotlib.dates as mdates
+    import matplotlib.pyplot as plt
+
+    trade_dates = pd.date_range("2020-01-01", periods=1000, freq="D")
+    data_frame = pd.DataFrame(
+        {
+            "TRADEDATE": trade_dates,
+            "CLOSE": [100.0 + index * 0.5 for index in range(len(trade_dates))],
+            "DIVIDEND": [0.0] * len(trade_dates),
+        }
+    )
+    animation = create_multi_line_animation(
+        [{"name": "SBER", "color": "#FFD166", "data": data_frame}],
+        target_duration=2,
+        fps=1,
+        final_frame_duration=0,
+        use_gradient=True,
+    )
+
+    try:
+        animation._func(1)
+        animation._draw_was_started = True
+        ax = animation._fig.axes[0]
+        gradient_collections = [
+            collection
+            for collection in ax.collections
+            if collection.__class__.__name__ == "LineCollection"
+        ]
+        fill_collections = [
+            collection
+            for collection in ax.collections
+            if collection.get_alpha() == 0.045
+        ]
+        gradient_segments = gradient_collections[-1].get_segments()
+        fill_right = fill_collections[-1].get_paths()[0].vertices[:, 0].max()
+        price_label = next(text for text in ax.texts if text.get_text().startswith("SBER:"))
+        expected_end = mdates.date2num(trade_dates[-1])
+
+        assert len(gradient_segments) <= MAX_FRAME_RENDER_POINTS - 1
+        assert abs(gradient_segments[0][0][0] - mdates.date2num(trade_dates[0])) < 1e-6
+        assert abs(gradient_segments[-1][-1][0] - expected_end) < 1e-6
+        assert abs(fill_right - expected_end) < 1e-6
+        assert price_label.get_position()[1] == data_frame["CLOSE"].iloc[-1]
     finally:
         plt.close(animation._fig)
 
