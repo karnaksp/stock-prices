@@ -122,3 +122,11 @@ def test_weekly_content_plan_is_stable_for_same_week() -> None:
     assert [item.request for item in first] == [item.request for item in second]
     assert all(f"theme={item.theme}" in item.request and " title=" in item.request for item in first)
     assert all(1 <= len(item.tickers) <= 3 for item in first)
+
+
+def test_weekly_content_plan_respects_explicit_category() -> None:
+    plan = build_weekly_content_plan(date(2026, 6, 1), days=5, count=1, categories=("metals",))
+
+    assert len(plan) == 5
+    assert all(item.category == "metals" for item in plan)
+    assert all(len(item.tickers) == 1 for item in plan)

@@ -633,8 +633,24 @@ def post_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]
     return {"inline_keyboard": rows}
 
 
-def _weekly_content_items(today: date | None = None) -> tuple[GeneratedContentIdea, ...]:
-    return build_weekly_content_plan(today)
+def _weekly_content_items(
+    today: date | None = None,
+    *,
+    days: int = 7,
+    count: int | None = None,
+    categories: tuple[str | None, ...] = (),
+) -> tuple[GeneratedContentIdea, ...]:
+    return build_weekly_content_plan(today, days=days, count=count, categories=categories or None)
+
+
+def _controlled_content_plan_items(
+    days: int = 7,
+    count: int | None = None,
+    categories: tuple[str | None, ...] = (),
+) -> tuple[GeneratedContentIdea, ...]:
+    if days == 7 and count is None and not categories:
+        return _weekly_content_items()
+    return _weekly_content_items(days=days, count=count, categories=categories)
 
 
 def _today() -> date:
@@ -648,12 +664,28 @@ def _daily_content_plan_item(today: date | None = None) -> tuple[int, GeneratedC
     return index + 1, plan[index]
 
 
-def format_content_plan(plan: tuple[GeneratedContentIdea, ...] | None = None) -> str:
-    items = plan or _weekly_content_items()
+def _content_plan_control_summary(days: int, count: int | None, categories: tuple[str | None, ...]) -> str:
+    controls = [f"{days} выпуск(ов)"]
+    if count is not None:
+        controls.append(f"по {count} тикер(а)")
+    if categories:
+        controls.append("категории: " + ", ".join(universe_category_label(category) for category in categories))
+    return "; ".join(controls)
+
+
+def format_content_plan(
+    plan: tuple[GeneratedContentIdea, ...] | None = None,
+    *,
+    days: int = 7,
+    count: int | None = None,
+    categories: tuple[str | None, ...] = (),
+) -> str:
+    items = plan or _controlled_content_plan_items(days=days, count=count, categories=categories)
     lines = [
         "Контент-план для Пульса:",
         "",
-        "7 выпусков без LLM: тикеры случайно комбинируются из расширяемой вселенной по категориям и пересечению истории.",
+        "План без LLM: тикеры случайно комбинируются из расширяемой вселенной по категориям и пересечению истории.",
+        f"Параметры: {_content_plan_control_summary(len(items), count, categories)}.",
         "Можно поставить весь план в очередь одной кнопкой или взять отдельный запрос из списка.",
         "",
     ]
@@ -664,8 +696,17 @@ def format_content_plan(plan: tuple[GeneratedContentIdea, ...] | None = None) ->
         lines.append(f"Обложка: {item.cover_text}")
         lines.append(f"Музыка: {track}")
         lines.append("")
-    lines.append("Первая кнопка ставит эти 7 shorts в очередь. Для ручных сценариев остаются preset и /ideas.")
+    lines.append(f"Первая кнопка ставит эти {len(items)} shorts в очередь. Для ручных сценариев остаются preset и /ideas.")
     return "\n".join(lines).strip()
+
+
+def _format_content_plan_action(action: TelegramContentPlanAction) -> str:
+    return format_content_plan(
+        _controlled_content_plan_items(days=action.days, count=action.count, categories=action.categories),
+        days=action.days,
+        count=action.count,
+        categories=action.categories,
+    )
 
 
 def content_plan_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
@@ -1050,6 +1091,14 @@ class TelegramRandomContentAction:
     theme: str | None = None
 
 
+@dataclass(frozen=True)
+class TelegramContentPlanAction:
+    mode: str
+    days: int = 7
+    count: int | None = None
+    categories: tuple[str | None, ...] = ()
+
+
 class TelegramJobQueue:
     def __init__(self, client: TelegramClient, settings: TelegramBotSettings) -> None:
         self.client = client
@@ -1209,12 +1258,28 @@ class TelegramJobQueue:
     def enqueue_category_preset_drafts(self, chat_id: int, update_id: int, category_name: str) -> list[TelegramJob]:
         return self._enqueue_category_presets(chat_id, update_id, category_name, "draft")
 
-    def enqueue_content_plan_shorts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
-        plan = _weekly_content_items()
+    def enqueue_content_plan_shorts(
+        self,
+        chat_id: int,
+        update_id: int,
+        *,
+        days: int = 7,
+        count: int | None = None,
+        categories: tuple[str | None, ...] = (),
+    ) -> list[TelegramJob]:
+        plan = _controlled_content_plan_items(days=days, count=count, categories=categories)
         labels = ", ".join(f"Д{index} {' / '.join(item.tickers)}" for index, item in enumerate(plan, start=1))
+        controls = []
+        if days != 7:
+            controls.append(f"{days} дн.")
+        if count is not None:
+            controls.append(f"{count} тикер(а)")
+        if categories:
+            controls.append("категории: " + ", ".join(universe_category_label(category) for category in categories))
+        control_label = f" ({'; '.join(controls)})" if controls else ""
         self.client.send_message(
             chat_id,
-            f"Ставлю в очередь {len(plan)} shorts-роликов контент-плана: {labels}.",
+            f"Ставлю в очередь {len(plan)} shorts-роликов контент-плана{control_label}: {labels}.",
             reply_markup=queue_status_keyboard(),
         )
         jobs: list[TelegramJob] = []
@@ -1791,7 +1856,8 @@ def format_random_menu() -> str:
         "Random для шортса\n\n"
         "Выбери размер сравнения или тип истории. Бот сам подберет тикеры из universe, период пересечения истории "
         "и поставит ролик в очередь.\n\n"
-        "Текстом то же самое: random mixed 1, random mixed 3, random drama 2, random stocks 2."
+        "Текстом то же самое: random mixed 1, random mixed 3, random drama 2, random stocks 2.\n"
+        "План серией: plan drama 5 days 2 tickers или plan shorts metals count=1 days=5."
     )
 
 
@@ -1856,7 +1922,8 @@ def format_production_guide() -> str:
         "top drafts - быстро проверить top-сценарии.\n"
         "top shorts studio - снять top-серию в теме Studio.\n"
         "random mixed 3 или random drama 2 - собрать случайный шортс из тикерной вселенной.\n"
-        "/plan - посмотреть недельную сетку, /plan_shorts - снять весь план, /week_posts - получить все посты недели.\n\n"
+        "/plan - посмотреть недельную сетку, /plan_shorts - снять весь план, /week_posts - получить все посты недели.\n"
+        "plan drama 5 days 2 tickers - собрать короткую сетку из 5 идей по 2 тикера.\n\n"
         "Когда нужен только текст:\n"
         "post metals - готовый пост по preset.\n"
         "post LKOH SBER 2020 2024 - skeleton по своему запросу.\n"
@@ -1875,6 +1942,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "\n"
         "Кнопки: /menu -> День, Неделя, Random, Истории, Очередь.\n"
         "Random: random mixed 1/2/3, random drama 2, random stocks 2, random crypto 1.\n"
+        "План: plan, plan drama 5 days 2 tickers, plan shorts metals count=1 days=5.\n"
         "Свой ролик: /shorts + тикеры, период, валюта, invest/monthly.\n"
         "Истории: /shorts без текста. Недельная сетка: /plan.\n\n"
         "Примеры:\n"
@@ -2602,6 +2670,109 @@ _RANDOM_COUNT_WORDS = {
     "three": 3,
     "три": 3,
 }
+_PLAN_WORDS = {"plan", "calendar", "план", "сетка"}
+_PLAN_IGNORED_WORDS = {"content", "контент", "пульс", "pulse", "category", "категория", "из"}
+_PLAN_SHORTS_WORDS = {
+    "short",
+    "shorts",
+    "reels",
+    "shoot",
+    "run",
+    "queue",
+    "ролик",
+    "ролики",
+    "шорт",
+    "шортс",
+    "шортсы",
+    "снять",
+    "запустить",
+    "запусти",
+    "выпустить",
+}
+_PLAN_DAYS_KEYS = {"days", "day", "d", "items", "выпуски", "выпусков", "дни", "дней", "день", "дня"}
+_PLAN_COUNT_KEYS = {"count", "tickers", "ticker", "assets", "тикеры", "тикеров", "тикера", "тикер", "активы", "актива"}
+_PLAN_CATEGORY_KEYS = {"category", "categories", "cat", "type", "категория", "категории", "тип"}
+_PLAN_MIXED_CATEGORY_WORDS = {"mixed", "mix", "all", "any", "микс", "смешанные", "разные", "любой", "любые"}
+
+
+def _parse_plan_positive_int(value: str, minimum: int, maximum: int) -> int | None:
+    if not value.isdigit():
+        return None
+    return max(minimum, min(maximum, int(value)))
+
+
+def _append_plan_category(categories: list[str | None], raw_category: str) -> None:
+    if not raw_category:
+        return
+    normalized_category = resolve_universe_category(raw_category)
+    normalized_raw = raw_category.strip().lower().replace("-", "_").replace(" ", "_")
+    if normalized_category is None and normalized_raw not in _PLAN_MIXED_CATEGORY_WORDS:
+        return
+    if normalized_category not in categories:
+        categories.append(normalized_category)
+
+
+def _content_plan_action(text: str) -> TelegramContentPlanAction | None:
+    normalized = " ".join(text.strip().lower().replace("ё", "е").replace("_", " ").replace("-", " ").split())
+    tokens = [token.lstrip("/") for token in normalized.split()]
+    if not tokens or not any(token in _PLAN_WORDS for token in tokens):
+        return None
+
+    mode = "shorts" if any(token in _PLAN_SHORTS_WORDS for token in tokens) else "view"
+    days = 7
+    count: int | None = None
+    categories: list[str | None] = []
+    free_category_tokens: list[str] = []
+
+    idx = 0
+    while idx < len(tokens):
+        token = tokens[idx]
+        if token in _PLAN_WORDS | _PLAN_IGNORED_WORDS | _PLAN_SHORTS_WORDS:
+            idx += 1
+            continue
+        if "=" in token:
+            key, value = token.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if key in _PLAN_DAYS_KEYS:
+                parsed_days = _parse_plan_positive_int(value, 1, 14)
+                if parsed_days is not None:
+                    days = parsed_days
+            elif key in _PLAN_COUNT_KEYS:
+                count = _parse_plan_positive_int(value, 1, 3)
+            elif key in _PLAN_CATEGORY_KEYS:
+                _append_plan_category(categories, value)
+            elif key == "mode" and value in {"shorts", "short", "shoot", "run"}:
+                mode = "shorts"
+            idx += 1
+            continue
+        if token.isdigit():
+            parsed_number = int(token)
+            next_token = tokens[idx + 1] if idx + 1 < len(tokens) else ""
+            if next_token in _PLAN_DAYS_KEYS:
+                days = max(1, min(14, parsed_number))
+                idx += 2
+                continue
+            if next_token in _PLAN_COUNT_KEYS:
+                count = max(1, min(3, parsed_number))
+                idx += 2
+                continue
+            if parsed_number <= 3 and count is None:
+                count = parsed_number
+            elif parsed_number > 3:
+                days = min(14, parsed_number)
+            idx += 1
+            continue
+        if token not in _PLAN_DAYS_KEYS | _PLAN_COUNT_KEYS | _PLAN_CATEGORY_KEYS:
+            free_category_tokens.append(token)
+        idx += 1
+
+    for token in free_category_tokens:
+        _append_plan_category(categories, token)
+    if free_category_tokens:
+        _append_plan_category(categories, " ".join(free_category_tokens))
+
+    return TelegramContentPlanAction(mode=mode, days=days, count=count, categories=tuple(categories))
 
 
 def _random_content_action(text: str) -> TelegramRandomContentAction | None:
@@ -3028,6 +3199,13 @@ def handle_ticker_message(
     if _is_cover_texts(text):
         client.send_message(chat_id, format_cover_list())
         return
+    content_plan_action = _content_plan_action(text)
+    if content_plan_action is not None:
+        if content_plan_action.mode == "shorts":
+            client.send_message(chat_id, "Команда запуска контент-плана работает в режиме Telegram-очереди.")
+            return
+        client.send_message(chat_id, _format_content_plan_action(content_plan_action), reply_markup=content_plan_keyboard())
+        return
     if _is_content_plan_shorts(text):
         client.send_message(chat_id, "Команда запуска контент-плана работает в режиме Telegram-очереди.")
         return
@@ -3198,6 +3376,7 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 text = shortcut_text
                             hot_batch = _hot_batch_mode_and_theme(text)
                             shorts_batch = _shorts_batch_theme(text)
+                            content_plan_action = _content_plan_action(text)
                             random_content_action = _random_content_action(text)
                             category_action = _category_preset_action(text)
                             preset_theme_variants_name = _preset_theme_variants_name(text)
@@ -3225,6 +3404,21 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 job_queue.enqueue_preset_drafts(chat_id, int(update["update_id"]))
                             elif _is_daily_content_plan_short(text):
                                 job_queue.enqueue_daily_content_plan_short(chat_id, int(update["update_id"]))
+                            elif content_plan_action is not None:
+                                if content_plan_action.mode == "shorts":
+                                    job_queue.enqueue_content_plan_shorts(
+                                        chat_id,
+                                        int(update["update_id"]),
+                                        days=content_plan_action.days,
+                                        count=content_plan_action.count,
+                                        categories=content_plan_action.categories,
+                                    )
+                                else:
+                                    client.send_message(
+                                        chat_id,
+                                        _format_content_plan_action(content_plan_action),
+                                        reply_markup=content_plan_keyboard(),
+                                    )
                             elif _is_content_plan_shorts(text):
                                 job_queue.enqueue_content_plan_shorts(chat_id, int(update["update_id"]))
                             elif shorts_batch[0]:

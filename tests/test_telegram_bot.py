@@ -840,6 +840,50 @@ def test_run_telegram_bot_queues_content_plan_shorts(monkeypatch) -> None:
     assert len(client.videos) == len(_generated_weekly_plan())
 
 
+def test_run_telegram_bot_queues_parameterized_content_plan_shorts(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [{"update_id": 105, "message": {"text": "plan shorts metals 3 days 1 ticker", "chat": {"id": 123}}}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), use_gradient=False),
+    )
+    generated: list[tuple[str | None, int, int, bool, str]] = []
+    seen_controls: list[tuple[int, int | None, tuple[str | None, ...]]] = []
+
+    def fake_weekly_items(today=None, *, days=7, count=None, categories=()):
+        seen_controls.append((days, count, categories))
+        return _generated_weekly_plan()[:days]
+
+    def fake_client_factory(*_args, **_kwargs):
+        return client
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, request.render.duration, request.render.fps, request.render.use_gradient, request.render.theme))
+        return Path(f"animations/{job_id}.mp4")
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", fake_client_factory)
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", fake_weekly_items)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert seen_controls == [(3, 1, ("metals",))]
+    assert "3 дн." in client.messages[0][1]
+    assert "1 тикер" in client.messages[0][1]
+    assert "категории:" in client.messages[0][1]
+    assert len(generated) == 3
+    assert generated[0][0] == "tg-105-plan-shorts-1-sber-lkoh"
+    assert generated[-1][0] == "tg-105-plan-shorts-3-sber-mtlr"
+    assert len(client.videos) == 3
+
+
 def test_format_weekly_publication_pack_lists_publication_assets(monkeypatch) -> None:
     monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
 
@@ -1498,6 +1542,29 @@ def test_random_content_action_parses_controls(text: str, expected: tuple[str, s
     else:
         assert action is not None
         assert (action.mode, action.category_name, action.count, action.theme) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("plan", ("view", 7, None, ())),
+        ("plan drama 5 days 2 tickers", ("view", 5, 2, ("drama",))),
+        ("plan shorts metals count=1 days=5", ("shorts", 5, 1, ("metals",))),
+        ("снять план stocks 3", ("shorts", 7, 3, ("stocks",))),
+        ("random drama 2", None),
+    ],
+)
+def test_content_plan_action_parses_controls(
+    text: str,
+    expected: tuple[str, int, int | None, tuple[str | None, ...]] | None,
+) -> None:
+    action = telegram_bot._content_plan_action(text)
+
+    if expected is None:
+        assert action is None
+    else:
+        assert action is not None
+        assert (action.mode, action.days, action.count, action.categories) == expected
 
 
 def test_run_telegram_bot_queues_category_shorts(monkeypatch) -> None:
@@ -4195,7 +4262,8 @@ def test_handle_ticker_message_shows_content_plan(monkeypatch) -> None:
 
     plan_text = client.messages[0][1]
     assert "Контент-план для Пульса" in plan_text
-    assert "7 выпусков без LLM" in plan_text
+    assert "План без LLM" in plan_text
+    assert "Параметры: 7 выпуск(ов)" in plan_text
     assert "День 1" in plan_text
     assert "Запрос: SBER LKOH from=2014-01-01" in plan_text
     assert "Первая кнопка ставит эти 7 shorts" in plan_text
@@ -4206,6 +4274,36 @@ def test_handle_ticker_message_shows_content_plan(monkeypatch) -> None:
     assert keyboard[1][0]["callback_data"] == "menu:random_shorts"
     assert keyboard[1][1]["callback_data"] == "menu:preset_categories"
     assert keyboard[-1][0]["callback_data"] == telegram_bot.QUEUE_STATUS_CALLBACK_DATA
+    assert client.videos == []
+
+
+def test_handle_ticker_message_shows_parameterized_content_plan_without_render(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+    seen_controls: list[tuple[int, int | None, tuple[str | None, ...]]] = []
+
+    def fake_weekly_items(today=None, *, days=7, count=None, categories=()):
+        seen_controls.append((days, count, categories))
+        return _generated_weekly_plan()[:days]
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("parameterized content plan must not render video")
+
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", fake_weekly_items)
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    handle_ticker_message(client, settings, 123, "plan drama 3 days 2 tickers")
+
+    plan_text = client.messages[0][1]
+    assert seen_controls == [(3, 2, ("drama",))]
+    assert "Контент-план для Пульса" in plan_text
+    assert "Параметры: 3 выпуск(ов); по 2 тикер(а)" in plan_text
+    assert "День 3" in plan_text
+    assert "Первая кнопка ставит эти 3 shorts" in plan_text
+    assert client.message_markups[0] == telegram_bot.content_plan_keyboard()
     assert client.videos == []
 
 
