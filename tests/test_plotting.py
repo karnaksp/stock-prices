@@ -47,12 +47,12 @@ def test_return_summary_shows_invested_actual_amount() -> None:
     assert _return_summary("Invested", invested, invested) == "Invested: 60.0K"
 
 
-def test_visible_x_span_tracks_frame_date_to_expand_time_window() -> None:
+def test_visible_x_span_uses_full_period_to_prevent_expanding_axis() -> None:
     start = pd.Timestamp("2021-12-17")
 
-    assert _visible_x_span_days(start, start, 1627) == 1
-    assert _visible_x_span_days(start, start + pd.Timedelta(days=10), 1627) == 10
-    assert _visible_x_span_days(start, start + pd.Timedelta(days=120), 1627) == 120
+    assert _visible_x_span_days(start, start, 1627) == 1627
+    assert _visible_x_span_days(start, start + pd.Timedelta(days=10), 1627) == 1627
+    assert _visible_x_span_days(start, start + pd.Timedelta(days=120), 1627) == 1627
     assert _visible_x_span_days(start, start + pd.Timedelta(days=2000), 1627) == 1627
 
 
@@ -96,14 +96,17 @@ def test_animation_draws_full_series_lines_on_first_frame_to_prevent_progressive
         animation._func(0)
         animation._draw_was_started = True
         line = animation._fig.axes[0].lines[0]
+        y_bottom, y_top = animation._fig.axes[0].get_ylim()
 
         assert len(line.get_xdata()) == len(data_frame)
         assert list(line.get_ydata()) == [100.0, 140.0, 90.0]
+        assert y_bottom < 90.0
+        assert y_top > 140.0
     finally:
         plt.close(animation._fig)
 
 
-def test_animation_expands_time_window_while_lines_keep_full_data() -> None:
+def test_animation_keeps_full_time_window_while_labels_move_through_full_data() -> None:
     import matplotlib.dates as mdates
     import matplotlib.pyplot as plt
 
@@ -143,7 +146,7 @@ def test_animation_expands_time_window_while_lines_keep_full_data() -> None:
         assert len(line.get_xdata()) == len(data_frame)
         assert gradient_collections
         assert first_xlim[0] == start_num
-        assert first_xlim[1] < middle_xlim[1] < final_xlim[1]
+        assert first_xlim == middle_xlim == final_xlim
     finally:
         plt.close(animation._fig)
 
@@ -278,6 +281,63 @@ def test_combine_data_handles_invested_series_without_dividends() -> None:
     assert basis_columns["Invested"] == "SAVINGS_Invested"
     assert combined["DIVIDEND_Invested"].tolist() == [0.0, 0.0]
     assert combined["SAVINGS_Invested"].tolist() == [30_000.0, 60_000.0]
+
+
+def test_combine_data_uses_price_basis_for_close_return_not_savings() -> None:
+    data_list = [
+        {
+            "name": "SBER",
+            "color": "#FFD166",
+            "data": pd.DataFrame(
+                {
+                    "TRADEDATE": pd.to_datetime(["2020-01-01", "2020-01-02"]),
+                    "CLOSE": [100.0, 110.0],
+                    "DIVIDEND": [0.0, 0.0],
+                    "savings": [10_000.0, 10_000.0],
+                }
+            ),
+        }
+    ]
+
+    combined, _value_columns, _dividend_columns, basis_columns = _combine_data(data_list, "CLOSE")
+
+    assert basis_columns == {}
+    assert _return_summary("SBER", combined["SBER"], None) == "SBER: +10.0%"
+
+
+def test_combine_data_does_not_forward_fill_flat_tail_after_ticker_history_ends() -> None:
+    data_list = [
+        {
+            "name": "SHORT",
+            "color": "#FFD166",
+            "data": pd.DataFrame(
+                {
+                    "TRADEDATE": pd.to_datetime(["2020-01-01", "2020-01-02"]),
+                    "CAPITAL_REINVEST": [100.0, 120.0],
+                    "DIVIDEND": [0.0, 0.0],
+                    "savings": [100.0, 100.0],
+                }
+            ),
+        },
+        {
+            "name": "LONG",
+            "color": "#00D1B2",
+            "data": pd.DataFrame(
+                {
+                    "TRADEDATE": pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03"]),
+                    "CAPITAL_REINVEST": [100.0, 110.0, 130.0],
+                    "DIVIDEND": [0.0, 0.0, 0.0],
+                    "savings": [100.0, 100.0, 100.0],
+                }
+            ),
+        },
+    ]
+
+    combined, _value_columns, _dividend_columns, basis_columns = _combine_data(data_list, "CAPITAL_REINVEST")
+
+    assert combined["SHORT"].tolist()[:2] == [100.0, 120.0]
+    assert pd.isna(combined["SHORT"].iloc[-1])
+    assert pd.isna(combined[basis_columns["SHORT"]].iloc[-1])
 
 
 def test_generate_unique_colors_shuffles_palette(monkeypatch) -> None:

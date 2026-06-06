@@ -33,7 +33,7 @@ hide:
 
 <figure class="sp-media">
   <img src="assets/demo-sber-lkoh.gif" alt="Анимированный пример графика SBER и LKOH">
-  <figcaption>Ускоренный GIF из реального MP4: график SBER и LKOH постепенно строится по всей истории.</figcaption>
+  <figcaption>Ускоренный GIF из реального MP4: полная история уже видна, а дата и подписи движутся по графику.</figcaption>
 </figure>
 
 ## Быстрый старт
