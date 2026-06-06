@@ -9,7 +9,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from stock_prices._internal.lib.events import add_events, load_events
-from stock_prices._internal.lib.file_utils import save_to_parquet
 from stock_prices._internal.lib.validators import validate_quote_structure
 
 
@@ -87,8 +86,7 @@ def enrich_me_data(
     return grouped
 
 
-def download_moex_data(engine: str, market: str, ticker: str, start_date: pd.Timestamp, end_date: pd.Timestamp) -> None:
-    date_str = f"{start_date:%Y%m%d}_{end_date:%Y%m%d}"
+def download_moex_data(engine: str, market: str, ticker: str, start_date: pd.Timestamp, end_date: pd.Timestamp) -> pd.DataFrame:
     with _make_moex_session() as session:
         data = apimoex.get_market_history(
             session,
@@ -107,4 +105,4 @@ def download_moex_data(engine: str, market: str, ticker: str, start_date: pd.Tim
     df = pd.DataFrame(valid_data)
     df["TRADEDATE"] = pd.to_datetime(df["TRADEDATE"])
     logging.info("[%s] Downloaded %s MOEX rows", ticker, len(df))
-    save_to_parquet(enrich_me_data(df, ticker, start_date, end_date, engine, market), engine, market, ticker, date_str)
+    return enrich_me_data(df, ticker, start_date, end_date, engine, market)

@@ -18,6 +18,6 @@ COPY src ./src
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir .
 
-RUN mkdir -p /app/animations /app/logs /app/stock /app/global /app/currency /app/futures
+RUN mkdir -p /app/animations /app/logs
 
 CMD ["python", "-m", "stock_prices", "bot"]
