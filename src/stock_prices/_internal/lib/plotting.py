@@ -126,6 +126,8 @@ def _combine_data(data_list: list[dict[str, Any]], value_column: str) -> tuple[p
     value_columns = []
     dividend_columns: dict[str, str] = {}
     basis_columns: dict[str, str] = {}
+    valid_date_ranges: dict[str, tuple[pd.Timestamp, pd.Timestamp]] = {}
+    use_investment_basis = value_column == "CAPITAL_REINVEST"
 
     for item in data_list:
         name = item["name"]
@@ -133,12 +135,13 @@ def _combine_data(data_list: list[dict[str, Any]], value_column: str) -> tuple[p
         if value_column not in df_temp:
             raise ValueError(f"{name} has no column {value_column}")
         df_temp["TRADEDATE"] = pd.to_datetime(df_temp["TRADEDATE"])
+        valid_date_ranges[name] = (df_temp["TRADEDATE"].min(), df_temp["TRADEDATE"].max())
         df_temp[name] = pd.to_numeric(df_temp[value_column], errors="coerce")
         dividend_col = f"DIVIDEND_{name}"
         dividend_values = df_temp["DIVIDEND"] if "DIVIDEND" in df_temp else pd.Series(0.0, index=df_temp.index)
         df_temp[dividend_col] = pd.to_numeric(dividend_values, errors="coerce").fillna(0.0)
         columns = ["TRADEDATE", name, dividend_col]
-        if "savings" in df_temp:
+        if use_investment_basis and "savings" in df_temp:
             basis_col = f"SAVINGS_{name}"
             df_temp[basis_col] = pd.to_numeric(df_temp["savings"], errors="coerce")
             columns.append(basis_col)
@@ -155,6 +158,11 @@ def _combine_data(data_list: list[dict[str, Any]], value_column: str) -> tuple[p
     combined_df[list(dividend_columns.values())] = combined_df[list(dividend_columns.values())].fillna(0.0)
     if basis_columns:
         combined_df[list(basis_columns.values())] = combined_df[list(basis_columns.values())].ffill()
+    for name, (_first_date, last_date) in valid_date_ranges.items():
+        after_last = combined_df["TRADEDATE"] > last_date
+        combined_df.loc[after_last, name] = float("nan")
+        if name in basis_columns:
+            combined_df.loc[after_last, basis_columns[name]] = float("nan")
     return combined_df, value_columns, dividend_columns, basis_columns
 
 
@@ -192,8 +200,7 @@ def _prefix_y_limits(values: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
 
 
 def _visible_x_span_days(x_start: pd.Timestamp, frame_date: pd.Timestamp, total_span_days: int) -> int:
-    elapsed_days = max(1, int((frame_date - x_start).days))
-    return min(max(1, total_span_days), elapsed_days)
+    return max(1, total_span_days)
 
 
 def _animation_frame_data(combined_df: pd.DataFrame, frame_index: int) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -260,7 +267,6 @@ def create_multi_line_animation(
 
     chart_theme = get_chart_theme(theme) if isinstance(theme, str) else theme
     combined_df, value_columns, dividend_columns, basis_columns = _combine_data(data_list, value_column)
-    prefix_y_min, prefix_y_max = _prefix_y_limits(combined_df[value_columns])
     all_frames = _frame_indexes(len(combined_df), target_duration, fps, final_frame_duration)
 
     plt.rcParams["figure.facecolor"] = chart_theme.figure_bg
@@ -273,6 +279,12 @@ def create_multi_line_animation(
     source_events = data_list[0]["data"] if data_list else pd.DataFrame()
     event_ranges = _event_ranges(source_events)
     ax.set_xlim(x_start, x_end + pd.Timedelta(days=x_span_days * 0.12))
+    full_values = combined_df[value_columns].stack().dropna()
+    if not full_values.empty:
+        y_min = float(full_values.min())
+        y_max = float(full_values.max())
+        margin = max((y_max - y_min) * 0.12, abs(y_max) * 0.02, 1.0)
+        ax.set_ylim(y_min - margin, y_max + margin)
     ax.grid(True, alpha=0.2, color=chart_theme.grid_color, linewidth=0.8)
     ax.set_ylabel(y_label, color=chart_theme.axis_color, fontsize=14)
     ax.tick_params(axis="both", labelcolor=chart_theme.axis_color, labelsize=11, colors=chart_theme.axis_color)
@@ -369,14 +381,6 @@ def create_multi_line_animation(
         date_artist.set_text(frame_date.strftime("%d.%m.%Y"))
         visible_x_span_days = _visible_x_span_days(x_start, frame_date, x_span_days)
         ax.set_xlim(x_start, x_start + pd.Timedelta(days=visible_x_span_days * 1.12))
-
-        y_min_value = prefix_y_min.iloc[frame_index]
-        y_max_value = prefix_y_max.iloc[frame_index]
-        if pd.notna(y_min_value) and pd.notna(y_max_value):
-            y_min = float(y_min_value)
-            y_max = float(y_max_value)
-            margin = max((y_max - y_min) * 0.12, abs(y_max) * 0.02, 1.0)
-            ax.set_ylim(y_min - margin, y_max + margin)
 
         label_targets: list[tuple[str, pd.Timestamp, float, str]] = []
         for name in value_columns:
