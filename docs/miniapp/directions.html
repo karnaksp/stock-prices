@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0f14">
+  <title>Market Motion Mini App: варианты дизайна</title>
+  <link rel="stylesheet" href="./directions.css">
+</head>
+<body>
+  <main class="directions-shell">
+    <header class="directions-hero">
+      <div>
+        <p class="eyebrow">Market Motion Mini App</p>
+        <h1>Три направления интерфейса</h1>
+      </div>
+      <p class="hero-copy">
+        Ценность продукта в том, что автор быстро собирает ролик из любых тикеров, рынков,
+        валют и параметров. Поэтому экран должен быть не витриной пресетов, а чистым
+        конструктором запроса с сильной визуальной обратной связью.
+      </p>
+    </header>
+
+    <section class="comparison-strip" aria-label="Критерии выбора">
+      <div>
+        <span>01</span>
+        <strong>Быстро</strong>
+        <p>Один экран, минимум шагов, команда всегда видна.</p>
+      </div>
+      <div>
+        <span>02</span>
+        <strong>Понятно</strong>
+        <p>Параметры сгруппированы по смыслу, без справочной свалки.</p>
+      </div>
+      <div>
+        <span>03</span>
+        <strong>Контентно</strong>
+        <p>Интерфейс ощущается как студия для роликов, а не как форма настроек.</p>
+      </div>
+    </section>
+
+    <section class="designer-verdict" aria-label="Рекомендация дизайнера">
+      <div>
+        <p class="eyebrow">Вывод дизайнера</p>
+        <h2>Ticker Composer + Mini Studio Preview</h2>
+      </div>
+      <p>
+        Главный экран стоит строить вокруг большого поля тикеров, компактного summary
+        будущего ролика и одной сильной кнопки. Сырые параметры и команду лучше оставить
+        доступными, но вторичными: через раскрываемые настройки и копирование.
+      </p>
+    </section>
+
+    <section class="direction direction--studio" id="studio">
+      <div class="direction-copy">
+        <p class="eyebrow">Вариант 1</p>
+        <h2>Studio Console</h2>
+        <p>
+          Темный профессиональный интерфейс для автора, который уже понимает синтаксис.
+          Основной фокус: тикеры, период, формат видео и готовая команда.
+        </p>
+        <ul class="notes-list">
+          <li><strong>Сильная сторона:</strong> быстро собирать точный запрос без обучения.</li>
+          <li><strong>Риск:</strong> для новичка выглядит чуть более технически.</li>
+          <li><strong>Лучше для:</strong> текущего рабочего бота и частого ручного использования.</li>
+        </ul>
+      </div>
+
+      <div class="phone-frame phone-frame--studio" aria-label="Макет Studio Console">
+        <div class="phone-status">
+          <span>9:41</span>
+          <span>Market Motion</span>
+        </div>
+        <div class="screen-topline">
+          <span class="signal-dot"></span>
+          <span>Видео из тикеров</span>
+        </div>
+        <h3>SBER / LKOH / POSI</h3>
+        <div class="ticker-input">SBER&nbsp;&nbsp;LKOH&nbsp;&nbsp;POSI</div>
+        <div class="quick-grid">
+          <button>Акции РФ</button>
+          <button>Металлы</button>
+          <button>Crypto</button>
+          <button>Global</button>
+        </div>
+        <div class="field-row">
+          <span>Период</span>
+          <strong>10 лет</strong>
+        </div>
+        <div class="field-row">
+          <span>Видео</span>
+          <strong>16s · 24fps</strong>
+        </div>
+        <div class="field-row field-row--accent">
+          <span>Расчет</span>
+          <strong>Капитал · RUB</strong>
+        </div>
+        <div class="command-card">
+          <span>Команда</span>
+          <p>SBER LKOH POSI from=2016-01-01 RUB capital gradient duration=16 fps=24</p>
+        </div>
+        <button class="send-button">Отправить в бот</button>
+      </div>
+    </section>
+
+    <section class="direction direction--creator" id="creator">
+      <div class="direction-copy">
+        <p class="eyebrow">Вариант 2 · рекомендация</p>
+        <h2>Creator Deck</h2>
+        <p>
+          Мобильный конструктор как монтажный пульт: сверху смысл будущего ролика,
+          ниже короткие блоки параметров, снизу постоянное действие отправки.
+        </p>
+        <ul class="notes-list">
+          <li><strong>Сильная сторона:</strong> лучше всего продает ценность продукта в Telegram.</li>
+          <li><strong>Риск:</strong> потребует аккуратно перепаковать текущую форму.</li>
+          <li><strong>Лучше для:</strong> первого полноценного продуктового релиза Mini App.</li>
+        </ul>
+      </div>
+
+      <div class="phone-frame phone-frame--creator" aria-label="Макет Creator Deck">
+        <div class="phone-status phone-status--light">
+          <span>9:41</span>
+          <span>Short Studio</span>
+        </div>
+        <div class="story-panel">
+          <p>Сценарий ролика</p>
+          <h3>Что было бы с 30 000 ₽ каждый месяц?</h3>
+          <div class="story-chips">
+            <span>GC=F</span>
+            <span>SI=F</span>
+            <span>PA=F</span>
+          </div>
+        </div>
+        <div class="step-card step-card--active">
+          <span>1</span>
+          <div>
+            <strong>Активы</strong>
+            <p>Тикеры, рынок, валюта графика</p>
+          </div>
+        </div>
+        <div class="step-card">
+          <span>2</span>
+          <div>
+            <strong>История</strong>
+            <p>2010-01-01 → сегодня</p>
+          </div>
+        </div>
+        <div class="step-card">
+          <span>3</span>
+          <div>
+            <strong>Инвестиции</strong>
+            <p>initial=0 · monthly=30000</p>
+          </div>
+        </div>
+        <div class="mini-preview">
+          <div class="preview-chart">
+            <i></i>
+            <i></i>
+            <i></i>
+          </div>
+          <div class="preview-meta">
+            <span>16s</span>
+            <span>24fps</span>
+            <span>RUB</span>
+          </div>
+        </div>
+        <button class="dock-button">Собрать видео</button>
+      </div>
+    </section>
+
+    <section class="direction direction--ledger" id="ledger">
+      <div class="direction-copy">
+        <p class="eyebrow">Вариант 3</p>
+        <h2>Market Ledger</h2>
+        <p>
+          Более светлая редакционная подача: крупная читаемость, спокойные цвета,
+          акцент на сравнении сценариев и проверке команды перед отправкой.
+        </p>
+        <ul class="notes-list">
+          <li><strong>Сильная сторона:</strong> приятнее для длинной настройки и документации.</li>
+          <li><strong>Риск:</strong> хуже совпадает с темным стилем итоговых видео.</li>
+          <li><strong>Лучше для:</strong> будущей web-версии, галереи идей и планировщика контента.</li>
+        </ul>
+      </div>
+
+      <div class="phone-frame phone-frame--ledger" aria-label="Макет Market Ledger">
+        <div class="phone-status phone-status--paper">
+          <span>9:41</span>
+          <span>Ledger</span>
+        </div>
+        <div class="ledger-header">
+          <p>Новый ролик</p>
+          <h3>Сравнение активов</h3>
+        </div>
+        <div class="asset-list">
+          <div>
+            <span class="asset-color asset-color--blue"></span>
+            <strong>BELU</strong>
+            <small>MOEX stock</small>
+          </div>
+          <div>
+            <span class="asset-color asset-color--orange"></span>
+            <strong>ABRD</strong>
+            <small>MOEX stock</small>
+          </div>
+          <div>
+            <span class="asset-color asset-color--green"></span>
+            <strong>KLVZ</strong>
+            <small>MOEX stock</small>
+          </div>
+        </div>
+        <div class="ledger-grid">
+          <div>
+            <span>Период</span>
+            <strong>2024 → 2026</strong>
+          </div>
+          <div>
+            <span>Формат</span>
+            <strong>Shorts</strong>
+          </div>
+          <div>
+            <span>Взнос</span>
+            <strong>30 000 ₽</strong>
+          </div>
+          <div>
+            <span>Тема</span>
+            <strong>Studio</strong>
+          </div>
+        </div>
+        <div class="ledger-command">BELU ABRD KLVZ RUB capital invest monthly=30000 gradient</div>
+        <button class="ledger-button">Отправить запрос</button>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
