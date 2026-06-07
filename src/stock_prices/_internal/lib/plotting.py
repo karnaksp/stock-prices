@@ -97,7 +97,18 @@ def create_another_color(base_color: str, hue_shift: float = 0.08, lightness_fac
     return colorsys.hls_to_rgb((hue + hue_shift) % 1.0, min(lightness * lightness_factor, 1), saturation)
 
 
-def draw_gradient_line(ax, x_data, y_data, start_color: str, name: str, n_segments: int = 50):
+def draw_gradient_line(
+    ax,
+    x_data,
+    y_data,
+    start_color: str,
+    name: str,
+    n_segments: int = 50,
+    *,
+    alpha: float = 0.65,
+    linewidth: float = 3.6,
+    zorder: int = 3,
+):
     from matplotlib.collections import LineCollection
     from matplotlib.colors import LinearSegmentedColormap
     import matplotlib.dates as mdates
@@ -110,7 +121,8 @@ def draw_gradient_line(ax, x_data, y_data, start_color: str, name: str, n_segmen
     x_num = mdates.date2num(pd.to_datetime(x_data))
     points = np.array([x_num, pd.to_numeric(y_data, errors="coerce")]).T.reshape(-1, 1, 2)
     segments = np.concatenate([points[:-1], points[1:]], axis=1)
-    collection = LineCollection(segments, cmap=color_map, linewidth=2.8, alpha=0.9)
+    collection = LineCollection(segments, cmap=color_map, linewidth=linewidth, alpha=alpha, zorder=zorder)
+    collection.set_capstyle("round")
     collection.set_array(np.linspace(0, 1, len(segments)))
     ax.add_collection(collection)
     return end_color
@@ -416,7 +428,17 @@ def create_multi_line_animation(
     fill_artists = []
     for name in value_columns:
         color = by_name[name]["color"]
-        (line,) = ax.plot([], [], color=color, linewidth=3.0, alpha=0.92, label=name, solid_capstyle="round")
+        (line,) = ax.plot(
+            [],
+            [],
+            color=color,
+            linewidth=3.1,
+            alpha=0.94,
+            label=name,
+            solid_capstyle="round",
+            solid_joinstyle="round",
+            zorder=4,
+        )
         lines[name] = line
         labels[name] = ax.text(
             combined_df["TRADEDATE"].iloc[0],
@@ -472,14 +494,17 @@ def create_multi_line_animation(
             if line_clean.empty or current_clean.empty:
                 labels[name].set_text("")
                 summary_artists[name].set_text("")
+                lines[name].set_data([], [])
                 continue
             line_x = line_x_data.loc[line_clean.index]
             current_line_x = current_x_data.loc[current_clean.index]
-            sampled_line_x, sampled_line_y = _sample_frame_series(line_x, line_clean)
+            sampled_line_x, sampled_line_y = line_x, line_clean
             if use_gradient:
-                lines[name].set_data([], [])
-                lines[name].set_alpha(0.0)
-                gradient_x, gradient_y = _sample_frame_series(current_line_x, current_clean)
+                lines[name].set_alpha(0.96)
+                lines[name].set_data(sampled_line_x, sampled_line_y)
+                tail_point_count = min(180, len(current_clean))
+                gradient_x = current_line_x.iloc[-tail_point_count:]
+                gradient_y = current_clean.iloc[-tail_point_count:]
                 before = len(ax.collections)
                 draw_gradient_line(ax, gradient_x, gradient_y, by_name[name]["color"], name)
                 gradient_collections.extend(ax.collections[before:])
@@ -617,7 +642,7 @@ def render_charts(
         fps=getattr(args, "fps", 20),
         codec="libx264",
         bitrate=-1,
-        extra_args=["-pix_fmt", "yuv420p", "-movflags", "+faststart", "-preset", "veryfast", "-crf", "21"],
+        extra_args=["-pix_fmt", "yuv420p", "-movflags", "+faststart", "-preset", "veryfast", "-tune", "animation", "-crf", "18"],
     )
     logging.info("Saving animation to %s", filepath)
     anim.save(filepath, writer=writer)
