@@ -53,11 +53,11 @@
   };
 
   function isTelegramLaunch() {
-    return Boolean(tg && tg.initData);
+    return Boolean(tg && (tg.initData || (tg.platform && tg.platform !== "unknown")));
   }
 
   function canSendToTelegram() {
-    return isTelegramLaunch() && typeof tg.sendData === "function";
+    return Boolean(tg && typeof tg.sendData === "function" && isTelegramLaunch());
   }
 
   function todayIso() {
@@ -343,17 +343,16 @@
     }
     copyText(result.text)
       .then(() => {
-        updateStatus("Запрос скопирован.", true);
+        updateStatus("Запрос скопирован. Чтобы отправить напрямую, открой Mini App из чата через /app.", true);
       })
       .catch(() => {
-        updateStatus("Не удалось скопировать запрос.", false);
+        updateStatus("Не удалось отправить напрямую. Открой Mini App из чата через /app.", false);
       });
   }
 
   function initTelegram() {
     if (!isTelegramLaunch()) {
       els.telegramStatus.textContent = "Browser";
-      els.send.textContent = "Скопировать запрос";
       return;
     }
     tg.ready();
@@ -434,6 +433,8 @@
     if (!result.error) {
       copyText(result.text).then(() => {
         updateStatus("Запрос скопирован.", true);
+      }).catch(() => {
+        updateStatus("Не удалось скопировать запрос.", false);
       });
     }
   });

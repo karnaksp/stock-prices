@@ -549,6 +549,14 @@ h2 {
   flex: 0 0 auto;
 }
 
+.secondary-button--dock {
+  min-height: 56px;
+  padding-inline: 12px;
+  border-color: rgba(199, 209, 223, 0.32);
+  color: var(--muted-strong);
+  background: var(--surface-soft);
+}
+
 .preview-meta {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -599,6 +607,12 @@ h2 {
   line-height: 1.48;
   overflow: auto;
   overflow-wrap: anywhere;
+}
+
+.dock-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  gap: 8px;
 }
 
 .primary-button {
@@ -687,6 +701,10 @@ h2 {
   .preview-meta {
     grid-template-columns: 1fr;
   }
+
+  .dock-actions {
+    grid-template-columns: minmax(0, 1fr) 84px;
+  }
 }
 
 @media (max-width: 380px) {
@@ -705,5 +723,9 @@ h2 {
 
   .status-stack {
     width: 78px;
+  }
+
+  .dock-actions {
+    grid-template-columns: 1fr;
   }
 }
