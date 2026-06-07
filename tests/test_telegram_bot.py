@@ -92,18 +92,20 @@ def test_telegram_bot_command_menu_is_compact() -> None:
 
     assert [item["command"] for item in commands] == [
         "menu",
+        "app",
         "shoot",
         "shorts",
         "params",
         "queue",
         "help",
     ]
-    assert len(commands) <= 6
+    assert len(commands) <= 7
     assert all(1 <= len(item["description"]) <= 256 for item in commands)
     assert all("/" not in item["command"] for item in commands)
     assert all(item["command"].replace("_", "").isalnum() and item["command"].islower() for item in commands)
-    assert commands[2] == {"command": "shorts", "description": "истории или свой запрос"}
-    assert commands[3] == {"command": "params", "description": "параметры запроса"}
+    assert commands[1] == {"command": "app", "description": "мини-приложение"}
+    assert commands[3] == {"command": "shorts", "description": "истории или свой запрос"}
+    assert commands[4] == {"command": "params", "description": "параметры запроса"}
 
 
 def test_preset_followup_keyboard_keeps_post_render_actions() -> None:
@@ -2228,6 +2230,115 @@ def test_handle_ticker_message_shows_quick_launch_without_render(monkeypatch) ->
     assert client.videos == []
 
 
+def test_handle_ticker_message_shows_mini_app_launch_without_render(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        mini_app_url="https://example.test/miniapp/",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("mini app launcher must not render video")
+
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    handle_ticker_message(client, settings, 123, "/app")
+
+    assert "Market Motion Mini App" in client.messages[0][1]
+    assert "попадет в очередь" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.mini_app_keyboard("https://example.test/miniapp/")]
+    keyboard = client.message_markups[0]["keyboard"]
+    assert keyboard[0][0] == {
+        "text": "Открыть Mini App",
+        "web_app": {"url": "https://example.test/miniapp/"},
+    }
+    assert client.videos == []
+
+
+def test_run_telegram_bot_menu_callback_opens_mini_app(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 70,
+                    "callback_query": {
+                        "id": "callback-menu-mini-app",
+                        "data": "menu:mini_app",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        mini_app_url="https://example.test/miniapp/",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-mini-app", "Mini App открыт.")]
+    assert "Market Motion Mini App" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.mini_app_keyboard("https://example.test/miniapp/")]
+    assert client.videos == []
+
+
+def test_run_telegram_bot_queues_web_app_data_request(monkeypatch, tmp_path: Path) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            payload = {
+                "type": "stock_prices.video_request.v1",
+                "text": "SBER LKOH from=2020-01-01 to=2024-12-31 RUB capital shorts theme=studio",
+                "source": "telegram-mini-app",
+            }
+            return [
+                {
+                    "update_id": 71,
+                    "message": {
+                        "chat": {"id": 123},
+                        "web_app_data": {
+                            "button_text": "Открыть Mini App",
+                            "data": json.dumps(payload),
+                        },
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    output_path = tmp_path / "miniapp.mp4"
+    output_path.write_bytes(b"video")
+    generated = []
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), output_dir=tmp_path),
+    )
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, [spec.ticker for spec in request.ticker_specs], request.render.duration, request.render.fps, request.render.theme))
+        return output_path
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert generated == [("tg-71", ["SBER", "LKOH"], 16, 24, "studio")]
+    assert "Генерирую видео: SBER / LKOH" in client.messages[1][1]
+    assert client.videos == [(123, output_path, "SBER / LKOH: 2020-01-01 - 2024-12-31")]
+
+
 def test_handle_ticker_message_shows_parameters_guide_without_render(monkeypatch) -> None:
     client = FakeClient()
     settings = TelegramBotSettings(
@@ -4172,12 +4283,16 @@ def test_handle_ticker_message_shows_main_menu() -> None:
 
     assert "Market Motion Bot" in client.messages[0][1]
     assert "любым тикерам" in client.messages[0][1]
+    assert "Mini App" in client.messages[0][1]
     assert "запрос одной строкой" in client.messages[0][1]
     assert "топовые shorts-сценарии" not in client.messages[0][1]
     assert "полный пакет shorts" not in client.messages[0][1]
     assert client.message_markups[0] == telegram_bot.main_menu_keyboard()
     keyboard = client.message_markups[0]["inline_keyboard"]
     assert keyboard == [
+        [
+            {"text": "🌐 Mini App", "callback_data": "menu:mini_app"},
+        ],
         [
             {"text": "✍️ Свой ролик", "callback_data": "menu:quick_launch"},
             {"text": "🎲 Random", "callback_data": "menu:random_menu"},
@@ -4271,7 +4386,7 @@ def test_handle_ticker_message_shows_main_menu_with_russian_command() -> None:
     handle_ticker_message(client, settings, 123, "/меню")
 
     assert "Market Motion Bot" in client.messages[0][1]
-    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "menu:quick_launch"
+    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "menu:mini_app"
     assert client.videos == []
 
 

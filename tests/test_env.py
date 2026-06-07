@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from stock_prices._internal.cli import get_bot_parser
-from stock_prices._internal.env import get_cleanup_retention_days, load_env_file
+from stock_prices._internal.env import DEFAULT_MINI_APP_URL, get_cleanup_retention_days, get_mini_app_url, load_env_file
 
 
 def test_load_env_file_sets_missing_values(tmp_path: Path, monkeypatch) -> None:
@@ -39,6 +39,14 @@ def test_bot_parser_reads_allowed_chat_ids_from_env(monkeypatch) -> None:
     assert args.allowed_chat_id == [123, 456]
 
 
+def test_bot_parser_reads_mini_app_url_from_env(monkeypatch) -> None:
+    monkeypatch.setenv("STOCK_PRICES_MINI_APP_URL", "https://example.test/app/")
+
+    args = get_bot_parser().parse_args([])
+
+    assert args.mini_app_url == "https://example.test/app/"
+
+
 def test_cleanup_retention_days_reads_primary_env(monkeypatch) -> None:
     monkeypatch.setenv("STOCK_PRICES_RETENTION_DAYS", "14")
 
@@ -54,3 +62,15 @@ def test_cleanup_retention_days_rejects_negative_values(monkeypatch) -> None:
         assert "non-negative integer" in str(exc)
     else:
         raise AssertionError("Expected ValueError")
+
+
+def test_mini_app_url_reads_env(monkeypatch) -> None:
+    monkeypatch.setenv("STOCK_PRICES_MINI_APP_URL", "https://example.test/miniapp/")
+
+    assert get_mini_app_url() == "https://example.test/miniapp/"
+
+
+def test_mini_app_url_uses_pages_default(monkeypatch) -> None:
+    monkeypatch.delenv("STOCK_PRICES_MINI_APP_URL", raising=False)
+
+    assert get_mini_app_url() == DEFAULT_MINI_APP_URL

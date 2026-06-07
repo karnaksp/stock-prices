@@ -5,6 +5,8 @@ from pathlib import Path
 
 RETENTION_DAYS_ENV = "STOCK_PRICES_RETENTION_DAYS"
 CLEANUP_RETENTION_DAYS_ENV = "STOCK_PRICES_CLEANUP_RETENTION_DAYS"
+MINI_APP_URL_ENV = "STOCK_PRICES_MINI_APP_URL"
+DEFAULT_MINI_APP_URL = "https://karnaksp.github.io/stock-prices/miniapp/"
 
 
 def load_env_file(path: str | Path = ".env") -> None:
@@ -38,3 +40,8 @@ def get_cleanup_retention_days(default: int = 0) -> int:
         msg = f"{RETENTION_DAYS_ENV} must be a non-negative integer."
         raise ValueError(msg)
     return retention_days
+
+
+def get_mini_app_url(default: str = DEFAULT_MINI_APP_URL) -> str:
+    value = os.getenv(MINI_APP_URL_ENV, "").strip()
+    return value or default
