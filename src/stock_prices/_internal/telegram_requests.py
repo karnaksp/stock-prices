@@ -639,7 +639,7 @@ def parse_telegram_video_request(
         elif lowered in {"crypto", "metals", "commodities"}:
             engine = "global"
             market = lowered
-        elif lowered == "selt":
+        elif lowered in {"currency", "selt"}:
             engine = "currency"
             market = "selt"
         elif lowered in {"shares", "bonds", "index"}:

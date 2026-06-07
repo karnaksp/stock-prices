@@ -57,7 +57,7 @@ Telegram-бот делает market-motion videos из Mini App или обыч�
 
 | Задача | Что отправить |
 | --- | --- |
-| Открыть Mini App | `/app` |
+| Открыть Mini App | кнопка `Mini App` в Telegram или `/app` |
 | Открыть меню | `/start` или `/menu` |
 | Посмотреть справку | `/help` |
 | Посмотреть параметры | `/params` |

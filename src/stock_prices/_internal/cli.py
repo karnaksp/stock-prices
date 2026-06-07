@@ -10,7 +10,12 @@ from pathlib import Path
 from typing import Any
 
 from stock_prices._internal import debug
-from stock_prices._internal.env import get_cleanup_retention_days, get_mini_app_url, load_env_file
+from stock_prices._internal.env import (
+    get_cleanup_retention_days,
+    get_mini_app_menu_button_enabled,
+    get_mini_app_url,
+    load_env_file,
+)
 from stock_prices._internal.models import RenderSettings, VideoRequest, parse_ticker_spec
 from stock_prices._internal.pipeline import generate_video
 from stock_prices._internal.rendering.theme import get_theme_names
@@ -95,6 +100,12 @@ def get_bot_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output_dir", default=os.getenv("STOCK_PRICES_OUTPUT_DIR", "animations"))
     parser.add_argument("--mini_app_url", default=get_mini_app_url(), help="Telegram Mini App URL.")
     parser.add_argument(
+        "--mini_app_menu_button",
+        action=argparse.BooleanOptionalAction,
+        default=get_mini_app_menu_button_enabled(),
+        help="Configure the persistent Telegram menu button to open Mini App.",
+    )
+    parser.add_argument(
         "--retention_days",
         type=int,
         default=get_cleanup_retention_days(),
@@ -169,6 +180,7 @@ def _run_bot(argv: Sequence[str]) -> int:
         once=args.once,
         cleanup_retention_days=args.retention_days,
         mini_app_url=args.mini_app_url,
+        mini_app_menu_button=args.mini_app_menu_button,
         render=RenderSettings(
             start_date=args.start_date,
             end_date=args.end_date,

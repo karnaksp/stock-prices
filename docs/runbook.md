@@ -60,6 +60,8 @@ STOCK_PRICES_FPS=20
 STOCK_PRICES_THEME=default
 STOCK_PRICES_OUTPUT_DIR=animations
 STOCK_PRICES_RETENTION_DAYS=0
+STOCK_PRICES_MINI_APP_URL=https://karnaksp.github.io/stock-prices/miniapp/
+STOCK_PRICES_MINI_APP_MENU_BUTTON=true
 ```
 
 Проверить, что Telegram API видит бота:
@@ -123,6 +125,7 @@ python -m stock_prices bot
 Отправить боту сообщения:
 
 ```text
+/app
 LKOH
 LKOH SBER 2020 2024
 AAPL global USD gradient
@@ -135,11 +138,12 @@ USD000UTSTOM selt 2024 close
 
 Ожидаемый сценарий:
 
-1. Бот ставит запрос в очередь и показывает `job id`.
-2. Бот отвечает статусом `Генерирую видео`.
-3. Скачивает или обновляет данные.
-4. Собирает MP4.
-5. Отправляет видео обратно в чат.
+1. `/app` открывает Telegram-кнопку Mini App; после старта бота постоянная кнопка `Mini App` также появляется в меню Telegram, если клиент ее поддерживает.
+2. Текстовый запрос или запрос из Mini App попадает в очередь и показывает `job id`.
+3. Бот отвечает статусом `Генерирую видео`.
+4. Скачивает или обновляет данные.
+5. Собирает MP4.
+6. Отправляет видео обратно в чат.
 
 Подробный синтаксис: [Как писать запросы в Telegram](telegram.md).
 

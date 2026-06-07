@@ -16,6 +16,7 @@ def test_miniapp_static_entrypoint_exists() -> None:
     assert 'id="mode-status"' in html
     assert 'data-mode="shorts"' in html
     assert 'data-metric="capital"' in html
+    assert '<option value="selt">Currency</option>' in html
 
 
 def test_miniapp_sends_supported_telegram_payload() -> None:
