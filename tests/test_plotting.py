@@ -11,6 +11,7 @@ from stock_prices._internal.lib.plotting import (
     _animation_frame_data,
     _combine_data,
     _event_ranges,
+    _frame_y_limits,
     _prefix_y_limits,
     _return_summary,
     _sample_frame_series,
@@ -187,17 +188,19 @@ def test_animation_grows_time_window_while_series_uses_current_slice() -> None:
 def test_animation_grows_y_window_with_visible_prefix() -> None:
     import matplotlib.pyplot as plt
 
+    trade_dates = pd.date_range("2021-12-17", periods=100, freq="D")
+    prices = [100.0 + index * 0.1 for index in range(99)] + [1000.0]
     data_frame = pd.DataFrame(
         {
-            "TRADEDATE": pd.to_datetime(["2021-12-17", "2022-01-17", "2022-02-17"]),
-            "CLOSE": [100.0, 105.0, 1000.0],
-            "DIVIDEND": [0.0, 0.0, 0.0],
+            "TRADEDATE": trade_dates,
+            "CLOSE": prices,
+            "DIVIDEND": [0.0] * len(prices),
         }
     )
     animation = create_multi_line_animation(
         [{"name": "SBER", "color": "#FFD166", "data": data_frame}],
-        target_duration=3,
-        fps=1,
+        target_duration=10,
+        fps=10,
         final_frame_duration=0,
     )
 
@@ -206,18 +209,30 @@ def test_animation_grows_y_window_with_visible_prefix() -> None:
         animation._draw_was_started = True
         first_ylim = animation._fig.axes[0].get_ylim()
 
-        animation._func(1)
+        animation._func(45)
         middle_ylim = animation._fig.axes[0].get_ylim()
 
-        animation._func(2)
+        animation._func(99)
         final_ylim = animation._fig.axes[0].get_ylim()
 
         assert first_ylim == _y_limits_with_margin(100.0, 100.0)
-        assert middle_ylim == _y_limits_with_margin(100.0, 105.0)
         assert final_ylim == _y_limits_with_margin(100.0, 1000.0)
         assert first_ylim[1] < middle_ylim[1] < final_ylim[1]
     finally:
         plt.close(animation._fig)
+
+
+def test_frame_y_limits_smooth_future_expansion() -> None:
+    values = pd.DataFrame({"A": [100.0 + index * 0.1 for index in range(99)] + [1000.0]})
+    prefix_min, prefix_max = _prefix_y_limits(values)
+
+    frame_limits = _frame_y_limits(list(range(len(values))), prefix_min, prefix_max, fps=10)
+    tops = [limit[1] for limit in frame_limits if limit is not None]
+
+    assert tops[0] == _y_limits_with_margin(100.0, 100.0)[1]
+    assert tops[-1] == _y_limits_with_margin(100.0, 1000.0)[1]
+    assert tops[-41] > tops[0]
+    assert max(next_top - top for top, next_top in zip(tops, tops[1:], strict=False)) < 250
 
 
 def test_prefix_y_limits_match_visible_prefix_values_with_nans() -> None:
