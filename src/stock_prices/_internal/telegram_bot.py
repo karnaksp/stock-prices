@@ -13,7 +13,7 @@ from typing import Any, Callable
 
 import requests
 
-from stock_prices._internal.env import get_cleanup_retention_days
+from stock_prices._internal.env import get_cleanup_retention_days, get_mini_app_url
 from stock_prices._internal.content_universe import (
     GeneratedContentIdea,
     build_random_content_idea,
@@ -49,6 +49,7 @@ class TelegramApiError(RuntimeError):
 
 TELEGRAM_BOT_COMMANDS: tuple[tuple[str, str], ...] = (
     ("menu", "главный пульт"),
+    ("app", "мини-приложение"),
     ("shoot", "быстрый запуск"),
     ("shorts", "истории или свой запрос"),
     ("params", "параметры запроса"),
@@ -57,10 +58,19 @@ TELEGRAM_BOT_COMMANDS: tuple[tuple[str, str], ...] = (
 )
 RENDER_PROGRESS_FIRST_NOTICE_SECONDS = 90.0
 RENDER_PROGRESS_REPEAT_SECONDS = 180.0
+MINI_APP_PAYLOAD_TYPE = "stock_prices.video_request.v1"
 
 
 def telegram_bot_command_menu() -> list[dict[str, str]]:
     return [{"command": command, "description": description} for command, description in TELEGRAM_BOT_COMMANDS]
+
+
+def telegram_mini_app_menu_button(mini_app_url: str) -> dict[str, Any]:
+    return {
+        "type": "web_app",
+        "text": "Mini App",
+        "web_app": {"url": mini_app_url},
+    }
 
 
 def _redact_token(text: str, token: str) -> str:
@@ -103,6 +113,9 @@ class TelegramClient:
     def set_my_commands(self, commands: list[dict[str, str]]) -> None:
         self.call("setMyCommands", commands=json.dumps(commands, ensure_ascii=False))
 
+    def set_chat_menu_button(self, menu_button: dict[str, Any]) -> None:
+        self.call("setChatMenuButton", menu_button=json.dumps(menu_button, ensure_ascii=False))
+
     def answer_callback_query(self, callback_query_id: str, text: str = "") -> None:
         data: dict[str, Any] = {"callback_query_id": callback_query_id}
         if text:
@@ -137,6 +150,8 @@ class TelegramBotSettings:
         poll_timeout: int = 30,
         once: bool = False,
         cleanup_retention_days: int | None = None,
+        mini_app_url: str | None = None,
+        mini_app_menu_button: bool = True,
     ) -> None:
         self.token = token
         self.render = render
@@ -145,6 +160,8 @@ class TelegramBotSettings:
         self.default_market = default_market
         self.poll_timeout = poll_timeout
         self.once = once
+        self.mini_app_url = (mini_app_url or get_mini_app_url()).strip()
+        self.mini_app_menu_button = mini_app_menu_button
         self.cleanup_retention_days = (
             get_cleanup_retention_days() if cleanup_retention_days is None else cleanup_retention_days
         )
@@ -179,6 +196,7 @@ MENU_ACTIONS = {
     "guide",
     "help",
     "main_menu",
+    "mini_app",
     "parameters",
     "quick_launch",
     "reference",
@@ -388,6 +406,9 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return {
         "inline_keyboard": [
             [
+                {"text": "🌐 Mini App", "callback_data": f"{MENU_CALLBACK_PREFIX}mini_app"},
+            ],
+            [
                 {"text": "✍️ Свой ролик", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
                 {"text": "🎲 Random", "callback_data": f"{MENU_CALLBACK_PREFIX}random_menu"},
             ],
@@ -452,6 +473,26 @@ def random_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
 
 def quick_launch_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return main_menu_keyboard()
+
+
+def mini_app_keyboard(mini_app_url: str) -> dict[str, Any]:
+    return {
+        "keyboard": [
+            [
+                {
+                    "text": "Открыть Mini App",
+                    "web_app": {"url": mini_app_url},
+                }
+            ],
+            [
+                {"text": "Меню"},
+                {"text": "Статус очереди"},
+            ],
+        ],
+        "resize_keyboard": True,
+        "one_time_keyboard": False,
+        "input_field_placeholder": "Открой Mini App или напиши тикеры вручную",
+    }
 
 
 def help_keyboard() -> dict[str, list[list[dict[str, str]]]]:
@@ -1649,11 +1690,34 @@ class TelegramJobQueue:
 def _extract_text_message(update: dict[str, Any]) -> tuple[int, str] | None:
     message = update.get("message") or {}
     text = (message.get("text") or "").strip()
+    if not text:
+        text = (_request_text_from_web_app_data((message.get("web_app_data") or {}).get("data")) or "").strip()
     chat = message.get("chat") or {}
     chat_id = chat.get("id")
     if not text or chat_id is None:
         return None
     return int(chat_id), text
+
+
+def _request_text_from_web_app_data(data: Any) -> str | None:
+    if not isinstance(data, str):
+        return None
+    payload = data.strip()
+    if not payload:
+        return None
+    try:
+        decoded = json.loads(payload)
+    except json.JSONDecodeError:
+        return payload
+    if not isinstance(decoded, dict):
+        return payload
+    payload_type = decoded.get("type")
+    if payload_type is not None and payload_type != MINI_APP_PAYLOAD_TYPE:
+        return None
+    request_text = decoded.get("text") or decoded.get("request")
+    if isinstance(request_text, str) and request_text.strip():
+        return request_text.strip()
+    return None
 
 
 def _extract_preset_callback(update: dict[str, Any]) -> TelegramPresetCallback | None:
@@ -1850,7 +1914,7 @@ def _main_menu_text() -> str:
     return (
         "Market Motion Bot\n"
         "Создает короткие видео по любым тикерам, рынкам и инвестиционным сценариям.\n\n"
-        "Напиши запрос одной строкой или выбери быстрый режим ниже."
+        "Открой Mini App, напиши запрос одной строкой или выбери быстрый режим ниже."
     )
 
 
@@ -1890,6 +1954,18 @@ def format_quick_launch() -> str:
 
 def _send_quick_launch(client: TelegramClient, chat_id: int) -> None:
     client.send_message(chat_id, format_quick_launch(), reply_markup=quick_launch_keyboard())
+
+
+def format_mini_app_launch() -> str:
+    return (
+        "Market Motion Mini App\n\n"
+        "Открой форму, собери запрос кнопками и отправь его в бот. "
+        "После отправки ролик попадет в очередь генерации."
+    )
+
+
+def _send_mini_app_launch(client: TelegramClient, settings: TelegramBotSettings, chat_id: int) -> None:
+    client.send_message(chat_id, format_mini_app_launch(), reply_markup=mini_app_keyboard(settings.mini_app_url))
 
 
 def parameters_keyboard() -> dict[str, list[list[dict[str, str]]]]:
@@ -1989,7 +2065,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "Market Motion: как сделать ролик\n"
         f"По умолчанию: {default_engine}|{default_market}\n"
         "\n"
-        "Свой: /shorts + тикеры + период + валюта + invest/monthly.\n"
+        "Mini App: /app. Свой: /shorts + тикеры + период + валюта + invest/monthly.\n"
         "Random: random mixed 1/2/3, random metals 1, random drama 2.\n"
         "Серия: plan drama 5 days 2 tickers или plan shorts metals count=1 days=5.\n"
         "Статус: /queue или статус.\n\n"
@@ -2026,6 +2102,15 @@ def configure_telegram_command_menu(client: TelegramClient) -> None:
         client.set_my_commands(telegram_bot_command_menu())
     except TelegramApiError:
         logging.warning("Failed to update Telegram bot command menu.", exc_info=True)
+
+
+def configure_telegram_mini_app_menu_button(client: TelegramClient, mini_app_url: str, *, enabled: bool = True) -> None:
+    if not enabled or not mini_app_url:
+        return
+    try:
+        client.set_chat_menu_button(telegram_mini_app_menu_button(mini_app_url))
+    except TelegramApiError:
+        logging.warning("Failed to update Telegram Mini App menu button.", exc_info=True)
 
 
 def _slash_command_and_payload(text: str) -> tuple[str, str] | None:
@@ -2109,6 +2194,31 @@ def _is_production_guide(text: str) -> bool:
         "производство шортсов",
         "шпаргалка шортсов",
         "шпаргалка пульса",
+    }
+
+
+def _is_mini_app(text: str) -> bool:
+    command = _slash_command_and_payload(text)
+    if command is not None:
+        return command[0] in {
+            "/app",
+            "/miniapp",
+            "/mini_app",
+            "/webapp",
+            "/web_app",
+            "/приложение",
+            "/мини",
+        }
+    normalized = " ".join(text.strip().lower().replace("ё", "е").split())
+    return normalized in {
+        "app",
+        "miniapp",
+        "mini app",
+        "webapp",
+        "web app",
+        "приложение",
+        "мини приложение",
+        "мини-приложение",
     }
 
 
@@ -3193,6 +3303,9 @@ def handle_ticker_message(
     if _is_help(text):
         client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market), reply_markup=help_keyboard())
         return
+    if _is_mini_app(text):
+        _send_mini_app_launch(client, settings, chat_id)
+        return
     if _is_quick_launch(text):
         _send_quick_launch(client, chat_id)
         return
@@ -3404,6 +3517,11 @@ def handle_ticker_message(
 def run_telegram_bot(settings: TelegramBotSettings) -> None:
     client = TelegramClient(settings.token, settings.poll_timeout)
     configure_telegram_command_menu(client)
+    configure_telegram_mini_app_menu_button(
+        client,
+        settings.mini_app_url,
+        enabled=settings.mini_app_menu_button,
+    )
     job_queue = TelegramJobQueue(client, settings)
     job_queue.start()
     offset: int | None = None
@@ -3428,6 +3546,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 _help_text(settings.default_engine, settings.default_market),
                                 reply_markup=help_keyboard(),
                             )
+                        elif _is_mini_app(text):
+                            _send_mini_app_launch(client, settings, chat_id)
                         elif _is_quick_launch(text):
                             _send_quick_launch(client, chat_id)
                         elif _is_parameters_guide(text):
@@ -3642,6 +3762,9 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif menu_callback.action == "main_menu":
                             client.answer_callback_query(menu_callback.callback_query_id, "Меню открыто.")
                             _send_main_menu(client, menu_callback.chat_id)
+                        elif menu_callback.action == "mini_app":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Mini App открыт.")
+                            _send_mini_app_launch(client, settings, menu_callback.chat_id)
                         elif menu_callback.action == "quick_launch":
                             client.answer_callback_query(menu_callback.callback_query_id, "Быстрый запуск открыт.")
                             _send_quick_launch(client, menu_callback.chat_id)

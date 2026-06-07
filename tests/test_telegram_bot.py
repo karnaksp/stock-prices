@@ -32,6 +32,7 @@ class FakeClient:
         self.videos: list[tuple[int, Path, str]] = []
         self.callback_answers: list[tuple[str, str]] = []
         self.command_menus: list[list[dict[str, str]]] = []
+        self.menu_buttons: list[dict] = []
 
     def send_message(self, chat_id: int, text: str, reply_markup: dict | None = None) -> None:
         self.messages.append((chat_id, text))
@@ -45,6 +46,9 @@ class FakeClient:
 
     def set_my_commands(self, commands: list[dict[str, str]]) -> None:
         self.command_menus.append(commands)
+
+    def set_chat_menu_button(self, menu_button: dict) -> None:
+        self.menu_buttons.append(menu_button)
 
 
 def _expected_preset_keyboard(mode: str = "shorts", columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
@@ -92,18 +96,20 @@ def test_telegram_bot_command_menu_is_compact() -> None:
 
     assert [item["command"] for item in commands] == [
         "menu",
+        "app",
         "shoot",
         "shorts",
         "params",
         "queue",
         "help",
     ]
-    assert len(commands) <= 6
+    assert len(commands) <= 7
     assert all(1 <= len(item["description"]) <= 256 for item in commands)
     assert all("/" not in item["command"] for item in commands)
     assert all(item["command"].replace("_", "").isalnum() and item["command"].islower() for item in commands)
-    assert commands[2] == {"command": "shorts", "description": "истории или свой запрос"}
-    assert commands[3] == {"command": "params", "description": "параметры запроса"}
+    assert commands[1] == {"command": "app", "description": "мини-приложение"}
+    assert commands[3] == {"command": "shorts", "description": "истории или свой запрос"}
+    assert commands[4] == {"command": "params", "description": "параметры запроса"}
 
 
 def test_preset_followup_keyboard_keeps_post_render_actions() -> None:
@@ -193,6 +199,37 @@ def test_telegram_client_sets_my_commands(monkeypatch) -> None:
     assert commands[-1]["command"] == "help"
 
 
+def test_telegram_client_sets_mini_app_menu_button(monkeypatch) -> None:
+    calls = []
+
+    class FakeResponse:
+        ok = True
+        text = '{"ok": true, "result": true}'
+
+        def json(self):
+            return {"ok": True, "result": True}
+
+    def fake_post(url, **kwargs):
+        calls.append((url, kwargs))
+        return FakeResponse()
+
+    monkeypatch.setattr(requests, "post", fake_post)
+
+    TelegramClient("123456:SECRET").set_chat_menu_button(
+        telegram_bot.telegram_mini_app_menu_button("https://example.test/miniapp/")
+    )
+
+    assert len(calls) == 1
+    url, kwargs = calls[0]
+    assert url == "https://api.telegram.org/bot123456:SECRET/setChatMenuButton"
+    menu_button = json.loads(kwargs["data"]["menu_button"])
+    assert menu_button == {
+        "type": "web_app",
+        "text": "Mini App",
+        "web_app": {"url": "https://example.test/miniapp/"},
+    }
+
+
 def test_configure_telegram_command_menu_logs_and_continues(caplog) -> None:
     class FailingClient(FakeClient):
         def set_my_commands(self, commands: list[dict[str, str]]) -> None:
@@ -201,6 +238,28 @@ def test_configure_telegram_command_menu_logs_and_continues(caplog) -> None:
     telegram_bot.configure_telegram_command_menu(FailingClient())
 
     assert "Failed to update Telegram bot command menu." in caplog.text
+
+
+def test_configure_telegram_mini_app_menu_button_logs_and_continues(caplog) -> None:
+    class FailingClient(FakeClient):
+        def set_chat_menu_button(self, menu_button: dict) -> None:
+            raise TelegramApiError("temporary api failure")
+
+    telegram_bot.configure_telegram_mini_app_menu_button(FailingClient(), "https://example.test/miniapp/")
+
+    assert "Failed to update Telegram Mini App menu button." in caplog.text
+
+
+def test_configure_telegram_mini_app_menu_button_can_be_disabled() -> None:
+    client = FakeClient()
+
+    telegram_bot.configure_telegram_mini_app_menu_button(
+        client,
+        "https://example.test/miniapp/",
+        enabled=False,
+    )
+
+    assert client.menu_buttons == []
 
 
 def test_run_telegram_bot_configures_command_menu(monkeypatch) -> None:
@@ -213,6 +272,10 @@ def test_run_telegram_bot_configures_command_menu(monkeypatch) -> None:
             self.calls.append("set_my_commands")
             super().set_my_commands(commands)
 
+        def set_chat_menu_button(self, menu_button: dict) -> None:
+            self.calls.append("set_chat_menu_button")
+            super().set_chat_menu_button(menu_button)
+
         def get_updates(self, *_args, **_kwargs):
             self.calls.append("get_updates")
             return []
@@ -221,6 +284,7 @@ def test_run_telegram_bot_configures_command_menu(monkeypatch) -> None:
     settings = TelegramBotSettings(
         token="token",
         once=True,
+        mini_app_url="https://example.test/miniapp/",
         render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
     )
 
@@ -231,6 +295,44 @@ def test_run_telegram_bot_configures_command_menu(monkeypatch) -> None:
     telegram_bot.run_telegram_bot(settings)
 
     assert client.command_menus == [telegram_bot.telegram_bot_command_menu()]
+    assert client.menu_buttons == [
+        telegram_bot.telegram_mini_app_menu_button("https://example.test/miniapp/")
+    ]
+    assert client.calls == ["set_my_commands", "set_chat_menu_button", "get_updates"]
+
+
+def test_run_telegram_bot_can_skip_mini_app_menu_button(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+            self.calls: list[str] = []
+
+        def set_my_commands(self, commands: list[dict[str, str]]) -> None:
+            self.calls.append("set_my_commands")
+            super().set_my_commands(commands)
+
+        def set_chat_menu_button(self, menu_button: dict) -> None:
+            self.calls.append("set_chat_menu_button")
+            super().set_chat_menu_button(menu_button)
+
+        def get_updates(self, *_args, **_kwargs):
+            self.calls.append("get_updates")
+            return []
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        mini_app_menu_button=False,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.menu_buttons == []
     assert client.calls == ["set_my_commands", "get_updates"]
 
 
@@ -2228,6 +2330,135 @@ def test_handle_ticker_message_shows_quick_launch_without_render(monkeypatch) ->
     assert client.videos == []
 
 
+def test_handle_ticker_message_shows_mini_app_launch_without_render(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        mini_app_url="https://example.test/miniapp/",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("mini app launcher must not render video")
+
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    handle_ticker_message(client, settings, 123, "/app")
+
+    assert "Market Motion Mini App" in client.messages[0][1]
+    assert "попадет в очередь" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.mini_app_keyboard("https://example.test/miniapp/")]
+    keyboard = client.message_markups[0]["keyboard"]
+    assert keyboard[0][0] == {
+        "text": "Открыть Mini App",
+        "web_app": {"url": "https://example.test/miniapp/"},
+    }
+    assert client.videos == []
+
+
+def test_run_telegram_bot_menu_callback_opens_mini_app(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 70,
+                    "callback_query": {
+                        "id": "callback-menu-mini-app",
+                        "data": "menu:mini_app",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        mini_app_url="https://example.test/miniapp/",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-mini-app", "Mini App открыт.")]
+    assert "Market Motion Mini App" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.mini_app_keyboard("https://example.test/miniapp/")]
+    assert client.videos == []
+
+
+def test_run_telegram_bot_queues_web_app_data_request(monkeypatch, tmp_path: Path) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            payload = {
+                "type": "stock_prices.video_request.v1",
+                "text": "SBER LKOH from=2020-01-01 to=2024-12-31 RUB capital shorts theme=studio",
+                "source": "telegram-mini-app",
+            }
+            return [
+                {
+                    "update_id": 71,
+                    "message": {
+                        "chat": {"id": 123},
+                        "web_app_data": {
+                            "button_text": "Открыть Mini App",
+                            "data": json.dumps(payload),
+                        },
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    output_path = tmp_path / "miniapp.mp4"
+    output_path.write_bytes(b"video")
+    generated = []
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1), output_dir=tmp_path),
+    )
+
+    def fake_generate(request, job_id=None):
+        generated.append((job_id, [spec.ticker for spec in request.ticker_specs], request.render.duration, request.render.fps, request.render.theme))
+        return output_path
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fake_generate)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert generated == [("tg-71", ["SBER", "LKOH"], 16, 24, "studio")]
+    assert "Генерирую видео: SBER / LKOH" in client.messages[1][1]
+    assert client.videos == [(123, output_path, "SBER / LKOH: 2020-01-01 - 2024-12-31")]
+
+
+def test_request_text_from_web_app_data_validates_typed_payload() -> None:
+    valid = json.dumps(
+        {
+            "type": telegram_bot.MINI_APP_PAYLOAD_TYPE,
+            "text": "SBER LKOH shorts",
+        }
+    )
+    wrong_type = json.dumps(
+        {
+            "type": "other.payload",
+            "text": "SBER LKOH shorts",
+        }
+    )
+    legacy = "SBER LKOH shorts"
+
+    assert telegram_bot._request_text_from_web_app_data(valid) == "SBER LKOH shorts"
+    assert telegram_bot._request_text_from_web_app_data(wrong_type) is None
+    assert telegram_bot._request_text_from_web_app_data(legacy) == legacy
+
+
 def test_handle_ticker_message_shows_parameters_guide_without_render(monkeypatch) -> None:
     client = FakeClient()
     settings = TelegramBotSettings(
@@ -4172,12 +4403,16 @@ def test_handle_ticker_message_shows_main_menu() -> None:
 
     assert "Market Motion Bot" in client.messages[0][1]
     assert "любым тикерам" in client.messages[0][1]
+    assert "Mini App" in client.messages[0][1]
     assert "запрос одной строкой" in client.messages[0][1]
     assert "топовые shorts-сценарии" not in client.messages[0][1]
     assert "полный пакет shorts" not in client.messages[0][1]
     assert client.message_markups[0] == telegram_bot.main_menu_keyboard()
     keyboard = client.message_markups[0]["inline_keyboard"]
     assert keyboard == [
+        [
+            {"text": "🌐 Mini App", "callback_data": "menu:mini_app"},
+        ],
         [
             {"text": "✍️ Свой ролик", "callback_data": "menu:quick_launch"},
             {"text": "🎲 Random", "callback_data": "menu:random_menu"},
@@ -4271,7 +4506,7 @@ def test_handle_ticker_message_shows_main_menu_with_russian_command() -> None:
     handle_ticker_message(client, settings, 123, "/меню")
 
     assert "Market Motion Bot" in client.messages[0][1]
-    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "menu:quick_launch"
+    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "menu:mini_app"
     assert client.videos == []
 
 
@@ -4976,6 +5211,19 @@ def test_parse_telegram_video_request_understands_moex_futures() -> None:
     assert parsed.request.ticker_specs[0].ticker == "SIH4"
     assert parsed.request.ticker_specs[0].engine == "futures"
     assert parsed.request.ticker_specs[0].market == "forts"
+
+
+def test_parse_telegram_video_request_understands_moex_currency_market() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request("USD000UTSTOM currency RUB close shorts", base)
+    parsed_selt = parse_telegram_video_request("USD000UTSTOM selt RUB close shorts", base)
+
+    assert parsed.request.ticker_specs[0].ticker == "USD000UTSTOM"
+    assert parsed.request.ticker_specs[0].engine == "currency"
+    assert parsed.request.ticker_specs[0].market == "selt"
+    assert parsed_selt.request.ticker_specs[0].engine == "currency"
+    assert parsed_selt.request.ticker_specs[0].market == "selt"
 
 
 def test_parse_telegram_video_request_accepts_investment_amounts_for_metals() -> None:
