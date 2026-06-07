@@ -4,7 +4,6 @@ import pandas as pd
 
 from stock_prices._internal.lib import dataset_builder
 from stock_prices._internal.lib.plotting import (
-    MAX_FRAME_RENDER_POINTS,
     _active_event_ranges,
     _active_events,
     _amount_summary,
@@ -170,13 +169,16 @@ def test_animation_grows_time_window_while_series_uses_current_slice() -> None:
             if collection.__class__.__name__ == "LineCollection"
         ]
         middle_gradient_segments = gradient_collections[-1].get_segments()
+        middle_line_x = list(line.get_xdata())
+        middle_line_y = list(line.get_ydata())
 
         animation._func(2)
         final_xlim = animation._fig.axes[0].get_xlim()
 
         start_num = mdates.date2num(data_frame["TRADEDATE"].iloc[0])
-        assert list(line.get_xdata()) == []
-        assert line.get_alpha() == 0.0
+        assert middle_line_x == data_frame["TRADEDATE"].iloc[:2].tolist()
+        assert middle_line_y == [100.0, 140.0]
+        assert line.get_alpha() == 0.96
         assert abs(middle_gradient_segments[-1][-1][0] - mdates.date2num(data_frame["TRADEDATE"].iloc[1])) < 1e-6
         assert gradient_collections
         assert first_xlim[0] == start_num
@@ -321,8 +323,9 @@ def test_animation_keeps_line_gradient_and_fill_on_same_frame_slice() -> None:
         price_label = next(text for text in ax.texts if text.get_text().startswith("SBER:"))
         expected_label_x = data_frame["TRADEDATE"].iloc[1] + pd.Timedelta(days=31 * 0.025)
 
-        assert list(line.get_xdata()) == []
-        assert line.get_alpha() == 0.0
+        assert list(line.get_xdata()) == data_frame["TRADEDATE"].iloc[:2].tolist()
+        assert list(line.get_ydata()) == [100.0, 140.0]
+        assert line.get_alpha() == 0.96
         assert fill_collections
         assert gradient_collections
         assert abs(gradient_segments[-1][-1][0] - mdates.date2num(data_frame["TRADEDATE"].iloc[1])) < 1e-6
@@ -371,12 +374,51 @@ def test_animation_downsamples_gradient_and_fill_without_moving_frame_endpoint()
         fill_right = fill_collections[-1].get_paths()[0].vertices[:, 0].max()
         price_label = next(text for text in ax.texts if text.get_text().startswith("SBER:"))
         expected_end = mdates.date2num(trade_dates[-1])
+        line = ax.lines[0]
 
-        assert len(gradient_segments) <= MAX_FRAME_RENDER_POINTS - 1
-        assert abs(gradient_segments[0][0][0] - mdates.date2num(trade_dates[0])) < 1e-6
+        assert len(line.get_xdata()) == len(trade_dates)
+        assert len(gradient_segments) <= 180 - 1
+        assert abs(gradient_segments[0][0][0] - mdates.date2num(trade_dates[-180])) < 1e-6
         assert abs(gradient_segments[-1][-1][0] - expected_end) < 1e-6
         assert abs(fill_right - expected_end) < 1e-6
         assert price_label.get_position()[1] == data_frame["CLOSE"].iloc[-1]
+    finally:
+        plt.close(animation._fig)
+
+
+def test_gradient_animation_keeps_existing_line_points_stable_between_frames() -> None:
+    import matplotlib.pyplot as plt
+
+    trade_dates = pd.date_range("2020-01-01", periods=1000, freq="D")
+    data_frame = pd.DataFrame(
+        {
+            "TRADEDATE": trade_dates,
+            "CLOSE": [100.0 + index * 0.5 for index in range(len(trade_dates))],
+            "DIVIDEND": [0.0] * len(trade_dates),
+        }
+    )
+    animation = create_multi_line_animation(
+        [{"name": "SBER", "color": "#FFD166", "data": data_frame}],
+        target_duration=10,
+        fps=10,
+        final_frame_duration=0,
+        use_gradient=True,
+    )
+
+    try:
+        animation._func(80)
+        animation._draw_was_started = True
+        line = animation._fig.axes[0].lines[0]
+        previous_x = list(line.get_xdata())
+        previous_y = list(line.get_ydata())
+
+        animation._func(81)
+        next_x = list(line.get_xdata())
+        next_y = list(line.get_ydata())
+
+        assert next_x[: len(previous_x)] == previous_x
+        assert next_y[: len(previous_y)] == previous_y
+        assert len(next_x) > len(previous_x)
     finally:
         plt.close(animation._fig)
 
