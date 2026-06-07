@@ -7,7 +7,7 @@ title: История изменений
 ## Текущая версия
 
 - Добавлен Telegram Mini App: форма тикеров, рынка, периода, валюты, инвестиций, темы, длительности и FPS.
-- Добавлена постоянная кнопка `Mini App` в меню Telegram через Bot API `setChatMenuButton`.
+- Добавлен безопасный запуск Mini App через `/app` и reply keyboard Web App, чтобы `sendData` доходил до бота.
 - Mini App передает typed payload в бота, а бот ставит готовый запрос в очередь генерации.
 - Добавлен безопасный `.env.example`, настройки `STOCK_PRICES_MINI_APP_URL` и `STOCK_PRICES_MINI_APP_MENU_BUTTON`.
 - Улучшен Telegram UX: компактное меню, `/help`, `/params`, `/app`, random-подборки, недельные планы и статус очереди.

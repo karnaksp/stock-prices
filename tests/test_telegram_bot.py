@@ -259,7 +259,7 @@ def test_configure_telegram_mini_app_menu_button_can_be_disabled() -> None:
         enabled=False,
     )
 
-    assert client.menu_buttons == []
+    assert client.menu_buttons == [telegram_bot.telegram_commands_menu_button()]
 
 
 def test_run_telegram_bot_configures_command_menu(monkeypatch) -> None:
@@ -295,6 +295,42 @@ def test_run_telegram_bot_configures_command_menu(monkeypatch) -> None:
     telegram_bot.run_telegram_bot(settings)
 
     assert client.command_menus == [telegram_bot.telegram_bot_command_menu()]
+    assert client.menu_buttons == [telegram_bot.telegram_commands_menu_button()]
+    assert client.calls == ["set_my_commands", "set_chat_menu_button", "get_updates"]
+
+
+def test_run_telegram_bot_can_enable_mini_app_menu_button(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+            self.calls: list[str] = []
+
+        def set_my_commands(self, commands: list[dict[str, str]]) -> None:
+            self.calls.append("set_my_commands")
+            super().set_my_commands(commands)
+
+        def set_chat_menu_button(self, menu_button: dict) -> None:
+            self.calls.append("set_chat_menu_button")
+            super().set_chat_menu_button(menu_button)
+
+        def get_updates(self, *_args, **_kwargs):
+            self.calls.append("get_updates")
+            return []
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        mini_app_url="https://example.test/miniapp/",
+        mini_app_menu_button=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "_weekly_content_items", lambda today=None: _generated_weekly_plan())
+
+    telegram_bot.run_telegram_bot(settings)
+
     assert client.menu_buttons == [
         telegram_bot.telegram_mini_app_menu_button("https://example.test/miniapp/")
     ]
@@ -332,8 +368,8 @@ def test_run_telegram_bot_can_skip_mini_app_menu_button(monkeypatch) -> None:
 
     telegram_bot.run_telegram_bot(settings)
 
-    assert client.menu_buttons == []
-    assert client.calls == ["set_my_commands", "get_updates"]
+    assert client.menu_buttons == [telegram_bot.telegram_commands_menu_button()]
+    assert client.calls == ["set_my_commands", "set_chat_menu_button", "get_updates"]
 
 
 def test_handle_ticker_message_generates_video(monkeypatch) -> None:

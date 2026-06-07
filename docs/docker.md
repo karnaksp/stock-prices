@@ -26,7 +26,7 @@ STOCK_PRICES_RETENTION_DAYS=0
 STOCK_PRICES_UNIVERSE_FILE=
 STOCK_PRICES_ALLOWED_CHAT_IDS=
 STOCK_PRICES_MINI_APP_URL=https://karnaksp.github.io/stock-prices/miniapp/
-STOCK_PRICES_MINI_APP_MENU_BUTTON=true
+STOCK_PRICES_MINI_APP_MENU_BUTTON=false
 ```
 
 `STOCK_PRICES_ALLOWED_CHAT_IDS` можно оставить пустым или указать список chat id через запятую:
