@@ -32,6 +32,8 @@ def test_miniapp_sends_supported_telegram_payload() -> None:
     assert "monthly=${Math.max(0, readPositiveInt(els.monthly, 0))}" in script
     assert "setActiveButtons(\"[data-mode]\"" in script
     assert "els.modeStatus.textContent" in script
+    assert "tg.close()" not in script
+    assert "открой Mini App через /app" in script
 
 
 def test_miniapp_css_keeps_mobile_layout_stable() -> None:

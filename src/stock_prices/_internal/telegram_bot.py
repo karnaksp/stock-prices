@@ -73,6 +73,10 @@ def telegram_mini_app_menu_button(mini_app_url: str) -> dict[str, Any]:
     }
 
 
+def telegram_commands_menu_button() -> dict[str, str]:
+    return {"type": "commands"}
+
+
 def _redact_token(text: str, token: str) -> str:
     return text.replace(token, "<telegram-token>")
 
@@ -151,7 +155,7 @@ class TelegramBotSettings:
         once: bool = False,
         cleanup_retention_days: int | None = None,
         mini_app_url: str | None = None,
-        mini_app_menu_button: bool = True,
+        mini_app_menu_button: bool = False,
     ) -> None:
         self.token = token
         self.render = render
@@ -2105,10 +2109,13 @@ def configure_telegram_command_menu(client: TelegramClient) -> None:
 
 
 def configure_telegram_mini_app_menu_button(client: TelegramClient, mini_app_url: str, *, enabled: bool = True) -> None:
-    if not enabled or not mini_app_url:
-        return
+    menu_button: dict[str, Any]
+    if enabled and mini_app_url:
+        menu_button = telegram_mini_app_menu_button(mini_app_url)
+    else:
+        menu_button = telegram_commands_menu_button()
     try:
-        client.set_chat_menu_button(telegram_mini_app_menu_button(mini_app_url))
+        client.set_chat_menu_button(menu_button)
     except TelegramApiError:
         logging.warning("Failed to update Telegram Mini App menu button.", exc_info=True)
 

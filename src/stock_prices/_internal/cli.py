@@ -103,7 +103,7 @@ def get_bot_parser() -> argparse.ArgumentParser:
         "--mini_app_menu_button",
         action=argparse.BooleanOptionalAction,
         default=get_mini_app_menu_button_enabled(),
-        help="Configure the persistent Telegram menu button to open Mini App.",
+        help="Experimental: configure the persistent Telegram menu button to open Mini App.",
     )
     parser.add_argument(
         "--retention_days",

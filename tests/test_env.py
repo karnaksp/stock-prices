@@ -53,6 +53,14 @@ def test_bot_parser_reads_mini_app_url_from_env(monkeypatch) -> None:
     assert args.mini_app_url == "https://example.test/app/"
 
 
+def test_bot_parser_disables_mini_app_menu_button_by_default(monkeypatch) -> None:
+    monkeypatch.delenv("STOCK_PRICES_MINI_APP_MENU_BUTTON", raising=False)
+
+    args = get_bot_parser().parse_args([])
+
+    assert args.mini_app_menu_button is False
+
+
 def test_bot_parser_reads_mini_app_menu_button_from_env(monkeypatch) -> None:
     monkeypatch.setenv("STOCK_PRICES_MINI_APP_MENU_BUTTON", "false")
 
@@ -96,6 +104,12 @@ def test_mini_app_url_uses_pages_default(monkeypatch) -> None:
     monkeypatch.delenv("STOCK_PRICES_MINI_APP_URL", raising=False)
 
     assert get_mini_app_url() == DEFAULT_MINI_APP_URL
+
+
+def test_mini_app_menu_button_default_is_safe_for_send_data(monkeypatch) -> None:
+    monkeypatch.delenv("STOCK_PRICES_MINI_APP_MENU_BUTTON", raising=False)
+
+    assert get_mini_app_menu_button_enabled() is False
 
 
 def test_mini_app_menu_button_reads_boolean_env(monkeypatch) -> None:

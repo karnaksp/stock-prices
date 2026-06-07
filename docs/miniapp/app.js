@@ -235,7 +235,7 @@
     });
     if (tg && typeof tg.sendData === "function") {
       tg.sendData(payload);
-      tg.close();
+      els.error.textContent = "Запрос отправлен. Если чат не обновился, открой Mini App через /app.";
       return;
     }
     copyText(result.text)
