@@ -61,7 +61,7 @@ STOCK_PRICES_THEME=default
 STOCK_PRICES_OUTPUT_DIR=animations
 STOCK_PRICES_RETENTION_DAYS=0
 STOCK_PRICES_MINI_APP_URL=https://karnaksp.github.io/stock-prices/miniapp/
-STOCK_PRICES_MINI_APP_MENU_BUTTON=true
+STOCK_PRICES_MINI_APP_MENU_BUTTON=false
 ```
 
 Проверить, что Telegram API видит бота:
@@ -138,7 +138,7 @@ USD000UTSTOM selt 2024 close
 
 Ожидаемый сценарий:
 
-1. `/app` открывает Telegram-кнопку Mini App; после старта бота постоянная кнопка `Mini App` также появляется в меню Telegram, если клиент ее поддерживает.
+1. `/app` присылает Telegram-кнопку Mini App; открывать форму для отправки в бота нужно именно этой кнопкой из чата.
 2. Текстовый запрос или запрос из Mini App попадает в очередь и показывает `job id`.
 3. Бот отвечает статусом `Генерирую видео`.
 4. Скачивает или обновляет данные.

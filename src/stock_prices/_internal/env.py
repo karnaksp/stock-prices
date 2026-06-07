@@ -48,7 +48,7 @@ def get_mini_app_url(default: str = DEFAULT_MINI_APP_URL) -> str:
     return value or default
 
 
-def get_mini_app_menu_button_enabled(default: bool = True) -> bool:
+def get_mini_app_menu_button_enabled(default: bool = False) -> bool:
     value = os.getenv(MINI_APP_MENU_BUTTON_ENV, "").strip().lower()
     if not value:
         return default
