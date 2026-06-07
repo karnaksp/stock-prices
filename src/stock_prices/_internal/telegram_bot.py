@@ -51,6 +51,7 @@ TELEGRAM_BOT_COMMANDS: tuple[tuple[str, str], ...] = (
     ("menu", "главный пульт"),
     ("shoot", "быстрый запуск"),
     ("shorts", "истории или свой запрос"),
+    ("params", "параметры запроса"),
     ("queue", "статус очереди"),
     ("help", "короткая справка"),
 )
@@ -178,6 +179,7 @@ MENU_ACTIONS = {
     "guide",
     "help",
     "main_menu",
+    "parameters",
     "quick_launch",
     "reference",
     "random_menu",
@@ -391,11 +393,14 @@ def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             ],
             [
                 {"text": "🧩 Серия", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
+                {"text": "⚙️ Параметры", "callback_data": f"{MENU_CALLBACK_PREFIX}parameters"},
+            ],
+            [
                 {"text": "⏳ Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
+                {"text": "📚 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
             ],
             [
                 {"text": "❔ Help", "callback_data": f"{MENU_CALLBACK_PREFIX}help"},
-                {"text": "📚 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
             ],
         ]
     }
@@ -461,10 +466,11 @@ def help_keyboard() -> dict[str, list[list[dict[str, str]]]]:
                 {"text": "📚 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
             ],
             [
+                {"text": "⚙️ Параметры", "callback_data": f"{MENU_CALLBACK_PREFIX}parameters"},
                 {"text": "🧭 Гайд", "callback_data": f"{MENU_CALLBACK_PREFIX}guide"},
-                {"text": "⏳ Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
             ],
             [
+                {"text": "⏳ Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
                 {"text": "🏠 Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
             ],
         ]
@@ -1878,12 +1884,62 @@ def format_quick_launch() -> str:
         "/shorts SBER LKOH за год\n"
         "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n"
         "AAPL MSFT NVDA global USD shorts\n\n"
-        "Нужен подбор без ручного выбора тикеров: random mixed 2."
+        "Параметры: /params. Подбор без ручного выбора тикеров: random mixed 2."
     )
 
 
 def _send_quick_launch(client: TelegramClient, chat_id: int) -> None:
     client.send_message(chat_id, format_quick_launch(), reply_markup=quick_launch_keyboard())
+
+
+def parameters_keyboard() -> dict[str, list[list[dict[str, str]]]]:
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "✍️ Свой ролик", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
+                {"text": "🧭 Гайд", "callback_data": f"{MENU_CALLBACK_PREFIX}guide"},
+            ],
+            [
+                {"text": "📚 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
+                {"text": "⏳ Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
+            ],
+            [
+                {"text": "🏠 Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
+            ],
+        ]
+    }
+
+
+def format_parameters_guide() -> str:
+    return (
+        "Параметры запроса\n\n"
+        "Пиши параметры в той же строке после тикеров. Их можно комбинировать.\n\n"
+        "Период:\n"
+        "from=2010-01-01, to=2026-06-01, 2010-2026, за год, last 3 years.\n\n"
+        "Рынок и тикеры:\n"
+        "SBER, AAPL global, GC=F futures, BTC crypto, EURUSD currency.\n"
+        "ticker|engine|market, engine=stock/global/currency/futures, market=shares/forts/metals/commodities/crypto/selt.\n\n"
+        "Видео:\n"
+        "duration=12 или 12s (1-90), fps=24 (1-30).\n"
+        "shorts = 16s/24fps/gradient, draft = 4s/8fps/line.\n"
+        "gradient, nogradient, gradient=true/false, legend=true/false, nolegend.\n\n"
+        "Деньги и метрика:\n"
+        "RUB/USD/EUR/CNY/GBP/JPY/CHF или currency=USD.\n"
+        "close/price/value=CLOSE; capital/reinvest/value=CAPITAL_REINVEST.\n\n"
+        "Инвестиции:\n"
+        "invest, initial=0, monthly=30000, yearly=100000.\n"
+        "Можно по-русски: с нуля ежемесячно 30к₽.\n\n"
+        "Вид:\n"
+        "theme=default|aurora|studio, title=My_Title.\n\n"
+        "Примеры:\n"
+        "SBER LKOH from=2020-01-01 to=2024-12-31 duration=12 fps=24 gradient theme=studio\n"
+        "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 shorts\n"
+        "AAPL MSFT global USD close 12s nogradient"
+    )
+
+
+def _send_parameters_guide(client: TelegramClient, chat_id: int) -> None:
+    client.send_message(chat_id, format_parameters_guide(), reply_markup=parameters_keyboard())
 
 
 def production_guide_keyboard() -> dict[str, list[list[dict[str, str]]]]:
@@ -1895,10 +1951,13 @@ def production_guide_keyboard() -> dict[str, list[list[dict[str, str]]]]:
             ],
             [
                 {"text": "🧩 Серия", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
-                {"text": "⏳ Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
+                {"text": "⚙️ Параметры", "callback_data": f"{MENU_CALLBACK_PREFIX}parameters"},
             ],
             [
+                {"text": "⏳ Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
                 {"text": "📚 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
+            ],
+            [
                 {"text": "🏠 Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
             ],
         ]
@@ -1938,7 +1997,7 @@ def _help_text(default_engine: str, default_market: str) -> str:
         "/shorts SBER LKOH за год\n"
         "золото серебро палладий 2010-2026 RUB капитал с нуля ежемесячно 30к₽ gradient\n"
         "AAPL MSFT NVDA global USD shorts\n\n"
-        "Меню: /menu. Подробный процесс: /guide."
+        "Параметры: /params. Подробный процесс: /guide. Меню: /menu."
     )
 
 
@@ -2050,6 +2109,30 @@ def _is_production_guide(text: str) -> bool:
         "производство шортсов",
         "шпаргалка шортсов",
         "шпаргалка пульса",
+    }
+
+
+def _is_parameters_guide(text: str) -> bool:
+    command = _slash_command_and_payload(text)
+    if command is not None:
+        return command[0] in {
+            "/params",
+            "/parameters",
+            "/options",
+            "/settings",
+            "/параметры",
+            "/настройки",
+        }
+    normalized = " ".join(text.strip().lower().replace("ё", "е").split())
+    return normalized in {
+        "params",
+        "parameters",
+        "options",
+        "settings",
+        "параметры",
+        "настройки",
+        "параметры запроса",
+        "как настроить",
     }
 
 
@@ -3113,6 +3196,9 @@ def handle_ticker_message(
     if _is_quick_launch(text):
         _send_quick_launch(client, chat_id)
         return
+    if _is_parameters_guide(text):
+        _send_parameters_guide(client, chat_id)
+        return
     if _is_production_guide(text):
         client.send_message(chat_id, format_production_guide(), reply_markup=production_guide_keyboard())
         return
@@ -3344,6 +3430,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             )
                         elif _is_quick_launch(text):
                             _send_quick_launch(client, chat_id)
+                        elif _is_parameters_guide(text):
+                            _send_parameters_guide(client, chat_id)
                         elif _is_production_guide(text):
                             client.send_message(
                                 chat_id,
@@ -3571,6 +3659,9 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 format_random_menu(),
                                 reply_markup=random_menu_keyboard(),
                             )
+                        elif menu_callback.action == "parameters":
+                            client.answer_callback_query(menu_callback.callback_query_id, "Параметры открыты.")
+                            _send_parameters_guide(client, menu_callback.chat_id)
                         elif menu_callback.action == "help":
                             client.answer_callback_query(menu_callback.callback_query_id, "Помощь открыта.")
                             client.send_message(
