@@ -94,14 +94,16 @@ def test_telegram_bot_command_menu_is_compact() -> None:
         "menu",
         "shoot",
         "shorts",
+        "params",
         "queue",
         "help",
     ]
-    assert len(commands) <= 5
+    assert len(commands) <= 6
     assert all(1 <= len(item["description"]) <= 256 for item in commands)
     assert all("/" not in item["command"] for item in commands)
     assert all(item["command"].replace("_", "").isalnum() and item["command"].islower() for item in commands)
     assert commands[2] == {"command": "shorts", "description": "истории или свой запрос"}
+    assert commands[3] == {"command": "params", "description": "параметры запроса"}
 
 
 def test_preset_followup_keyboard_keeps_post_render_actions() -> None:
@@ -2187,10 +2189,13 @@ def test_handle_ticker_message_shows_production_guide_without_render(monkeypatch
         ],
         [
             {"text": "🧩 Серия", "callback_data": "menu:content_plan"},
-            {"text": "⏳ Очередь", "callback_data": "menu:queue"},
+            {"text": "⚙️ Параметры", "callback_data": "menu:parameters"},
         ],
         [
+            {"text": "⏳ Очередь", "callback_data": "menu:queue"},
             {"text": "📚 Примеры", "callback_data": "menu:reference"},
+        ],
+        [
             {"text": "🏠 Меню", "callback_data": "menu:main_menu"},
         ],
     ]
@@ -2215,10 +2220,97 @@ def test_handle_ticker_message_shows_quick_launch_without_render(monkeypatch) ->
     assert "Свой ролик" in quick_text
     assert "AAPL MSFT NVDA global USD shorts" in quick_text
     assert "random mixed 2" in quick_text
+    assert "/params" in quick_text
     assert "Top Studio" not in quick_text
     assert client.message_markups == [telegram_bot.quick_launch_keyboard()]
     keyboard = client.message_markups[0]["inline_keyboard"]
     assert keyboard == telegram_bot.main_menu_keyboard()["inline_keyboard"]
+    assert client.videos == []
+
+
+def test_handle_ticker_message_shows_parameters_guide_without_render(monkeypatch) -> None:
+    client = FakeClient()
+    settings = TelegramBotSettings(
+        token="token",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    def fail_generate(*_args, **_kwargs):
+        raise AssertionError("parameters guide must not render video")
+
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_generate)
+
+    handle_ticker_message(client, settings, 123, "/params")
+
+    params_text = client.messages[0][1]
+    assert "Параметры запроса" in params_text
+    assert "duration=12" in params_text
+    assert "fps=24" in params_text
+    assert "theme=default|aurora|studio" in params_text
+    assert "gradient=true/false" in params_text
+    assert "legend=true/false" in params_text
+    assert "initial=0" in params_text
+    assert "monthly=30000" in params_text
+    assert "yearly=100000" in params_text
+    assert "engine=stock/global/currency/futures" in params_text
+    assert "value=CLOSE" in params_text
+    assert "title=My_Title" in params_text
+    assert client.message_markups == [telegram_bot.parameters_keyboard()]
+    assert client.videos == []
+
+
+def test_parameters_guide_examples_match_supported_parser_options() -> None:
+    base = RenderSettings(start_date=date(2015, 1, 1), end_date=date(2020, 1, 1))
+
+    parsed = parse_telegram_video_request(
+        "SBER LKOH from=2020-01-01 to=2024-12-31 duration=12 fps=24 gradient=false "
+        "legend=false theme=studio value=CLOSE title=My_Title",
+        base,
+    )
+
+    assert parsed.request.render.start_date == date(2020, 1, 1)
+    assert parsed.request.render.end_date == date(2024, 12, 31)
+    assert parsed.request.render.duration == 12
+    assert parsed.request.render.fps == 24
+    assert parsed.request.render.use_gradient is False
+    assert parsed.request.render.show_legend is False
+    assert parsed.request.render.theme == "studio"
+    assert parsed.request.render.value_col == "CLOSE"
+    assert parsed.request.render.title == "My Title"
+
+
+def test_run_telegram_bot_menu_callback_opens_parameters_guide(monkeypatch) -> None:
+    class FakePollingClient(FakeClient):
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def get_updates(self, *_args, **_kwargs):
+            return [
+                {
+                    "update_id": 69,
+                    "callback_query": {
+                        "id": "callback-menu-parameters",
+                        "data": "menu:parameters",
+                        "message": {"chat": {"id": 123}},
+                    },
+                }
+            ]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert client.callback_answers == [("callback-menu-parameters", "Параметры открыты.")]
+    assert "Параметры запроса" in client.messages[0][1]
+    assert "duration=12" in client.messages[0][1]
+    assert client.message_markups == [telegram_bot.parameters_keyboard()]
     assert client.videos == []
 
 
@@ -4031,6 +4123,7 @@ def test_help_text_is_compact_and_actionable() -> None:
     assert "plan shorts metals count=1 days=5" in help_text
     assert "статус" in help_text
     assert "/guide" in help_text
+    assert "/params" in help_text
     assert "Random" in help_text
     assert "Справочник" not in help_text
     assert "/draft metals" not in help_text
@@ -4062,8 +4155,8 @@ def test_help_keyboard_points_to_guidance_actions() -> None:
     assert callbacks == [
         ["menu:quick_launch", "menu:random_menu"],
         ["menu:content_plan", "menu:reference"],
-        ["menu:guide", telegram_bot.QUEUE_STATUS_CALLBACK_DATA],
-        ["menu:main_menu"],
+        ["menu:parameters", "menu:guide"],
+        [telegram_bot.QUEUE_STATUS_CALLBACK_DATA, "menu:main_menu"],
     ]
     assert keyboard != telegram_bot.main_menu_keyboard()
 
@@ -4091,11 +4184,14 @@ def test_handle_ticker_message_shows_main_menu() -> None:
         ],
         [
             {"text": "🧩 Серия", "callback_data": "menu:content_plan"},
+            {"text": "⚙️ Параметры", "callback_data": "menu:parameters"},
+        ],
+        [
             {"text": "⏳ Очередь", "callback_data": "menu:queue"},
+            {"text": "📚 Примеры", "callback_data": "menu:reference"},
         ],
         [
             {"text": "❔ Help", "callback_data": "menu:help"},
-            {"text": "📚 Примеры", "callback_data": "menu:reference"},
         ],
     ]
     assert client.videos == []
