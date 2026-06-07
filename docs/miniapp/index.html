@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0b0d12">
+  <meta name="theme-color" content="#0a0d10">
   <title>Market Motion Mini App</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="./app.css">
@@ -11,144 +11,204 @@
 <body>
   <main class="app-shell">
     <header class="topbar">
-      <div>
+      <div class="brand">
         <p class="eyebrow">Market Motion</p>
-        <h1>Собрать видео</h1>
+        <h1>Видео из тикеров</h1>
       </div>
-      <span class="status-pill" id="telegram-status">Telegram</span>
+      <div class="status-stack" aria-label="Статус">
+        <span class="status-pill" id="telegram-status">Telegram</span>
+        <span class="status-pill status-pill--accent" id="mode-status">Shorts</span>
+      </div>
     </header>
 
-    <section class="section">
-      <label class="field-label" for="tickers">Тикеры</label>
-      <input id="tickers" class="text-input" value="SBER LKOH" autocomplete="off" spellcheck="false">
-      <div class="chip-row" aria-label="Быстрые наборы тикеров">
-        <button class="chip" type="button" data-tickers="SBER LKOH">SBER/LKOH</button>
-        <button class="chip" type="button" data-tickers="gold silver palladium" data-market="metals">Металлы</button>
-        <button class="chip" type="button" data-tickers="AAPL MSFT NVDA" data-market="global" data-currency="USD">US tech</button>
-        <button class="chip" type="button" data-tickers="BTC ETH" data-market="crypto" data-currency="USD">Crypto</button>
+    <div class="workspace">
+      <div class="form-stack">
+        <section class="panel panel--focus">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Активы</p>
+              <h2>Что сравниваем</h2>
+            </div>
+            <span class="section-note">1-3 тикера для shorts</span>
+          </div>
+          <label class="field" for="tickers">
+            <span class="field-label">Тикеры</span>
+            <input id="tickers" class="text-input text-input--large" value="SBER LKOH" autocomplete="off" spellcheck="false">
+          </label>
+          <div class="chip-row" aria-label="Быстрые наборы тикеров">
+            <button class="chip" type="button" data-tickers="SBER LKOH">SBER / LKOH</button>
+            <button class="chip" type="button" data-tickers="gold silver palladium" data-market="metals">Металлы</button>
+            <button class="chip" type="button" data-tickers="AAPL MSFT NVDA" data-market="global" data-currency="USD">US tech</button>
+            <button class="chip" type="button" data-tickers="BTC ETH" data-market="crypto" data-currency="USD">Crypto</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Рынок</p>
+              <h2>Источник и валюта</h2>
+            </div>
+          </div>
+          <div class="compact-grid">
+            <label class="field">
+              <span class="field-label">Рынок</span>
+              <select id="market" class="select-input">
+                <option value="">Auto / MOEX</option>
+                <option value="global">Global</option>
+                <option value="metals">Metals</option>
+                <option value="futures">Futures</option>
+                <option value="crypto">Crypto</option>
+                <option value="currency">Currency</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label">Валюта графика</span>
+              <select id="currency" class="select-input">
+                <option>RUB</option>
+                <option>USD</option>
+                <option>EUR</option>
+                <option>CNY</option>
+                <option>GBP</option>
+                <option>JPY</option>
+                <option>CHF</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Период</p>
+              <h2>Окно истории</h2>
+            </div>
+          </div>
+          <div class="segmented" role="radiogroup" aria-label="Период">
+            <button type="button" data-period="1y">1 год</button>
+            <button type="button" data-period="3y">3 года</button>
+            <button type="button" data-period="10y" class="active">10 лет</button>
+            <button type="button" data-period="custom">Свой</button>
+          </div>
+          <div class="date-grid">
+            <label class="field">
+              <span class="field-label">С</span>
+              <input id="start-date" class="text-input" type="date" value="2016-01-01">
+            </label>
+            <label class="field">
+              <span class="field-label">До</span>
+              <input id="end-date" class="text-input" type="date">
+            </label>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Формат</p>
+              <h2>Ролик</h2>
+            </div>
+          </div>
+          <select id="mode" class="visually-hidden" aria-hidden="true" tabindex="-1">
+            <option value="shorts">Shorts 16s/24fps</option>
+            <option value="draft">Draft 4s/8fps</option>
+            <option value="custom">Custom</option>
+          </select>
+          <div class="segmented segmented--three" role="radiogroup" aria-label="Режим видео">
+            <button type="button" data-mode="shorts" class="active">
+              <span>Shorts</span>
+              <small>16s / 24fps</small>
+            </button>
+            <button type="button" data-mode="draft">
+              <span>Draft</span>
+              <small>4s / 8fps</small>
+            </button>
+            <button type="button" data-mode="custom">
+              <span>Custom</span>
+              <small>ручной</small>
+            </button>
+          </div>
+          <div class="compact-grid compact-grid--three">
+            <label class="field">
+              <span class="field-label">Длина, сек</span>
+              <input id="duration" class="text-input" type="number" min="1" max="90" value="16">
+            </label>
+            <label class="field">
+              <span class="field-label">FPS</span>
+              <input id="fps" class="text-input" type="number" min="1" max="30" value="24">
+            </label>
+            <label class="field">
+              <span class="field-label">Тема</span>
+              <select id="theme" class="select-input">
+                <option value="studio">Studio</option>
+                <option value="aurora">Aurora</option>
+                <option value="default">Default</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Расчет</p>
+              <h2>Как строить линии</h2>
+            </div>
+          </div>
+          <input id="metric-capital" class="visually-hidden" type="checkbox" checked>
+          <div class="segmented segmented--two" role="radiogroup" aria-label="Метрика">
+            <button type="button" data-metric="capital" class="active">Капитал</button>
+            <button type="button" data-metric="close">Цена</button>
+          </div>
+          <div class="toggle-grid">
+            <label class="toggle">
+              <input id="investment" type="checkbox">
+              <span>Инвестиции</span>
+            </label>
+            <label class="toggle">
+              <input id="gradient" type="checkbox" checked>
+              <span>Gradient</span>
+            </label>
+            <label class="toggle">
+              <input id="legend" type="checkbox" checked>
+              <span>Legend</span>
+            </label>
+          </div>
+          <div class="investment-grid" id="investment-fields" hidden>
+            <label class="field">
+              <span class="field-label">Старт</span>
+              <input id="initial" class="text-input" type="number" min="0" step="1000" value="0">
+            </label>
+            <label class="field">
+              <span class="field-label">Ежемесячно</span>
+              <input id="monthly" class="text-input" type="number" min="0" step="1000" value="30000">
+            </label>
+            <label class="field">
+              <span class="field-label">Ежегодно</span>
+              <input id="yearly" class="text-input" type="number" min="0" step="1000" value="0">
+            </label>
+          </div>
+        </section>
       </div>
-    </section>
 
-    <section class="section compact-grid">
-      <label class="field">
-        <span class="field-label">Рынок</span>
-        <select id="market" class="select-input">
-          <option value="">Auto/MOEX</option>
-          <option value="global">Global</option>
-          <option value="metals">Metals</option>
-          <option value="futures">Futures</option>
-          <option value="crypto">Crypto</option>
-          <option value="currency">Currency</option>
-        </select>
-      </label>
-      <label class="field">
-        <span class="field-label">Валюта</span>
-        <select id="currency" class="select-input">
-          <option>RUB</option>
-          <option>USD</option>
-          <option>EUR</option>
-          <option>CNY</option>
-          <option>GBP</option>
-          <option>JPY</option>
-          <option>CHF</option>
-        </select>
-      </label>
-    </section>
-
-    <section class="section">
-      <div class="segmented" role="radiogroup" aria-label="Период">
-        <button type="button" data-period="1y">1 год</button>
-        <button type="button" data-period="3y">3 года</button>
-        <button type="button" data-period="10y" class="active">10 лет</button>
-        <button type="button" data-period="custom">Свой</button>
-      </div>
-      <div class="date-grid">
-        <label class="field">
-          <span class="field-label">С</span>
-          <input id="start-date" class="text-input" type="date" value="2016-01-01">
-        </label>
-        <label class="field">
-          <span class="field-label">До</span>
-          <input id="end-date" class="text-input" type="date">
-        </label>
-      </div>
-    </section>
-
-    <section class="section compact-grid">
-      <label class="field">
-        <span class="field-label">Режим</span>
-        <select id="mode" class="select-input">
-          <option value="shorts">Shorts 16s/24fps</option>
-          <option value="draft">Draft 4s/8fps</option>
-          <option value="custom">Custom</option>
-        </select>
-      </label>
-      <label class="field">
-        <span class="field-label">Тема</span>
-        <select id="theme" class="select-input">
-          <option value="studio">Studio</option>
-          <option value="aurora">Aurora</option>
-          <option value="default">Default</option>
-        </select>
-      </label>
-    </section>
-
-    <section class="section compact-grid">
-      <label class="field">
-        <span class="field-label">Длина, сек</span>
-        <input id="duration" class="text-input" type="number" min="1" max="90" value="16">
-      </label>
-      <label class="field">
-        <span class="field-label">FPS</span>
-        <input id="fps" class="text-input" type="number" min="1" max="30" value="24">
-      </label>
-    </section>
-
-    <section class="section">
-      <div class="toggle-grid">
-        <label class="toggle">
-          <input id="metric-capital" type="checkbox" checked>
-          <span>Капитал</span>
-        </label>
-        <label class="toggle">
-          <input id="investment" type="checkbox">
-          <span>Инвестиции</span>
-        </label>
-        <label class="toggle">
-          <input id="gradient" type="checkbox" checked>
-          <span>Gradient</span>
-        </label>
-        <label class="toggle">
-          <input id="legend" type="checkbox" checked>
-          <span>Legend</span>
-        </label>
-      </div>
-      <div class="investment-grid" id="investment-fields" hidden>
-        <label class="field">
-          <span class="field-label">Старт</span>
-          <input id="initial" class="text-input" type="number" min="0" step="1000" value="0">
-        </label>
-        <label class="field">
-          <span class="field-label">Ежемесячно</span>
-          <input id="monthly" class="text-input" type="number" min="0" step="1000" value="30000">
-        </label>
-        <label class="field">
-          <span class="field-label">Ежегодно</span>
-          <input id="yearly" class="text-input" type="number" min="0" step="1000" value="0">
-        </label>
-      </div>
-    </section>
-
-    <section class="preview-section">
-      <div class="preview-head">
-        <span>Запрос</span>
-        <button id="copy-button" class="text-button" type="button">Copy</button>
-      </div>
-      <output id="request-preview" class="request-preview"></output>
-    </section>
-
-    <button id="send-button" class="primary-button" type="button">Отправить в бота</button>
-    <p id="error-text" class="error-text" role="status"></p>
+      <aside class="command-panel" aria-label="Готовый запрос">
+        <div class="command-head">
+          <div>
+            <p class="section-kicker">Команда</p>
+            <h2>Готово к отправке</h2>
+          </div>
+          <button id="copy-button" class="text-button" type="button">Copy</button>
+        </div>
+        <output id="request-preview" class="request-preview"></output>
+        <div class="preview-meta" aria-label="Ключевые параметры">
+          <span id="preview-range">10 лет</span>
+          <span id="preview-format">16s / 24fps</span>
+          <span id="preview-currency">RUB</span>
+        </div>
+        <button id="send-button" class="primary-button" type="button">Отправить в бот</button>
+        <p id="error-text" class="error-text" role="status"></p>
+      </aside>
+    </div>
   </main>
 
   <script src="./app.js"></script>

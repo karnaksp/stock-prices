@@ -20,10 +20,20 @@
     legend: document.getElementById("legend"),
     theme: document.getElementById("theme"),
     preview: document.getElementById("request-preview"),
+    previewRange: document.getElementById("preview-range"),
+    previewFormat: document.getElementById("preview-format"),
+    previewCurrency: document.getElementById("preview-currency"),
     send: document.getElementById("send-button"),
     copy: document.getElementById("copy-button"),
     error: document.getElementById("error-text"),
     telegramStatus: document.getElementById("telegram-status"),
+    modeStatus: document.getElementById("mode-status"),
+  };
+
+  const modeLabels = {
+    shorts: "Shorts",
+    draft: "Draft",
+    custom: "Custom",
   };
 
   function todayIso() {
@@ -59,6 +69,33 @@
   function clampNumberInput(input, min, max) {
     const value = readPositiveInt(input, min);
     input.value = String(Math.min(max, Math.max(min, value)));
+  }
+
+  function formatPeriodLabel() {
+    if (!els.startDate.value || !els.endDate.value) {
+      return "Период";
+    }
+    const start = new Date(`${els.startDate.value}T00:00:00`);
+    const end = new Date(`${els.endDate.value}T00:00:00`);
+    const years = Math.max(0, (end - start) / (365.25 * 24 * 60 * 60 * 1000));
+    if (years >= 1) {
+      return `${years.toFixed(years >= 10 ? 0 : 1)} лет`;
+    }
+    return `${Math.max(1, Math.round(years * 12))} мес`;
+  }
+
+  function setActiveButtons(selector, activeValue, dataKey) {
+    document.querySelectorAll(selector).forEach((button) => {
+      button.classList.toggle("active", button.dataset[dataKey] === activeValue);
+    });
+  }
+
+  function syncVisualControls() {
+    setActiveButtons("[data-mode]", els.mode.value, "mode");
+    setActiveButtons("[data-metric]", els.metricCapital.checked ? "capital" : "close", "metric");
+    document.querySelectorAll("[data-tickers]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.tickers === normalizedTickers());
+    });
   }
 
   function buildRequest() {
@@ -137,7 +174,7 @@
     if (!tg || !tg.MainButton) {
       return;
     }
-    tg.MainButton.setText("Отправить в бота");
+    tg.MainButton.setText("Отправить в бот");
     if (error || !text) {
       tg.MainButton.disable();
       tg.MainButton.hide();
@@ -147,10 +184,21 @@
     }
   }
 
+  function updatePreviewMeta() {
+    const duration = readPositiveInt(els.duration, 16);
+    const fps = readPositiveInt(els.fps, 24);
+    els.previewRange.textContent = formatPeriodLabel();
+    els.previewFormat.textContent = `${duration}s / ${fps}fps`;
+    els.previewCurrency.textContent = els.currency.value;
+    els.modeStatus.textContent = modeLabels[els.mode.value] || "Custom";
+  }
+
   function update() {
     clampNumberInput(els.duration, 1, 90);
     clampNumberInput(els.fps, 1, 30);
     els.investmentFields.hidden = !els.investment.checked;
+    syncVisualControls();
+    updatePreviewMeta();
     const result = buildRequest();
     els.preview.textContent = result.text || "SBER LKOH from=2020-01-01 to=2024-12-31 RUB capital shorts";
     els.error.textContent = result.error;
@@ -202,7 +250,7 @@
   function initTelegram() {
     if (!tg) {
       els.telegramStatus.textContent = "Browser";
-      els.send.textContent = "Copy request";
+      els.send.textContent = "Скопировать запрос";
       return;
     }
     tg.ready();
@@ -225,6 +273,20 @@
       } else if (period === "10y") {
         setPeriod(10);
       }
+      update();
+    });
+  });
+
+  document.querySelectorAll("[data-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      els.mode.value = button.dataset.mode || "shorts";
+      applyModeDefaults();
+    });
+  });
+
+  document.querySelectorAll("[data-metric]").forEach((button) => {
+    button.addEventListener("click", () => {
+      els.metricCapital.checked = button.dataset.metric === "capital";
       update();
     });
   });
@@ -263,12 +325,13 @@
     element.addEventListener("change", update);
   });
 
-  els.mode.addEventListener("change", applyModeDefaults);
   els.send.addEventListener("click", submitRequest);
   els.copy.addEventListener("click", () => {
     const result = update();
     if (!result.error) {
-      copyText(result.text);
+      copyText(result.text).then(() => {
+        els.error.textContent = "Запрос скопирован.";
+      });
     }
   });
 
