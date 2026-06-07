@@ -58,10 +58,19 @@ TELEGRAM_BOT_COMMANDS: tuple[tuple[str, str], ...] = (
 )
 RENDER_PROGRESS_FIRST_NOTICE_SECONDS = 90.0
 RENDER_PROGRESS_REPEAT_SECONDS = 180.0
+MINI_APP_PAYLOAD_TYPE = "stock_prices.video_request.v1"
 
 
 def telegram_bot_command_menu() -> list[dict[str, str]]:
     return [{"command": command, "description": description} for command, description in TELEGRAM_BOT_COMMANDS]
+
+
+def telegram_mini_app_menu_button(mini_app_url: str) -> dict[str, Any]:
+    return {
+        "type": "web_app",
+        "text": "Mini App",
+        "web_app": {"url": mini_app_url},
+    }
 
 
 def _redact_token(text: str, token: str) -> str:
@@ -104,6 +113,9 @@ class TelegramClient:
     def set_my_commands(self, commands: list[dict[str, str]]) -> None:
         self.call("setMyCommands", commands=json.dumps(commands, ensure_ascii=False))
 
+    def set_chat_menu_button(self, menu_button: dict[str, Any]) -> None:
+        self.call("setChatMenuButton", menu_button=json.dumps(menu_button, ensure_ascii=False))
+
     def answer_callback_query(self, callback_query_id: str, text: str = "") -> None:
         data: dict[str, Any] = {"callback_query_id": callback_query_id}
         if text:
@@ -139,6 +151,7 @@ class TelegramBotSettings:
         once: bool = False,
         cleanup_retention_days: int | None = None,
         mini_app_url: str | None = None,
+        mini_app_menu_button: bool = True,
     ) -> None:
         self.token = token
         self.render = render
@@ -148,6 +161,7 @@ class TelegramBotSettings:
         self.poll_timeout = poll_timeout
         self.once = once
         self.mini_app_url = (mini_app_url or get_mini_app_url()).strip()
+        self.mini_app_menu_button = mini_app_menu_button
         self.cleanup_retention_days = (
             get_cleanup_retention_days() if cleanup_retention_days is None else cleanup_retention_days
         )
@@ -1697,6 +1711,9 @@ def _request_text_from_web_app_data(data: Any) -> str | None:
         return payload
     if not isinstance(decoded, dict):
         return payload
+    payload_type = decoded.get("type")
+    if payload_type is not None and payload_type != MINI_APP_PAYLOAD_TYPE:
+        return None
     request_text = decoded.get("text") or decoded.get("request")
     if isinstance(request_text, str) and request_text.strip():
         return request_text.strip()
@@ -2085,6 +2102,15 @@ def configure_telegram_command_menu(client: TelegramClient) -> None:
         client.set_my_commands(telegram_bot_command_menu())
     except TelegramApiError:
         logging.warning("Failed to update Telegram bot command menu.", exc_info=True)
+
+
+def configure_telegram_mini_app_menu_button(client: TelegramClient, mini_app_url: str, *, enabled: bool = True) -> None:
+    if not enabled or not mini_app_url:
+        return
+    try:
+        client.set_chat_menu_button(telegram_mini_app_menu_button(mini_app_url))
+    except TelegramApiError:
+        logging.warning("Failed to update Telegram Mini App menu button.", exc_info=True)
 
 
 def _slash_command_and_payload(text: str) -> tuple[str, str] | None:
@@ -3491,6 +3517,11 @@ def handle_ticker_message(
 def run_telegram_bot(settings: TelegramBotSettings) -> None:
     client = TelegramClient(settings.token, settings.poll_timeout)
     configure_telegram_command_menu(client)
+    configure_telegram_mini_app_menu_button(
+        client,
+        settings.mini_app_url,
+        enabled=settings.mini_app_menu_button,
+    )
     job_queue = TelegramJobQueue(client, settings)
     job_queue.start()
     offset: int | None = None

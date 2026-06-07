@@ -4,7 +4,13 @@ import os
 from pathlib import Path
 
 from stock_prices._internal.cli import get_bot_parser
-from stock_prices._internal.env import DEFAULT_MINI_APP_URL, get_cleanup_retention_days, get_mini_app_url, load_env_file
+from stock_prices._internal.env import (
+    DEFAULT_MINI_APP_URL,
+    get_cleanup_retention_days,
+    get_mini_app_menu_button_enabled,
+    get_mini_app_url,
+    load_env_file,
+)
 
 
 def test_load_env_file_sets_missing_values(tmp_path: Path, monkeypatch) -> None:
@@ -47,6 +53,22 @@ def test_bot_parser_reads_mini_app_url_from_env(monkeypatch) -> None:
     assert args.mini_app_url == "https://example.test/app/"
 
 
+def test_bot_parser_reads_mini_app_menu_button_from_env(monkeypatch) -> None:
+    monkeypatch.setenv("STOCK_PRICES_MINI_APP_MENU_BUTTON", "false")
+
+    args = get_bot_parser().parse_args([])
+
+    assert args.mini_app_menu_button is False
+
+
+def test_bot_parser_allows_cli_to_disable_mini_app_menu_button(monkeypatch) -> None:
+    monkeypatch.setenv("STOCK_PRICES_MINI_APP_MENU_BUTTON", "true")
+
+    args = get_bot_parser().parse_args(["--no-mini_app_menu_button"])
+
+    assert args.mini_app_menu_button is False
+
+
 def test_cleanup_retention_days_reads_primary_env(monkeypatch) -> None:
     monkeypatch.setenv("STOCK_PRICES_RETENTION_DAYS", "14")
 
@@ -74,3 +96,24 @@ def test_mini_app_url_uses_pages_default(monkeypatch) -> None:
     monkeypatch.delenv("STOCK_PRICES_MINI_APP_URL", raising=False)
 
     assert get_mini_app_url() == DEFAULT_MINI_APP_URL
+
+
+def test_mini_app_menu_button_reads_boolean_env(monkeypatch) -> None:
+    monkeypatch.setenv("STOCK_PRICES_MINI_APP_MENU_BUTTON", "off")
+
+    assert get_mini_app_menu_button_enabled() is False
+
+    monkeypatch.setenv("STOCK_PRICES_MINI_APP_MENU_BUTTON", "on")
+
+    assert get_mini_app_menu_button_enabled() is True
+
+
+def test_mini_app_menu_button_rejects_invalid_env(monkeypatch) -> None:
+    monkeypatch.setenv("STOCK_PRICES_MINI_APP_MENU_BUTTON", "maybe")
+
+    try:
+        get_mini_app_menu_button_enabled()
+    except ValueError as exc:
+        assert "boolean" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError")

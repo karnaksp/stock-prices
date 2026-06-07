@@ -102,13 +102,12 @@ hide:
 
 | Хочу | Что отправить |
 | --- | --- |
-| Открыть Mini App | `/app` |
-| Открыть рабочий пульт | `/start`, `/menu`, `/shoot` или `снять` |
-| Выбрать готовую историю | `/shorts` или кнопка `Истории` |
-| Случайная подборка | кнопка `Random`, `random mixed 1`, `random mixed 3`, `random drama 2`, `random stocks 2` |
-| Недельный план | `/plan` или `/publish_week` |
+| Открыть Mini App | кнопка `Mini App` в Telegram или `/app` |
+| Открыть меню | `/start` или `/menu` |
+| Случайная подборка | `random mixed 1`, `random mixed 3`, `random drama 2`, `random stocks 2` |
+| Недельный план | `plan drama 5 days 2 tickers` |
 | Снять ролик по тикерам | `/shorts SBER LKOH за год` |
-| Проверить долгий рендер | `/queue`, `статус` или кнопка `Очередь` |
+| Проверить рендер | `/queue`, `статус` или кнопка `Очередь` |
 | Открыть справку | `/help` |
 
 Обычные строки вроде `LKOH`, `SBER LKOH 2020 2024` и `AAPL global USD shorts` тоже работают. Несколько роликов можно отправить одним сообщением: один запрос на строку.
