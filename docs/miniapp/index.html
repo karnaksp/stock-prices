@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0a0d10">
+  <meta name="theme-color" content="#0b0f14">
   <title>Market Motion Mini App</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="./app.css">
 </head>
 <body>
   <main class="app-shell">
-    <header class="topbar">
-      <div class="brand">
+    <header class="app-header">
+      <div>
         <p class="eyebrow">Market Motion</p>
-        <h1>Видео из тикеров</h1>
+        <h1>Собрать видео</h1>
       </div>
       <div class="status-stack" aria-label="Статус">
         <span class="status-pill" id="telegram-status">Telegram</span>
@@ -21,29 +21,74 @@
       </div>
     </header>
 
-    <div class="workspace">
-      <div class="form-stack">
-        <section class="panel panel--focus">
-          <div class="section-head">
-            <div>
-              <p class="section-kicker">Активы</p>
-              <h2>Что сравниваем</h2>
-            </div>
-            <span class="section-note">1-3 тикера для shorts</span>
-          </div>
-          <label class="field" for="tickers">
-            <span class="field-label">Тикеры</span>
-            <input id="tickers" class="text-input text-input--large" value="SBER LKOH" autocomplete="off" spellcheck="false">
-          </label>
-          <div class="chip-row" aria-label="Быстрые наборы тикеров">
-            <button class="chip" type="button" data-tickers="SBER LKOH">SBER / LKOH</button>
-            <button class="chip" type="button" data-tickers="gold silver palladium" data-market="metals">Металлы</button>
-            <button class="chip" type="button" data-tickers="AAPL MSFT NVDA" data-market="global" data-currency="USD">US tech</button>
-            <button class="chip" type="button" data-tickers="BTC ETH" data-market="crypto" data-currency="USD">Crypto</button>
-          </div>
-        </section>
+    <section class="story-card" aria-label="Сценарий ролика">
+      <div class="story-copy">
+        <p class="section-kicker">Сценарий ролика</p>
+        <h2 id="story-title">Сравнить активы за 10 лет</h2>
+        <div class="ticker-preview" id="ticker-summary" aria-label="Выбранные тикеры">
+          <span>SBER</span>
+          <span>LKOH</span>
+        </div>
+      </div>
+      <div class="mini-chart" aria-hidden="true">
+        <span class="chart-line chart-line--blue"></span>
+        <span class="chart-line chart-line--gold"></span>
+        <span class="chart-line chart-line--coral"></span>
+      </div>
+    </section>
 
-        <section class="panel">
+    <section class="composer-card" aria-label="Тикеры">
+      <label class="field field--hero" for="tickers">
+        <span class="field-label">Что сравниваем</span>
+        <input id="tickers" class="text-input text-input--large" value="SBER LKOH" autocomplete="off" spellcheck="false" inputmode="text">
+      </label>
+      <div class="chip-row" aria-label="Быстрые наборы тикеров">
+        <button class="chip" type="button" data-tickers="SBER LKOH">SBER / LKOH</button>
+        <button class="chip" type="button" data-tickers="gold silver palladium" data-market="metals">Металлы</button>
+        <button class="chip" type="button" data-tickers="AAPL MSFT NVDA" data-market="global" data-currency="USD">US tech</button>
+        <button class="chip" type="button" data-tickers="BTC ETH" data-market="crypto" data-currency="USD">Crypto</button>
+      </div>
+    </section>
+
+    <section class="steps-grid" aria-label="Ключевые параметры">
+      <article class="step-card step-card--active">
+        <span class="step-index">1</span>
+        <div>
+          <strong>Активы</strong>
+          <p id="assets-summary">Auto / MOEX · RUB</p>
+        </div>
+      </article>
+      <article class="step-card">
+        <span class="step-index">2</span>
+        <div>
+          <strong>История</strong>
+          <p id="history-summary">10 лет</p>
+        </div>
+      </article>
+      <article class="step-card">
+        <span class="step-index">3</span>
+        <div>
+          <strong>Расчет</strong>
+          <p id="calc-summary">Капитал</p>
+        </div>
+      </article>
+      <article class="step-card">
+        <span class="step-index">4</span>
+        <div>
+          <strong>Формат</strong>
+          <p id="format-summary">16s · 24fps</p>
+        </div>
+      </article>
+    </section>
+
+    <details class="settings-panel" open>
+      <summary>
+        <span>Настройки ролика</span>
+        <small>рынок, период, инвестиции, fps</small>
+      </summary>
+
+      <div class="settings-stack">
+        <section class="settings-block">
           <div class="section-head">
             <div>
               <p class="section-kicker">Рынок</p>
@@ -77,7 +122,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="settings-block">
           <div class="section-head">
             <div>
               <p class="section-kicker">Период</p>
@@ -102,11 +147,11 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="settings-block">
           <div class="section-head">
             <div>
               <p class="section-kicker">Формат</p>
-              <h2>Ролик</h2>
+              <h2>Видео</h2>
             </div>
           </div>
           <select id="mode" class="visually-hidden" aria-hidden="true" tabindex="-1">
@@ -125,7 +170,7 @@
             </button>
             <button type="button" data-mode="custom">
               <span>Custom</span>
-              <small>ручной</small>
+              <small>вручную</small>
             </button>
           </div>
           <div class="compact-grid compact-grid--three">
@@ -148,7 +193,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="settings-block">
           <div class="section-head">
             <div>
               <p class="section-kicker">Расчет</p>
@@ -190,25 +235,31 @@
           </div>
         </section>
       </div>
+    </details>
 
-      <aside class="command-panel" aria-label="Готовый запрос">
-        <div class="command-head">
-          <div>
-            <p class="section-kicker">Команда</p>
-            <h2>Готово к отправке</h2>
-          </div>
-          <button id="copy-button" class="text-button" type="button">Copy</button>
+    <aside class="send-dock" aria-label="Готовый запрос">
+      <div class="dock-summary">
+        <div>
+          <p class="section-kicker">Готово к отправке</p>
+          <h2 id="dock-title">Видео из SBER / LKOH</h2>
         </div>
+        <button id="copy-button" class="secondary-button" type="button">Copy</button>
+      </div>
+
+      <div class="preview-meta" aria-label="Ключевые параметры">
+        <span id="preview-range">10 лет</span>
+        <span id="preview-format">16s / 24fps</span>
+        <span id="preview-currency">RUB</span>
+      </div>
+
+      <details class="command-details">
+        <summary>Показать команду</summary>
         <output id="request-preview" class="request-preview"></output>
-        <div class="preview-meta" aria-label="Ключевые параметры">
-          <span id="preview-range">10 лет</span>
-          <span id="preview-format">16s / 24fps</span>
-          <span id="preview-currency">RUB</span>
-        </div>
-        <button id="send-button" class="primary-button" type="button">Отправить в бот</button>
-        <p id="error-text" class="error-text" role="status"></p>
-      </aside>
-    </div>
+      </details>
+
+      <button id="send-button" class="primary-button" type="button">Отправить в бот</button>
+      <p id="error-text" class="status-text" role="status"></p>
+    </aside>
   </main>
 
   <script src="./app.js"></script>

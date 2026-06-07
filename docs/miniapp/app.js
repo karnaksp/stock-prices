@@ -28,6 +28,13 @@
     error: document.getElementById("error-text"),
     telegramStatus: document.getElementById("telegram-status"),
     modeStatus: document.getElementById("mode-status"),
+    storyTitle: document.getElementById("story-title"),
+    tickerSummary: document.getElementById("ticker-summary"),
+    assetsSummary: document.getElementById("assets-summary"),
+    historySummary: document.getElementById("history-summary"),
+    calcSummary: document.getElementById("calc-summary"),
+    formatSummary: document.getElementById("format-summary"),
+    dockTitle: document.getElementById("dock-title"),
   };
 
   const modeLabels = {
@@ -35,6 +42,23 @@
     draft: "Draft",
     custom: "Custom",
   };
+
+  const marketLabels = {
+    "": "Auto / MOEX",
+    global: "Global",
+    metals: "Metals",
+    futures: "Futures",
+    crypto: "Crypto",
+    selt: "Currency",
+  };
+
+  function isTelegramLaunch() {
+    return Boolean(tg && tg.initData);
+  }
+
+  function canSendToTelegram() {
+    return isTelegramLaunch() && typeof tg.sendData === "function";
+  }
 
   function todayIso() {
     return new Date().toISOString().slice(0, 10);
@@ -53,12 +77,15 @@
     els.endDate.value = end.toISOString().slice(0, 10);
   }
 
-  function normalizedTickers() {
+  function tickerList() {
     return els.tickers.value
       .split(/[\s,;]+/)
       .map((item) => item.trim())
-      .filter(Boolean)
-      .join(" ");
+      .filter(Boolean);
+  }
+
+  function normalizedTickers() {
+    return tickerList().join(" ");
   }
 
   function readPositiveInt(input, fallback) {
@@ -71,6 +98,18 @@
     input.value = String(Math.min(max, Math.max(min, value)));
   }
 
+  function yearWord(years) {
+    const mod10 = years % 10;
+    const mod100 = years % 100;
+    if (mod10 === 1 && mod100 !== 11) {
+      return "год";
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+      return "года";
+    }
+    return "лет";
+  }
+
   function formatPeriodLabel() {
     if (!els.startDate.value || !els.endDate.value) {
       return "Период";
@@ -79,9 +118,29 @@
     const end = new Date(`${els.endDate.value}T00:00:00`);
     const years = Math.max(0, (end - start) / (365.25 * 24 * 60 * 60 * 1000));
     if (years >= 1) {
+      const roundedYears = Math.round(years);
+      if (Math.abs(years - roundedYears) < 0.05) {
+        return `${roundedYears} ${yearWord(roundedYears)}`;
+      }
       return `${years.toFixed(years >= 10 ? 0 : 1)} лет`;
     }
     return `${Math.max(1, Math.round(years * 12))} мес`;
+  }
+
+  function formatMoney(value, currency) {
+    return new Intl.NumberFormat("ru-RU", {
+      maximumFractionDigits: 0,
+      style: "currency",
+      currency,
+    }).format(value);
+  }
+
+  function formatTickersForTitle() {
+    const tickers = tickerList();
+    if (!tickers.length) {
+      return "тикеров";
+    }
+    return tickers.slice(0, 4).join(" / ");
   }
 
   function setActiveButtons(selector, activeValue, dataKey) {
@@ -96,6 +155,27 @@
     document.querySelectorAll("[data-tickers]").forEach((button) => {
       button.classList.toggle("active", button.dataset.tickers === normalizedTickers());
     });
+  }
+
+  function renderTickerSummary() {
+    const tickers = tickerList();
+    els.tickerSummary.replaceChildren();
+    if (!tickers.length) {
+      const empty = document.createElement("span");
+      empty.textContent = "Введите тикер";
+      els.tickerSummary.appendChild(empty);
+      return;
+    }
+    tickers.slice(0, 5).forEach((ticker) => {
+      const chip = document.createElement("span");
+      chip.textContent = ticker;
+      els.tickerSummary.appendChild(chip);
+    });
+    if (tickers.length > 5) {
+      const more = document.createElement("span");
+      more.textContent = `+${tickers.length - 5}`;
+      els.tickerSummary.appendChild(more);
+    }
   }
 
   function buildRequest() {
@@ -171,7 +251,7 @@
   }
 
   function updateTelegramButton(text, error) {
-    if (!tg || !tg.MainButton) {
+    if (!isTelegramLaunch() || !tg.MainButton) {
       return;
     }
     tg.MainButton.setText("Отправить в бот");
@@ -184,13 +264,35 @@
     }
   }
 
+  function updateStatus(message, ok) {
+    els.error.textContent = message;
+    els.error.classList.toggle("is-ok", Boolean(ok));
+  }
+
   function updatePreviewMeta() {
     const duration = readPositiveInt(els.duration, 16);
     const fps = readPositiveInt(els.fps, 24);
-    els.previewRange.textContent = formatPeriodLabel();
+    const period = formatPeriodLabel();
+    const tickersTitle = formatTickersForTitle();
+    const market = marketLabels[els.market.value] || els.market.value || "Auto / MOEX";
+    const metric = els.metricCapital.checked ? "Капитал" : "Цена";
+    const monthly = Math.max(0, readPositiveInt(els.monthly, 0));
+    const investmentText = els.investment.checked
+      ? `Инвестиции · ${formatMoney(monthly, els.currency.value)} / мес`
+      : metric;
+
+    els.previewRange.textContent = period;
     els.previewFormat.textContent = `${duration}s / ${fps}fps`;
     els.previewCurrency.textContent = els.currency.value;
     els.modeStatus.textContent = modeLabels[els.mode.value] || "Custom";
+    els.assetsSummary.textContent = `${market} · ${els.currency.value}`;
+    els.historySummary.textContent = period;
+    els.calcSummary.textContent = investmentText;
+    els.formatSummary.textContent = `${duration}s · ${fps}fps`;
+    els.storyTitle.textContent = els.investment.checked
+      ? `Что было бы с ${formatMoney(monthly, els.currency.value)} каждый месяц?`
+      : `Видео из ${tickersTitle}`;
+    els.dockTitle.textContent = `Видео из ${tickersTitle}`;
   }
 
   function update() {
@@ -198,10 +300,11 @@
     clampNumberInput(els.fps, 1, 30);
     els.investmentFields.hidden = !els.investment.checked;
     syncVisualControls();
+    renderTickerSummary();
     updatePreviewMeta();
     const result = buildRequest();
     els.preview.textContent = result.text || "SBER LKOH from=2020-01-01 to=2024-12-31 RUB capital shorts";
-    els.error.textContent = result.error;
+    updateStatus(result.error, false);
     els.send.disabled = Boolean(result.error);
     updateTelegramButton(result.text, result.error);
     return result;
@@ -233,22 +336,22 @@
       text: result.text,
       source: "telegram-mini-app",
     });
-    if (tg && typeof tg.sendData === "function") {
+    if (canSendToTelegram()) {
       tg.sendData(payload);
-      els.error.textContent = "Запрос отправлен. Если чат не обновился, открой Mini App через /app.";
+      updateStatus("Запрос отправлен. Если чат не обновился, открой Mini App через /app.", true);
       return;
     }
     copyText(result.text)
       .then(() => {
-        els.error.textContent = "Запрос скопирован.";
+        updateStatus("Запрос скопирован.", true);
       })
       .catch(() => {
-        els.error.textContent = "Не удалось скопировать запрос.";
+        updateStatus("Не удалось скопировать запрос.", false);
       });
   }
 
   function initTelegram() {
-    if (!tg) {
+    if (!isTelegramLaunch()) {
       els.telegramStatus.textContent = "Browser";
       els.send.textContent = "Скопировать запрос";
       return;
@@ -330,7 +433,7 @@
     const result = update();
     if (!result.error) {
       copyText(result.text).then(() => {
-        els.error.textContent = "Запрос скопирован.";
+        updateStatus("Запрос скопирован.", true);
       });
     }
   });

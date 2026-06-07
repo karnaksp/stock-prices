@@ -13,10 +13,15 @@ def test_miniapp_static_entrypoint_exists() -> None:
     assert '<link rel="stylesheet" href="./app.css">' in html
     assert '<script src="./app.js"></script>' in html
     assert "Market Motion Mini App" in html
+    assert "Собрать видео" in html
     assert 'id="mode-status"' in html
+    assert 'id="story-title"' in html
+    assert 'id="ticker-summary"' in html
+    assert 'id="dock-title"' in html
     assert 'data-mode="shorts"' in html
     assert 'data-metric="capital"' in html
     assert '<option value="selt">Currency</option>' in html
+    assert "Creator Deck" not in html
 
 
 def test_miniapp_sends_supported_telegram_payload() -> None:
@@ -30,10 +35,15 @@ def test_miniapp_sends_supported_telegram_payload() -> None:
     assert "fps=${fps}" in script
     assert "theme=${els.theme.value}" in script
     assert "monthly=${Math.max(0, readPositiveInt(els.monthly, 0))}" in script
-    assert "setActiveButtons(\"[data-mode]\"" in script
+    assert 'setActiveButtons("[data-mode]"' in script
     assert "els.modeStatus.textContent" in script
-    assert "tg.close()" not in script
+    assert "formatTickersForTitle" in script
+    assert "renderTickerSummary" in script
+    assert "isTelegramLaunch" in script
+    assert "canSendToTelegram" in script
     assert "открой Mini App через /app" in script
+    assert "tg.close()" not in script
+    assert "РѕС‚РєСЂРѕР№" not in script
 
 
 def test_miniapp_css_keeps_mobile_layout_stable() -> None:
@@ -43,6 +53,8 @@ def test_miniapp_css_keeps_mobile_layout_stable() -> None:
     assert "[hidden]" in css
     assert "grid-template-columns" in css
     assert "@media (max-width: 520px)" in css
-    assert "min-height: 52px" in css
-    assert ".workspace" in css
-    assert ".command-panel" in css
+    assert "min-height: 56px" in css
+    assert ".story-card" in css
+    assert ".steps-grid" in css
+    assert ".send-dock" in css
+    assert "position: sticky" in css
