@@ -23,6 +23,7 @@ nav:
 - API: reference/api.md
 - Проект:
   - История изменений: changelog.md
+  - Roadmap: roadmap.md
   - Разработка: contributing.md
   - Правила участия: code_of_conduct.md
   - Благодарности: credits.md
