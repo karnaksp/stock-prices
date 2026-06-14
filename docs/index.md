@@ -32,8 +32,16 @@ hide:
 ## Что получится
 
 <figure class="sp-media">
+  <video controls muted playsinline poster="assets/demo-sber-lkoh.png">
+    <source src="assets/demo-sber-lkoh.mp4" type="video/mp4">
+    <a href="assets/demo-sber-lkoh.mp4">Скачать MP4-демо SBER/LKOH</a>
+  </video>
+  <figcaption>Короткий MP4-пример реального результата: `SBER` и `LKOH`, стабильная шкала времени, синхронное движение линий и подписей.</figcaption>
+</figure>
+
+<figure class="sp-media">
   <img src="assets/demo-sber-lkoh.gif" alt="Анимированный пример графика SBER и LKOH">
-  <figcaption>Ускоренный GIF из реального MP4: шкала времени стабильная, а линия, градиент и подписи движутся синхронно.</figcaption>
+  <figcaption>GIF-preview того же ролика для быстрых просмотров в окружениях, где видео отключено.</figcaption>
 </figure>
 
 ## Быстрый старт

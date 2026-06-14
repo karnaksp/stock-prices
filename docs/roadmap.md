@@ -11,7 +11,7 @@ This roadmap tracks production hardening and portfolio-facing improvements. It i
 
 ## Product And Demo
 
-- Add short MP4 demo artifacts for the most common use cases.
+- Add more short MP4 demo artifacts for common global/crypto use cases.
 - Keep the MkDocs site as the primary user-facing documentation.
 - Document a small set of repeatable Telegram prompts for quick demos.
 - Add a social preview image for GitHub and shared links.
@@ -22,4 +22,3 @@ This roadmap tracks production hardening and portfolio-facing improvements. It i
 - Add a Docker build smoke check to CI.
 - Expand troubleshooting for Telegram delivery and local video rendering failures.
 - Keep generated videos as runtime artifacts unless they are deliberate documentation assets.
-

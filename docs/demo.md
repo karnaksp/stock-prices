@@ -7,6 +7,14 @@ Stock Prices генерирует короткие MP4-видео с аними�
 Проект полезен для инвесторов, аналитиков, авторов финансового контента и команд, которым нужно быстро получить понятную визуализацию динамики актива без ручной подготовки графиков.
 
 <figure class="sp-media sp-media--wide">
+  <video controls muted playsinline poster="../assets/demo-sber-lkoh.png">
+    <source src="../assets/demo-sber-lkoh.mp4" type="video/mp4">
+    <a href="../assets/demo-sber-lkoh.mp4">Скачать MP4-демо SBER/LKOH</a>
+  </video>
+  <figcaption>Короткий MP4-артефакт для демонстрации проекта без запуска Telegram-бота или live market download.</figcaption>
+</figure>
+
+<figure class="sp-media sp-media--wide">
   <img src="../assets/demo-sber-lkoh.png" alt="Пример финального кадра видео SBER и LKOH">
   <figcaption>Финальный кадр ролика: цветные линии, события на нижних дорожках и процентные подписи по тикерам.</figcaption>
 </figure>

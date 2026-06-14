@@ -151,13 +151,15 @@
   background: var(--sp-panel);
 }
 
-.sp-media img {
+.sp-media img,
+.sp-media video {
   display: block;
   width: min(100%, 540px);
   margin: 0 auto;
 }
 
-.sp-media--wide img {
+.sp-media--wide img,
+.sp-media--wide video {
   width: min(100%, 720px);
 }
 
