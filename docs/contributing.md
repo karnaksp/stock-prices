@@ -39,7 +39,7 @@ python -m compileall -q src tests
 - `main` содержит стабильную версию проекта и публикует GitHub Pages.
 - Новые изменения делаются в отдельных ветках от актуального `origin/develop`.
 - Feature-ветки мержатся в `develop` только после локальных проверок.
-- Перенос `develop` в `main` делается после интеграционной проверки и Docker smoke-render.
+- Перенос `develop` в `main` делается после интеграционной проверки, `pytest`, MkDocs strict build и Docker smoke-проверки из CI.
 
 ## Проверка рендера
 

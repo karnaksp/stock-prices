@@ -10,9 +10,9 @@ def test_miniapp_static_entrypoint_exists() -> None:
     html = (MINIAPP_DIR / "index.html").read_text(encoding="utf-8")
 
     assert "https://telegram.org/js/telegram-web-app.js" in html
-    assert '<link rel="stylesheet" href="./app.css">' in html
-    assert '<script src="./app.js"></script>' in html
-    assert "Market Motion Mini App" in html
+    assert '<link rel="stylesheet" href="./app.css?v=20260614">' in html
+    assert '<script src="./app.js?v=20260614"></script>' in html
+    assert "Mini App рыночных видео" in html
     assert "Собрать видео" in html
     assert 'id="mode-status"' in html
     assert 'id="story-title"' in html
@@ -21,9 +21,15 @@ def test_miniapp_static_entrypoint_exists() -> None:
     assert 'id="send-button"' in html
     assert 'id="copy-button"' in html
     assert "Отправить в бот" in html
+    assert "Скопировать" in html
     assert 'data-mode="shorts"' in html
     assert 'data-metric="capital"' in html
-    assert '<option value="selt">Currency</option>' in html
+    assert '<option value="selt">Валютный рынок</option>' in html
+    assert "Техно США" in html
+    assert "Градиент" in html
+    assert "Легенда" in html
+    assert "US tech" not in html
+    assert ">Copy<" not in html
     assert "Creator Deck" not in html
 
 

@@ -38,7 +38,8 @@ STOCK_PRICES_ALLOWED_CHAT_IDS=123456789,987654321
 ## Запустить
 
 ```powershell
-cd C:\Users\d.irinyakov\Documents\github\stock_prices
+git clone https://github.com/karnaksp/stock-prices.git
+cd stock-prices
 docker compose up -d --build
 ```
 

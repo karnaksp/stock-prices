@@ -38,18 +38,18 @@
   };
 
   const modeLabels = {
-    shorts: "Shorts",
-    draft: "Draft",
-    custom: "Custom",
+    shorts: "Шортс",
+    draft: "Черновик",
+    custom: "Вручную",
   };
 
   const marketLabels = {
-    "": "Auto / MOEX",
-    global: "Global",
-    metals: "Metals",
-    futures: "Futures",
-    crypto: "Crypto",
-    selt: "Currency",
+    "": "Авто / MOEX",
+    global: "Глобальный",
+    metals: "Металлы",
+    futures: "Фьючерсы",
+    crypto: "Крипто",
+    selt: "Валютный рынок",
   };
 
   function isTelegramLaunch() {
@@ -274,7 +274,7 @@
     const fps = readPositiveInt(els.fps, 24);
     const period = formatPeriodLabel();
     const tickersTitle = formatTickersForTitle();
-    const market = marketLabels[els.market.value] || els.market.value || "Auto / MOEX";
+    const market = marketLabels[els.market.value] || els.market.value || "Авто / MOEX";
     const metric = els.metricCapital.checked ? "Капитал" : "Цена";
     const monthly = Math.max(0, readPositiveInt(els.monthly, 0));
     const investmentText = els.investment.checked
@@ -284,7 +284,7 @@
     els.previewRange.textContent = period;
     els.previewFormat.textContent = `${duration}s / ${fps}fps`;
     els.previewCurrency.textContent = els.currency.value;
-    els.modeStatus.textContent = modeLabels[els.mode.value] || "Custom";
+    els.modeStatus.textContent = modeLabels[els.mode.value] || "Вручную";
     els.assetsSummary.textContent = `${market} · ${els.currency.value}`;
     els.historySummary.textContent = period;
     els.calcSummary.textContent = investmentText;
@@ -352,7 +352,7 @@
 
   function initTelegram() {
     if (!isTelegramLaunch()) {
-      els.telegramStatus.textContent = "Browser";
+      els.telegramStatus.textContent = "Браузер";
       return;
     }
     tg.ready();

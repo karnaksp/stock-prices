@@ -1,24 +1,25 @@
 # Roadmap
 
-This roadmap tracks production hardening and portfolio-facing improvements. It is intentionally separate from the changelog: the changelog records shipped changes, while this page describes the next engineering priorities.
+Roadmap фиксирует ближайшие инженерные улучшения production-проекта и портфолио-витрины. Он намеренно отделен от [истории изменений](changelog.md): changelog показывает уже поставленные изменения, а эта страница описывает следующие приоритеты.
 
-## Production Hardening
+## Production hardening
 
-- Add required checks on protected branches after CI is stable.
-- Keep Docker and CLI flows covered by smoke tests.
-- Track test coverage for core request parsing, market data loading, and render planning.
-- Continue keeping real secrets out of commits; `.env.example` is the only committed environment template.
+- Включить required checks на защищенной ветке, чтобы `pytest`, MkDocs и Docker smoke не обходились при merge.
+- Поддерживать smoke-покрытие для CLI, Docker Compose и Docker image после каждого изменения runtime-сценариев.
+- Следить за покрытием core-логики: парсер запросов, загрузка рыночных данных, планирование рендера и Telegram-очередь.
+- Держать секреты вне git: `.env.example` остается единственным коммитимым шаблоном окружения.
+- Добавить опциональные lint/type checks так, чтобы они помогали ревью, но не замедляли обычный вклад в проект.
 
-## Product And Demo
+## Product and demo
 
-- Add more short MP4 demo artifacts for common global/crypto use cases.
-- Keep the MkDocs site as the primary user-facing documentation.
-- Document a small set of repeatable Telegram prompts for quick demos.
-- Add a social preview image for GitHub and shared links.
+- Добавить короткие MP4-демо для частых global/crypto сценариев: `AAPL`, `BTC-USD`, `GC=F`.
+- Сохранять MkDocs как основную пользовательскую документацию и точку входа из GitHub profile.
+- Поддерживать повторяемый набор Telegram-промптов для быстрых демо на собеседовании или в портфолио.
+- Добавить social preview image для GitHub и ссылок в портфолио.
 
-## Engineering Backlog
+## Engineering backlog
 
-- Add optional lint/type checks that do not slow down normal contribution flow.
-- Add a Docker build smoke check to CI.
-- Expand troubleshooting for Telegram delivery and local video rendering failures.
-- Keep generated videos as runtime artifacts unless they are deliberate documentation assets.
+- Расширить troubleshooting для Telegram-доставки, нестабильных источников данных и локальных ошибок рендера.
+- Документировать критерии добавления новых demo assets, чтобы в репозитории оставались только компактные и осмысленные MP4/GIF/PNG.
+- Добавить регулярную процедуру обновления `config/moex_universe.json` через `scripts/collect_moex_universe.py`.
+- Продолжать хранить сгенерированные видео как runtime-артефакты; исключение - намеренно отобранные demo assets в `docs/assets`.
