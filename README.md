@@ -8,7 +8,7 @@ Stock Prices генерирует MP4-видео с анимированными
 
 ## Единый вход
 
-Основная русская документация живет на сайте MkDocs: [docs/index.md](docs/index.md).
+Основная русская документация живет на сайте MkDocs: [karnaksp.github.io/stock-prices](https://karnaksp.github.io/stock-prices/). Исходники документации лежат в [docs/index.md](docs/index.md).
 
 Локально сайт открывается так:
 

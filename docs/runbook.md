@@ -7,7 +7,8 @@
 В корне проекта:
 
 ```powershell
-cd C:\Users\d.irinyakov\Documents\github\stock_prices
+git clone https://github.com/karnaksp/stock-prices.git
+cd stock-prices
 python -m pip install -e .
 $env:PYTHONPATH = "src"
 ```

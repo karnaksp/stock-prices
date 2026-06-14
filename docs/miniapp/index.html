@@ -4,20 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b0f14">
-  <title>Market Motion Mini App</title>
+  <title>Mini App рыночных видео</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="./app.css">
+  <link rel="stylesheet" href="./app.css?v=20260614">
 </head>
 <body>
   <main class="app-shell">
     <header class="app-header">
       <div>
-        <p class="eyebrow">Market Motion</p>
+        <p class="eyebrow">Рыночное видео</p>
         <h1>Собрать видео</h1>
       </div>
       <div class="status-stack" aria-label="Статус">
         <span class="status-pill" id="telegram-status">Telegram</span>
-        <span class="status-pill status-pill--accent" id="mode-status">Shorts</span>
+        <span class="status-pill status-pill--accent" id="mode-status">Шортс</span>
       </div>
     </header>
 
@@ -45,8 +45,8 @@
       <div class="chip-row" aria-label="Быстрые наборы тикеров">
         <button class="chip" type="button" data-tickers="SBER LKOH">SBER / LKOH</button>
         <button class="chip" type="button" data-tickers="gold silver palladium" data-market="metals">Металлы</button>
-        <button class="chip" type="button" data-tickers="AAPL MSFT NVDA" data-market="global" data-currency="USD">US tech</button>
-        <button class="chip" type="button" data-tickers="BTC ETH" data-market="crypto" data-currency="USD">Crypto</button>
+        <button class="chip" type="button" data-tickers="AAPL MSFT NVDA" data-market="global" data-currency="USD">Техно США</button>
+        <button class="chip" type="button" data-tickers="BTC ETH" data-market="crypto" data-currency="USD">Крипто</button>
       </div>
     </section>
 
@@ -55,7 +55,7 @@
         <span class="step-index">1</span>
         <div>
           <strong>Активы</strong>
-          <p id="assets-summary">Auto / MOEX · RUB</p>
+          <p id="assets-summary">Авто / MOEX · RUB</p>
         </div>
       </article>
       <article class="step-card">
@@ -99,12 +99,12 @@
             <label class="field">
               <span class="field-label">Рынок</span>
               <select id="market" class="select-input">
-                <option value="">Auto / MOEX</option>
-                <option value="global">Global</option>
-                <option value="metals">Metals</option>
-                <option value="futures">Futures</option>
-                <option value="crypto">Crypto</option>
-                <option value="selt">Currency</option>
+                <option value="">Авто / MOEX</option>
+                <option value="global">Глобальный</option>
+                <option value="metals">Металлы</option>
+                <option value="futures">Фьючерсы</option>
+                <option value="crypto">Крипто</option>
+                <option value="selt">Валютный рынок</option>
               </select>
             </label>
             <label class="field">
@@ -155,21 +155,21 @@
             </div>
           </div>
           <select id="mode" class="visually-hidden" aria-hidden="true" tabindex="-1">
-            <option value="shorts">Shorts 16s/24fps</option>
-            <option value="draft">Draft 4s/8fps</option>
-            <option value="custom">Custom</option>
+            <option value="shorts">Шортс 16s/24fps</option>
+            <option value="draft">Черновик 4s/8fps</option>
+            <option value="custom">Вручную</option>
           </select>
           <div class="segmented segmented--three" role="radiogroup" aria-label="Режим видео">
             <button type="button" data-mode="shorts" class="active">
-              <span>Shorts</span>
+              <span>Шортс</span>
               <small>16s / 24fps</small>
             </button>
             <button type="button" data-mode="draft">
-              <span>Draft</span>
+              <span>Черновик</span>
               <small>4s / 8fps</small>
             </button>
             <button type="button" data-mode="custom">
-              <span>Custom</span>
+              <span>Вручную</span>
               <small>вручную</small>
             </button>
           </div>
@@ -185,9 +185,9 @@
             <label class="field">
               <span class="field-label">Тема</span>
               <select id="theme" class="select-input">
-                <option value="studio">Studio</option>
-                <option value="aurora">Aurora</option>
-                <option value="default">Default</option>
+                <option value="studio">Студия</option>
+                <option value="aurora">Аврора</option>
+                <option value="default">Базовая</option>
               </select>
             </label>
           </div>
@@ -212,11 +212,11 @@
             </label>
             <label class="toggle">
               <input id="gradient" type="checkbox" checked>
-              <span>Gradient</span>
+              <span>Градиент</span>
             </label>
             <label class="toggle">
               <input id="legend" type="checkbox" checked>
-              <span>Legend</span>
+              <span>Легенда</span>
             </label>
           </div>
           <div class="investment-grid" id="investment-fields" hidden>
@@ -258,12 +258,12 @@
 
       <div class="dock-actions">
         <button id="send-button" class="primary-button" type="button">Отправить в бот</button>
-        <button id="copy-button" class="secondary-button secondary-button--dock" type="button">Copy</button>
+        <button id="copy-button" class="secondary-button secondary-button--dock" type="button">Скопировать</button>
       </div>
       <p id="error-text" class="status-text" role="status"></p>
     </aside>
   </main>
 
-  <script src="./app.js"></script>
+  <script src="./app.js?v=20260614"></script>
 </body>
 </html>
