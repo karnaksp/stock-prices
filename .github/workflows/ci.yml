@@ -34,7 +34,10 @@ jobs:
         python -m pip install pytest pytest-cov mkdocs mkdocs-material "mkdocstrings[python]"
 
     - name: Run tests
-      run: python -m pytest
+      run: python -m pytest --cov=stock_prices --cov-report=term-missing
 
     - name: Build documentation
       run: python -m mkdocs build --strict
+
+    - name: Compile Python sources
+      run: python -m compileall -q src tests scripts

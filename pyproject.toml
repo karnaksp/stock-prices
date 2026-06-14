@@ -4,13 +4,23 @@ build-backend = "pdm.backend"
 
 [project]
 name = "stock-prices"
-description = "Animated plots"
+description = "CLI, Python API, and Telegram bot for animated market-data videos."
 authors = [{name = "Denis Irinyakov", email = "d.irinyakov@ddxfitness.ru"}]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.10"
-keywords = []
+keywords = [
+    "animation",
+    "docker",
+    "market-data",
+    "moex",
+    "python",
+    "stock-market",
+    "telegram-bot",
+    "video-generation",
+    "yahoo-finance",
+]
 dynamic = ["version"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -24,6 +34,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Documentation",
+    "Topic :: Multimedia :: Video",
     "Topic :: Software Development",
     "Topic :: Utilities",
     "Typing :: Typed",
@@ -68,6 +79,7 @@ source-includes = [
 [dependency-groups]
 test = [
     "pytest>=8.2",
+    "pytest-cov>=5.0",
 ]
 docs = [
     "mkdocs>=1.6",

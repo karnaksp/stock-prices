@@ -1,5 +1,9 @@
 # Stock Prices
 
+[![CI](https://github.com/karnaksp/stock-prices/actions/workflows/ci.yml/badge.svg)](https://github.com/karnaksp/stock-prices/actions/workflows/ci.yml)
+[![Docs](https://github.com/karnaksp/stock-prices/actions/workflows/pages.yml/badge.svg)](https://github.com/karnaksp/stock-prices/actions/workflows/pages.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 Stock Prices генерирует MP4-видео с анимированными рыночными графиками. Один и тот же pipeline работает из CLI, Python API и Telegram-бота.
 
 ## Единый вход
@@ -129,4 +133,5 @@ python -m compileall -q src tests scripts
 - [Telegram-запросы](docs/telegram.md)
 - [Запуск и проверка](docs/runbook.md)
 - [Docker и постоянный бот](docs/docker.md)
+- [Roadmap](docs/roadmap.md)
 - [API](docs/reference/api.md)
