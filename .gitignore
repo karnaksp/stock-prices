@@ -18,4 +18,5 @@ currency/
 futures/
 *.pyc
 *.mp4
+!docs/assets/*.mp4
 *.parquet
