@@ -41,3 +41,10 @@ jobs:
 
     - name: Compile Python sources
       run: python -m compileall -q src tests scripts
+
+    - name: Build Docker image
+      run: |
+        cp .env.example .env
+        docker compose config --quiet
+        docker build -t stock-prices:ci .
+        docker run --rm stock-prices:ci python -m stock_prices --debug-info
