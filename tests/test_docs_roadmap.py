@@ -6,7 +6,7 @@ from pathlib import Path
 ROADMAP_DOC = Path("docs/roadmap.md")
 
 
-def test_roadmap_is_localized_and_current_for_portfolio() -> None:
+def test_roadmap_is_localized_and_current_for_product_docs() -> None:
     roadmap = ROADMAP_DOC.read_text(encoding="utf-8")
 
     assert "ближайшие инженерные улучшения" in roadmap
