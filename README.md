@@ -84,6 +84,21 @@ gold silver palladium 2018-2026 RUB capital invest initial=0 monthly=30000 gradi
 
 Исторические данные не сохраняются в parquet: pipeline скачивает их для конкретного запроса и передает дальше в памяти. Для Docker-бота production-значение `STOCK_PRICES_RETENTION_DAYS=0`: MP4 удаляется сразу после успешной отправки и не копится на диске.
 
+## Как устроено
+
+```mermaid
+flowchart LR
+    CLI["CLI / Python API"] --> Request["VideoRequest"]
+    Telegram["Telegram bot / Mini App"] --> Request
+    Request --> MarketData["MOEX / Yahoo market data"]
+    MarketData --> Transform["Normalize prices, currency and dates"]
+    Transform --> Render["Matplotlib animation renderer"]
+    Render --> Artifact["MP4 / GIF preview"]
+    Artifact --> Delivery["Local file or Telegram delivery"]
+```
+
+Код использует один и тот же request/render pipeline для CLI, Python API и Telegram. Это снижает расхождения между локальной проверкой, Docker-ботом и пользовательским сценарием: меняется только вход и доставка результата.
+
 Чтобы расширить random-подборки всеми доступными MOEX-акциями, соберите metadata-файл и укажите его в `.env`:
 
 ```powershell
