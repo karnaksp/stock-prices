@@ -8,7 +8,7 @@ INDEX_DOC = Path("docs/index.md")
 DEMO_DOC = Path("docs/demo.md")
 
 
-def test_portfolio_demo_assets_are_present_and_compact() -> None:
+def test_product_demo_assets_are_present_and_compact() -> None:
     expected_assets = {
         "demo-sber-lkoh.gif": 2_000_000,
         "demo-sber-lkoh.mp4": 500_000,
