@@ -233,6 +233,39 @@ def _y_limits_with_margin(y_min: float, y_max: float) -> tuple[float, float]:
     return y_min - margin, y_max + margin
 
 
+def _spread_label_positions(
+    targets: list[tuple[str, float]],
+    y_bottom: float,
+    y_top: float,
+    min_gap: float,
+) -> dict[str, float]:
+    if not targets:
+        return {}
+
+    ordered = sorted(targets, key=lambda item: item[1])
+    lower = y_bottom + min_gap
+    upper = y_top - min_gap
+    if len(ordered) == 1:
+        name, target = ordered[0]
+        return {name: min(max(target, lower), upper)}
+
+    available = max(0.0, upper - lower)
+    gap = min(min_gap, available / (len(ordered) - 1))
+    positions = [min(max(target, lower), upper) for _name, target in ordered]
+
+    for index in range(1, len(positions)):
+        positions[index] = max(positions[index], positions[index - 1] + gap)
+    positions[-1] = min(positions[-1], upper)
+    for index in range(len(positions) - 2, -1, -1):
+        positions[index] = min(positions[index], positions[index + 1] - gap)
+    if positions[0] < lower:
+        positions[0] = lower
+        for index in range(1, len(positions)):
+            positions[index] = max(positions[index], positions[index - 1] + gap)
+
+    return {name: position for (name, _target), position in zip(ordered, positions, strict=True)}
+
+
 def _limit_from_prefix(prefix_y_min: pd.Series, prefix_y_max: pd.Series, frame_index: int) -> tuple[float, float] | None:
     frame_y_min = prefix_y_min.iloc[frame_index]
     frame_y_max = prefix_y_max.iloc[frame_index]
@@ -448,7 +481,9 @@ def create_multi_line_animation(
             color=color,
             va="center",
             ha="right",
-            bbox={"boxstyle": "round,pad=0.35", "facecolor": chart_theme.label_box_bg, "edgecolor": color, "alpha": 0.92},
+            clip_on=True,
+            zorder=9,
+            bbox={"boxstyle": "round,pad=0.35", "facecolor": chart_theme.label_box_bg, "edgecolor": color, "alpha": 1.0},
         )
         dividend_markers[name] = ax.scatter([], [], s=55, color=color, alpha=0.7, zorder=5)
     if use_legend:
@@ -541,17 +576,16 @@ def create_multi_line_animation(
 
         y_bottom, y_top = ax.get_ylim()
         min_gap = (y_top - y_bottom) * 0.065
-        used_y: list[float] = []
+        label_positions = _spread_label_positions(
+            [(name, last_y) for name, _last_x, last_y, _label_text in label_targets],
+            y_bottom,
+            y_top,
+            min_gap,
+        )
         label_x_offset = pd.Timedelta(days=visible_x_span_days * 0.025)
         label_x_right = x_start + pd.Timedelta(days=visible_x_span_days * 1.105)
-        for name, last_x, last_y, _label_text in sorted(label_targets, key=lambda item: item[2]):
-            adjusted_y = min(max(last_y, y_bottom + min_gap), y_top - min_gap)
-            while any(abs(adjusted_y - used) < min_gap for used in used_y):
-                adjusted_y += min_gap
-                if adjusted_y > y_top - min_gap:
-                    adjusted_y = max(y_bottom + min_gap, last_y - min_gap)
-                    break
-            used_y.append(adjusted_y)
+        for name, last_x, last_y, _label_text in label_targets:
+            adjusted_y = label_positions[name]
             labels[name].set_position((min(last_x + label_x_offset, label_x_right), adjusted_y))
         for event_index, (start, visible_end, event_name, impact) in enumerate(_active_event_ranges(event_ranges, frame_date)):
             color = event_color(impact)
