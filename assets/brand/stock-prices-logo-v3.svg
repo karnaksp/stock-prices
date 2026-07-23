@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Stock Prices logo">
+  <rect width="1024" height="1024" rx="224" fill="#080A0F"/>
+  <path
+    fill="#F2EFE6"
+    fill-rule="evenodd"
+    d="
+      M184 238
+      H840
+      Q872 238 872 270
+      V754
+      Q872 786 840 786
+      H184
+      Q152 786 152 754
+      V270
+      Q152 238 184 238
+      Z
+
+      M152 585
+      L276 492
+      L388 551
+      L528 394
+      L650 455
+      L872 304
+      V414
+      L658 560
+      L548 505
+      L408 662
+      L284 596
+      L152 695
+      Z
+    "
+  />
+  <circle cx="276" cy="544" r="22" fill="#FF5A36"/>
+  <circle cx="528" cy="449" r="22" fill="#45D6A8"/>
+  <circle cx="650" cy="508" r="22" fill="#FF5A36"/>
+</svg>
