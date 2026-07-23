@@ -105,9 +105,9 @@ def draw_gradient_line(
     name: str,
     n_segments: int = 50,
     *,
-    alpha: float = 0.65,
-    linewidth: float = 3.6,
-    zorder: int = 3,
+    alpha: float = 0.95,
+    linewidth: float = 4.2,
+    zorder: int = 5,
 ):
     from matplotlib.collections import LineCollection
     from matplotlib.colors import LinearSegmentedColormap
@@ -280,7 +280,7 @@ def _frame_y_limits(
     prefix_y_max: pd.Series,
     fps: int,
     *,
-    lookahead_seconds: float = 4.0,
+    lookahead_seconds: float = 0.0,
     easing: float = 0.18,
 ) -> list[tuple[float, float] | None]:
     if not frame_indexes:
@@ -535,7 +535,7 @@ def create_multi_line_animation(
             current_line_x = current_x_data.loc[current_clean.index]
             sampled_line_x, sampled_line_y = line_x, line_clean
             if use_gradient:
-                lines[name].set_alpha(0.96)
+                lines[name].set_alpha(0.18)
                 lines[name].set_data(sampled_line_x, sampled_line_y)
                 tail_point_count = min(180, len(current_clean))
                 gradient_x = current_line_x.iloc[-tail_point_count:]
