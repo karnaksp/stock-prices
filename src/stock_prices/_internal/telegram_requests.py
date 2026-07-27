@@ -4,8 +4,9 @@ import re
 from calendar import monthrange
 from dataclasses import dataclass, replace
 from datetime import date, datetime
+from urllib.parse import unquote
 
-from stock_prices._internal.models import RenderSettings, TickerSpec, VideoRequest, parse_ticker_spec
+from stock_prices._internal.models import RenderSettings, TickerSpec, TimelineEvent, VideoRequest, parse_ticker_spec
 from stock_prices._internal.rendering.theme import get_theme_names
 from stock_prices._internal.telegram_presets import expand_preset_text
 
@@ -223,6 +224,19 @@ def _parse_int(value: str, minimum: int, maximum: int, name: str) -> int:
     return max(minimum, min(parsed, maximum))
 
 
+def _parse_timeline_event(value: str) -> TimelineEvent:
+    parts = [part.strip() for part in value.split("~", 3)]
+    if len(parts) != 4:
+        raise ValueError("event must use START~END~TITLE~IMPACT.")
+    start_date = _parse_date_token(parts[0])
+    end_date = _parse_date_token(parts[1], end=True)
+    if start_date is None or end_date is None:
+        raise ValueError("event dates must use YYYY-MM-DD.")
+    title = unquote(parts[2]).replace("_", " ").strip()
+    impact = _parse_int(parts[3], -1, 1, "event impact")
+    return TimelineEvent(start_date, end_date, title, impact)
+
+
 def _parse_duration_shortcut(token: str) -> int | None:
     normalized = token.strip().lower().replace("_", "")
     match = re.fullmatch(r"(\d{1,2})(s|sec|secs|second|seconds|с|сек|секунд|секунда|секунды)", normalized)
@@ -407,6 +421,7 @@ def parse_telegram_video_request(
     positional_dates: list[date] = []
     updates: dict[str, object] = {}
     title: str | None = None
+    timeline_events: list[TimelineEvent] = []
 
     idx = 0
     while idx < len(tokens):
@@ -458,6 +473,7 @@ def parse_telegram_video_request(
                 "show_legend",
                 "title",
                 "theme",
+                "event",
             }:
                 key = possible_key
                 value = possible_value.strip()
@@ -504,6 +520,10 @@ def parse_telegram_video_request(
             if theme not in get_theme_names():
                 raise ValueError(f"Unknown theme: {value}")
             updates["theme"] = theme
+        elif key == "event":
+            if len(timeline_events) >= 12:
+                raise ValueError("A maximum of 12 timeline events is supported.")
+            timeline_events.append(_parse_timeline_event(value))
         elif key:
             raise ValueError(f"Unknown option: {key}")
         elif "|" in token:
@@ -661,6 +681,8 @@ def parse_telegram_video_request(
         updates["start_date"] = positional_dates[0]
     if len(positional_dates) >= 2:
         updates["end_date"] = positional_dates[1]
+    if timeline_events:
+        updates["timeline_events"] = tuple(timeline_events)
 
     specs.extend(_spec_from_ticker(ticker, engine, market) for ticker in raw_tickers)
     if not specs:

@@ -420,6 +420,138 @@ h2 {
   background: rgba(17, 24, 34, 0.98);
 }
 
+.settings-block--events {
+  padding: 0;
+}
+
+.timeline-events > summary {
+  min-height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.timeline-events > summary::-webkit-details-marker {
+  display: none;
+}
+
+.timeline-events > summary::after {
+  content: "+";
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(69, 214, 255, 0.36);
+  border-radius: 50%;
+  color: #45d6ff;
+  background: rgba(69, 214, 255, 0.08);
+  font-size: 22px;
+  font-weight: 500;
+  transition: transform 180ms ease, background 180ms ease;
+}
+
+.timeline-events[open] > summary::after {
+  transform: rotate(45deg);
+  background: rgba(69, 214, 255, 0.14);
+}
+
+.timeline-events > summary > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.events-state {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 780;
+  white-space: nowrap;
+}
+
+.events-state.is-active {
+  color: var(--teal);
+}
+
+.events-builder {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.events-help {
+  margin: 12px 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.events-list {
+  display: grid;
+  gap: 10px;
+}
+
+.event-row {
+  padding: 12px;
+  border: 1px solid rgba(69, 214, 255, 0.2);
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(69, 214, 255, 0.06), transparent 46%),
+    var(--surface-soft);
+}
+
+.event-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.event-row-head strong {
+  font-size: 14px;
+  font-weight: 820;
+}
+
+.remove-event-button {
+  min-height: 30px;
+  padding: 5px 8px;
+  border-color: rgba(255, 148, 111, 0.28);
+  color: var(--coral);
+  background: rgba(255, 148, 111, 0.06);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.event-title-field {
+  margin-bottom: 8px;
+}
+
+.event-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.add-event-button {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 10px;
+  border: 1px dashed rgba(69, 214, 255, 0.42);
+  color: #9eeeff;
+  background: rgba(69, 214, 255, 0.05);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.add-event-button span {
+  margin-right: 5px;
+  font-size: 18px;
+  vertical-align: -1px;
+}
+
 .section-head {
   display: flex;
   align-items: flex-start;
@@ -698,7 +830,8 @@ h2 {
 
   .segmented--two,
   .date-grid,
-  .compact-grid {
+  .compact-grid,
+  .event-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -717,9 +850,10 @@ h2 {
   .toggle-grid,
   .compact-grid,
   .compact-grid--three,
-  .date-grid,
-  .investment-grid,
-  .segmented,
+    .date-grid,
+    .investment-grid,
+    .event-fields,
+    .segmented,
   .segmented--three,
   .segmented--two {
     grid-template-columns: 1fr;

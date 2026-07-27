@@ -10,6 +10,7 @@ import pandas as pd
 
 from stock_prices._internal.models import VideoRequest
 from stock_prices._internal.lib.downloader import download_ticker_history
+from stock_prices._internal.lib.events import add_events, timeline_events_frame
 from stock_prices._internal.lib.plotting import render_charts
 
 
@@ -49,6 +50,10 @@ def generate_video(request: VideoRequest, job_id: str | None = None) -> Path:
         log_event("request", "failed", job_id=job_id, error=str(exc))
         raise
     log_event("download", "completed", job_id=job_id, elapsed_ms=_elapsed_ms(download_started_at))
+    request_events = timeline_events_frame(request.render.timeline_events)
+    for data_frame in source_data.values():
+        add_events(data_frame, request_events)
+    log_event("events", "prepared", job_id=job_id, event_count=len(request.render.timeline_events))
 
     render_started_at = time.monotonic()
     log_event("render", "started", job_id=job_id, output_dir=str(request.render.output_dir))

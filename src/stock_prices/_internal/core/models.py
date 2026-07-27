@@ -7,6 +7,26 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
+class TimelineEvent:
+    start_date: date
+    end_date: date
+    title: str
+    impact: int = 0
+
+    def __post_init__(self) -> None:
+        title = self.title.strip()
+        if not title:
+            raise ValueError("Timeline event title must not be empty.")
+        if len(title) > 80:
+            raise ValueError("Timeline event title must not exceed 80 characters.")
+        if self.end_date < self.start_date:
+            raise ValueError("Timeline event end_date must be greater than or equal to start_date.")
+        if self.impact not in {-1, 0, 1}:
+            raise ValueError("Timeline event impact must be -1, 0, or 1.")
+        object.__setattr__(self, "title", title)
+
+
+@dataclass(frozen=True)
 class TickerSpec:
     ticker: str
     engine: str = "stock"
@@ -44,6 +64,7 @@ class RenderSettings:
     monthly_investment: int = 0
     yearly_investment: int = 0
     with_investments: bool = False
+    timeline_events: tuple[TimelineEvent, ...] = ()
     output_dir: Path = Path("animations")
 
     @property

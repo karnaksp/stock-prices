@@ -3,8 +3,11 @@ from __future__ import annotations
 from functools import lru_cache
 from importlib import resources
 from pathlib import Path
+from typing import Iterable
 
 import pandas as pd
+
+from stock_prices._internal.models import TimelineEvent
 
 
 def _default_events_path() -> Path:
@@ -40,6 +43,25 @@ def _load_events_cached(path_key: str | None) -> pd.DataFrame:
 def load_events(json_path: str | Path | None = None) -> pd.DataFrame:
     path = _resolve_events_path(json_path)
     return _load_events_cached(str(path) if path is not None else None).copy(deep=True)
+
+
+def timeline_events_frame(events: Iterable[TimelineEvent]) -> pd.DataFrame:
+    rows = [
+        {
+            "start": event.start_date,
+            "end": event.end_date,
+            "event": event.title,
+            "type": "custom",
+            "impact": event.impact,
+        }
+        for event in events
+    ]
+    if not rows:
+        return _empty_events()
+    frame = pd.DataFrame(rows)
+    frame["start"] = pd.to_datetime(frame["start"])
+    frame["end"] = pd.to_datetime(frame["end"])
+    return frame
 
 
 def add_events(data_frame: pd.DataFrame, events_df: pd.DataFrame) -> None:

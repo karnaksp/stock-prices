@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0f14">
   <title>Mini App рыночных видео</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="./app.css?v=20260614">
+  <link rel="stylesheet" href="./app.css?v=20260727">
 </head>
 <body>
   <main class="app-shell">
@@ -193,6 +193,26 @@
           </div>
         </section>
 
+        <section class="settings-block settings-block--events">
+          <details class="timeline-events" id="timeline-events">
+            <summary>
+              <div>
+                <p class="section-kicker">События</p>
+                <h2>Периоды на шкале</h2>
+              </div>
+              <span class="events-state" id="events-state">Выключены</span>
+            </summary>
+            <div class="events-builder">
+              <p class="events-help">Добавь период, который будет выделен цветом и подписан на графике.</p>
+              <div class="events-list" id="events-list"></div>
+              <button class="add-event-button" id="add-event-button" type="button">
+                <span aria-hidden="true">+</span>
+                Добавить событие
+              </button>
+            </div>
+          </details>
+        </section>
+
         <section class="settings-block">
           <div class="section-head">
             <div>
@@ -264,6 +284,6 @@
     </aside>
   </main>
 
-  <script src="./app.js?v=20260614"></script>
+  <script src="./app.js?v=20260727"></script>
 </body>
 </html>

@@ -19,6 +19,10 @@
     gradient: document.getElementById("gradient"),
     legend: document.getElementById("legend"),
     theme: document.getElementById("theme"),
+    timelineEvents: document.getElementById("timeline-events"),
+    eventsState: document.getElementById("events-state"),
+    eventsList: document.getElementById("events-list"),
+    addEvent: document.getElementById("add-event-button"),
     preview: document.getElementById("request-preview"),
     previewRange: document.getElementById("preview-range"),
     previewFormat: document.getElementById("preview-format"),
@@ -178,6 +182,114 @@
     }
   }
 
+  function eventRows() {
+    return Array.from(els.eventsList.querySelectorAll(".event-row"));
+  }
+
+  function eventRowValue(row) {
+    return {
+      title: row.querySelector("[data-event-title]").value.trim(),
+      start: row.querySelector("[data-event-start]").value,
+      end: row.querySelector("[data-event-end]").value,
+      impact: row.querySelector("[data-event-impact]").value,
+    };
+  }
+
+  function eventWord(count) {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+    if (mod10 === 1 && mod100 !== 11) {
+      return "событие";
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+      return "события";
+    }
+    return "событий";
+  }
+
+  function completeEventCount() {
+    return eventRows().filter((row) => {
+      const event = eventRowValue(row);
+      return event.title && event.start && event.end;
+    }).length;
+  }
+
+  function updateEventsState() {
+    const count = completeEventCount();
+    els.eventsState.textContent = count ? `${count} ${eventWord(count)}` : "Выключены";
+    els.eventsState.classList.toggle("is-active", count > 0);
+  }
+
+  function createEventRow() {
+    if (eventRows().length >= 12) {
+      updateStatus("Можно добавить не больше 12 событий.", false);
+      return;
+    }
+    const row = document.createElement("article");
+    row.className = "event-row";
+    row.innerHTML = `
+      <div class="event-row-head">
+        <strong>Событие</strong>
+        <button class="remove-event-button" type="button" aria-label="Удалить событие">Удалить</button>
+      </div>
+      <label class="field event-title-field">
+        <span class="field-label">Название</span>
+        <input class="text-input" data-event-title maxlength="80" placeholder="Смягчение ФРС" autocomplete="off">
+      </label>
+      <div class="event-fields">
+        <label class="field">
+          <span class="field-label">С</span>
+          <input class="text-input" data-event-start type="date">
+        </label>
+        <label class="field">
+          <span class="field-label">До</span>
+          <input class="text-input" data-event-end type="date">
+        </label>
+        <label class="field">
+          <span class="field-label">Влияние</span>
+          <select class="select-input" data-event-impact>
+            <option value="0">Нейтральное</option>
+            <option value="1">Позитивное</option>
+            <option value="-1">Негативное</option>
+          </select>
+        </label>
+      </div>
+    `;
+    row.querySelectorAll("input, select").forEach((element) => {
+      element.addEventListener("input", update);
+      element.addEventListener("change", update);
+    });
+    row.querySelector(".remove-event-button").addEventListener("click", () => {
+      row.remove();
+      update();
+    });
+    els.eventsList.appendChild(row);
+    row.querySelector("[data-event-title]").focus();
+    update();
+  }
+
+  function readTimelineEvents() {
+    const events = [];
+    for (const row of eventRows()) {
+      const event = eventRowValue(row);
+      const dirty = event.title || event.start || event.end;
+      if (!dirty) {
+        continue;
+      }
+      if (!event.title || !event.start || !event.end) {
+        return { events: [], error: "Заполни название и обе даты события." };
+      }
+      if (event.start > event.end) {
+        return { events: [], error: `У события «${event.title}» дата начала позже даты окончания.` };
+      }
+      if (event.start < els.startDate.value || event.end > els.endDate.value) {
+        return { events: [], error: `Событие «${event.title}» должно находиться внутри периода графика.` };
+      }
+      events.push(event);
+    }
+    return { events, error: "" };
+  }
+
   function buildRequest() {
     const tickers = normalizedTickers();
     const duration = readPositiveInt(els.duration, 16);
@@ -198,6 +310,10 @@
     }
     if (fps < 1 || fps > 30) {
       return { text: "", error: "FPS: 1-30." };
+    }
+    const timelineEvents = readTimelineEvents();
+    if (timelineEvents.error) {
+      return { text: "", error: timelineEvents.error };
     }
 
     parts.push(tickers);
@@ -233,6 +349,9 @@
       parts.push("nolegend");
     }
     parts.push(`theme=${els.theme.value}`);
+    timelineEvents.events.forEach((event) => {
+      parts.push(`event=${event.start}~${event.end}~${encodeURIComponent(event.title)}~${event.impact}`);
+    });
 
     return { text: parts.join(" "), error: "" };
   }
@@ -299,6 +418,7 @@
     clampNumberInput(els.duration, 1, 90);
     clampNumberInput(els.fps, 1, 30);
     els.investmentFields.hidden = !els.investment.checked;
+    updateEventsState();
     syncVisualControls();
     renderTickerSummary();
     updatePreviewMeta();
@@ -385,6 +505,13 @@
       applyModeDefaults();
     });
   });
+
+  els.timelineEvents.addEventListener("toggle", () => {
+    if (els.timelineEvents.open && !eventRows().length) {
+      createEventRow();
+    }
+  });
+  els.addEvent.addEventListener("click", createEventRow);
 
   document.querySelectorAll("[data-metric]").forEach((button) => {
     button.addEventListener("click", () => {
