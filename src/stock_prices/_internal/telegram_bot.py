@@ -90,9 +90,17 @@ class TelegramClient:
         self.group_topic_ids = dict(group_topic_ids or {})
 
     def call(self, method: str, **data: Any) -> Any:
+        return self._post(method, data=data, timeout=self.timeout + 10)
+
+    def _post(self, method: str, *, data: dict[str, Any], timeout: int, files: dict[str, Any] | None = None) -> Any:
         for attempt in range(3):
+            kwargs: dict[str, Any] = {"data": data, "timeout": timeout}
+            if files is not None:
+                for _name, stream, _mime in files.values():
+                    stream.seek(0)
+                kwargs["files"] = files
             try:
-                response = requests.post(f"{self.base_url}/{method}", data=data, timeout=self.timeout + 10)
+                response = requests.post(f"{self.base_url}/{method}", **kwargs)
             except requests.RequestException as exc:
                 raise TelegramApiError(f"Telegram {method} request failed: {_redact_token(str(exc), self.token)}") from None
             payload = response.json()
@@ -142,19 +150,11 @@ class TelegramClient:
         if chat_id in self.group_topic_ids:
             data["message_thread_id"] = self.group_topic_ids[chat_id]
         with video_path.open("rb") as video:
-            try:
-                response = requests.post(
-                    f"{self.base_url}/sendVideo",
-                    data=data,
-                    files={"video": (video_path.name, video, "video/mp4")},
-                    timeout=max(self.timeout + 60, 120),
-                )
-            except requests.RequestException as exc:
-                raise TelegramApiError(f"Telegram sendVideo request failed: {_redact_token(str(exc), self.token)}") from None
-        payload = response.json()
-        if not response.ok or not payload.get("ok"):
-            description = payload.get("description", response.text)
-            raise TelegramApiError(f"Telegram sendVideo failed: {description}")
+            self._post(
+                "sendVideo", data=data,
+                files={"video": (video_path.name, video, "video/mp4")},
+                timeout=max(self.timeout + 60, 120),
+            )
 
 
 class TelegramBotSettings:

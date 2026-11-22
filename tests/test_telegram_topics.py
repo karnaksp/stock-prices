@@ -128,6 +128,26 @@ def test_network_error_is_not_retried_because_delivery_is_uncertain(monkeypatch)
     assert len(calls) == 1
 
 
+def test_video_retry_rewinds_the_upload_and_keeps_the_topic(monkeypatch, tmp_path):
+    uploads, topics, sleeps = [], [], []
+
+    def post(url, **kwargs):
+        uploads.append(kwargs["files"]["video"][1].read())
+        topics.append(kwargs["data"]["message_thread_id"])
+        payload = ({"ok": False, "error_code": 429, "parameters": {"retry_after": 30}}
+                   if len(uploads) == 1 else {"ok": True, "result": {"message_id": 1}})
+        return SimpleNamespace(ok=payload["ok"], json=lambda: payload, text="limited")
+
+    monkeypatch.setattr(telegram_bot.requests, "post", post)
+    monkeypatch.setattr(telegram_bot.time, "sleep", sleeps.append)
+    video = tmp_path / "test.mp4"
+    video.write_bytes(b"complete-video")
+    telegram_bot.TelegramClient("test-token", group_topic_ids={-123: 7}).send_video(-123, video, "chart")
+    assert uploads == [b"complete-video", b"complete-video"]
+    assert topics == [7, 7]
+    assert sleeps == [30]
+
+
 def test_failed_failure_notice_does_not_stop_the_render_queue(monkeypatch):
     def fail(*args, **kwargs):
         raise telegram_bot.TelegramApiError("limited")
