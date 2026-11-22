@@ -14,6 +14,7 @@ from typing import Any, Callable
 import requests
 
 from stock_prices._internal.env import get_cleanup_retention_days, get_mini_app_url
+from stock_prices._internal.telegram_topics import get_group_topic_ids, update_is_in_group_topic
 from stock_prices._internal.content_universe import (
     GeneratedContentIdea,
     build_random_content_idea,
@@ -82,17 +83,25 @@ def _redact_token(text: str, token: str) -> str:
 
 
 class TelegramClient:
-    def __init__(self, token: str, timeout: int = 30) -> None:
+    def __init__(self, token: str, timeout: int = 30, *, group_topic_ids: dict[int, int] | None = None) -> None:
         self.token = token
         self.base_url = f"https://api.telegram.org/bot{token}"
         self.timeout = timeout
+        self.group_topic_ids = dict(group_topic_ids or {})
 
     def call(self, method: str, **data: Any) -> Any:
-        try:
-            response = requests.post(f"{self.base_url}/{method}", data=data, timeout=self.timeout + 10)
-        except requests.RequestException as exc:
-            raise TelegramApiError(f"Telegram {method} request failed: {_redact_token(str(exc), self.token)}") from None
-        payload = response.json()
+        for attempt in range(3):
+            try:
+                response = requests.post(f"{self.base_url}/{method}", data=data, timeout=self.timeout + 10)
+            except requests.RequestException as exc:
+                raise TelegramApiError(f"Telegram {method} request failed: {_redact_token(str(exc), self.token)}") from None
+            payload = response.json()
+            retry_after = (payload.get("parameters") or {}).get("retry_after")
+            if (payload.get("error_code") == 429 and attempt < 2
+                    and type(retry_after) is int and 0 < retry_after <= 60):
+                time.sleep(retry_after)
+                continue
+            break
         if not response.ok or not payload.get("ok"):
             description = payload.get("description", response.text)
             raise TelegramApiError(f"Telegram {method} failed: {description}")
@@ -110,6 +119,8 @@ class TelegramClient:
 
     def send_message(self, chat_id: int, text: str, reply_markup: dict[str, Any] | None = None) -> None:
         data: dict[str, Any] = {"chat_id": chat_id, "text": text}
+        if chat_id in self.group_topic_ids:
+            data["message_thread_id"] = self.group_topic_ids[chat_id]
         if reply_markup is not None:
             data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
         self.call("sendMessage", **data)
@@ -127,11 +138,14 @@ class TelegramClient:
         self.call("answerCallbackQuery", **data)
 
     def send_video(self, chat_id: int, video_path: Path, caption: str) -> None:
+        data: dict[str, Any] = {"chat_id": chat_id, "caption": caption, "supports_streaming": True}
+        if chat_id in self.group_topic_ids:
+            data["message_thread_id"] = self.group_topic_ids[chat_id]
         with video_path.open("rb") as video:
             try:
                 response = requests.post(
                     f"{self.base_url}/sendVideo",
-                    data={"chat_id": chat_id, "caption": caption, "supports_streaming": True},
+                    data=data,
                     files={"video": (video_path.name, video, "video/mp4")},
                     timeout=max(self.timeout + 60, 120),
                 )
@@ -156,10 +170,12 @@ class TelegramBotSettings:
         cleanup_retention_days: int | None = None,
         mini_app_url: str | None = None,
         mini_app_menu_button: bool = False,
+        group_topic_ids: dict[int, int] | None = None,
     ) -> None:
         self.token = token
         self.render = render
         self.allowed_chat_ids = allowed_chat_ids or set()
+        self.group_topic_ids = get_group_topic_ids() if group_topic_ids is None else dict(group_topic_ids)
         self.default_engine = default_engine
         self.default_market = default_market
         self.poll_timeout = poll_timeout
@@ -1686,7 +1702,10 @@ class TelegramJobQueue:
         except Exception as exc:
             log_event("request", "failed", job_id=job.job_id, chat_id=job.chat_id, error=str(exc))
             logging.exception("Failed to process Telegram request %s", job.job_id)
-            self.client.send_message(job.chat_id, f"Job {job.job_id} failed: {exc}")
+            try:
+                self.client.send_message(job.chat_id, f"Job {job.job_id} failed: {exc}")
+            except TelegramApiError:
+                logging.exception("Could not send failure notice for Telegram job %s", job.job_id)
             return False
         return True
 
@@ -3004,7 +3023,8 @@ def _random_content_action(text: str) -> TelegramRandomContentAction | None:
 
 
 def _is_queue_status(text: str) -> bool:
-    normalized = " ".join(text.strip().lower().split())
+    command = _slash_command_and_payload(text)
+    normalized = command[0] if command is not None and not command[1] else " ".join(text.strip().lower().split())
     return normalized in {
         "/queue",
         "/status",
@@ -3522,7 +3542,7 @@ def handle_ticker_message(
 
 
 def run_telegram_bot(settings: TelegramBotSettings) -> None:
-    client = TelegramClient(settings.token, settings.poll_timeout)
+    client = TelegramClient(settings.token, settings.poll_timeout, group_topic_ids=settings.group_topic_ids)
     configure_telegram_command_menu(client)
     configure_telegram_mini_app_menu_button(
         client,
@@ -3540,6 +3560,11 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                 updates = client.get_updates(offset=offset, timeout=settings.poll_timeout)
                 for update in updates:
                     offset = int(update["update_id"]) + 1
+                    if not update_is_in_group_topic(update, settings.group_topic_ids):
+                        callback = update.get("callback_query") or {}
+                        if callback.get("id"):
+                            client.answer_callback_query(callback["id"], "Используйте тему «Графики и команды».")
+                        continue
                     extracted = _extract_text_message(update)
                     if extracted is not None:
                         chat_id, text = extracted
