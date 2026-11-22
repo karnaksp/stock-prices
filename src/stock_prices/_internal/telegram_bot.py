@@ -3585,7 +3585,7 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                     if not update_is_in_group_topic(update, settings.group_topic_ids):
                         callback = update.get("callback_query") or {}
                         if callback.get("id"):
-                            client.answer_callback_query(callback["id"], "Используйте тему «Графики и команды».")
+                            client.answer_callback_query(callback["id"], "Используйте тему «Читы».")
                         continue
                     extracted = _extract_text_message(update)
                     if extracted is not None:
