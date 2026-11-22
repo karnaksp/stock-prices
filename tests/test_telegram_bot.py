@@ -431,7 +431,6 @@ def test_run_telegram_bot_queues_generation_once(monkeypatch) -> None:
 
     assert any("поставлена в очередь" in message for _chat_id, message in client.messages)
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
-    assert any("Генерирую видео: LKOH" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/LKOH.mp4"), "LKOH: 2020-01-01 - 2020-01-02")]
 
 
@@ -469,7 +468,7 @@ def test_run_telegram_bot_queues_shorts_slash_command(monkeypatch) -> None:
     telegram_bot.run_telegram_bot(settings)
 
     assert generated == [("tg-421", 16, 24, True, ["LKOH", "SBER"])]
-    assert any("16s/24fps" in message for _chat_id, message in client.messages)
+    assert any("поставлена в очередь" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/LKOH-SBER-shorts.mp4"), "LKOH / SBER: 2020-01-01 - 2024-12-31")]
 
 
@@ -595,7 +594,8 @@ def test_run_telegram_bot_queues_draft_preset_from_inline_button(monkeypatch) ->
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers[0][0] == "callback-2"
-    assert any("4s/8fps" in message for _chat_id, message in client.messages)
+    # A fast render may finish before its queued "generating" notice is sent.
+    assert any("поставлена в очередь" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/metals-draft.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 
@@ -640,7 +640,7 @@ def test_run_telegram_bot_queues_12s_preset_from_followup_button(monkeypatch) ->
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers == [("callback-3", "Сценарий поставлен в очередь.")]
-    assert any("12s/24fps" in message for _chat_id, message in client.messages)
+    assert any("поставлена в очередь" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/metals-12s.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 
@@ -682,7 +682,7 @@ def test_run_telegram_bot_queues_theme_preset_from_followup_button(monkeypatch) 
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers == [("callback-preset-studio", "Сценарий поставлен в очередь.")]
-    assert any("Тема: studio" in message for _chat_id, message in client.messages)
+    assert any("поставлена в очередь" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/metals-studio.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 

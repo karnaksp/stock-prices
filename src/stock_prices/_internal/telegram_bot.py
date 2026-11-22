@@ -15,6 +15,7 @@ import requests
 
 from stock_prices._internal.env import get_cleanup_retention_days, get_mini_app_url
 from stock_prices._internal.telegram_topics import get_group_topic_ids, update_is_in_group_topic
+from stock_prices._internal.telegram_notifications import TelegramNotificationQueue
 from stock_prices._internal.content_universe import (
     GeneratedContentIdea,
     build_random_content_idea,
@@ -88,6 +89,7 @@ class TelegramClient:
         self.base_url = f"https://api.telegram.org/bot{token}"
         self.timeout = timeout
         self.group_topic_ids = dict(group_topic_ids or {})
+        self._send_lock = Lock()
 
     def call(self, method: str, **data: Any) -> Any:
         return self._post(method, data=data, timeout=self.timeout + 10)
@@ -131,7 +133,8 @@ class TelegramClient:
             data["message_thread_id"] = self.group_topic_ids[chat_id]
         if reply_markup is not None:
             data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
-        self.call("sendMessage", **data)
+        with self._send_lock:
+            self.call("sendMessage", **data)
 
     def set_my_commands(self, commands: list[dict[str, str]]) -> None:
         self.call("setMyCommands", commands=json.dumps(commands, ensure_ascii=False))
@@ -150,11 +153,12 @@ class TelegramClient:
         if chat_id in self.group_topic_ids:
             data["message_thread_id"] = self.group_topic_ids[chat_id]
         with video_path.open("rb") as video:
-            self._post(
-                "sendVideo", data=data,
-                files={"video": (video_path.name, video, "video/mp4")},
-                timeout=max(self.timeout + 60, 120),
-            )
+            with self._send_lock:
+                self._post(
+                    "sendVideo", data=data,
+                    files={"video": (video_path.name, video, "video/mp4")},
+                    timeout=max(self.timeout + 60, 120),
+                )
 
 
 class TelegramBotSettings:
@@ -1171,6 +1175,7 @@ class TelegramJobQueue:
     def __init__(self, client: TelegramClient, settings: TelegramBotSettings) -> None:
         self.client = client
         self.settings = settings
+        self._notifications = TelegramNotificationQueue(client)
         self._jobs: Queue[TelegramJob | None] = Queue()
         self._thread: Thread | None = None
         self._lock = Lock()
@@ -1184,6 +1189,7 @@ class TelegramJobQueue:
     def start(self) -> None:
         if self._thread is not None:
             return
+        self._notifications.start()
         self._thread = Thread(target=self._run_worker, name="telegram-job-worker", daemon=True)
         self._thread.start()
 
@@ -1193,9 +1199,11 @@ class TelegramJobQueue:
         self._jobs.put(None)
         self._thread.join()
         self._thread = None
+        self._notifications.stop()
 
     def join(self) -> None:
         self._jobs.join()
+        self._notifications.join()
 
     def enqueue(self, chat_id: int, text: str, update_id: int, job_suffix: str = "", notify: bool = True) -> TelegramJob:
         suffix = f"-{job_suffix}" if job_suffix else ""
@@ -1211,7 +1219,7 @@ class TelegramJobQueue:
             text_length=len(text),
         )
         if notify:
-            self.client.send_message(
+            self._notifications.send_message(
                 chat_id,
                 f"Задача ID {job.job_id} поставлена в очередь.\nПозиция: {queue_position}.",
                 reply_markup=queue_status_keyboard(),
@@ -1237,7 +1245,7 @@ class TelegramJobQueue:
 
     def enqueue_preset_drafts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
         labels = ", ".join(preset_button_label(preset) for preset in PRESETS)
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Ставлю в очередь {len(PRESETS)} черновиков: {labels}.",
             reply_markup=queue_status_keyboard(),
@@ -1259,7 +1267,7 @@ class TelegramJobQueue:
         labels = ", ".join(preset_button_label(preset) for preset in PRESETS)
         theme_suffix = f" theme={theme}" if theme else ""
         theme_label = f" в теме {theme}" if theme else ""
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Ставлю в очередь {len(PRESETS)} shorts-роликов{theme_label}: {labels}.",
             reply_markup=queue_status_keyboard(),
@@ -1295,7 +1303,7 @@ class TelegramJobQueue:
         theme_suffix = f" theme={theme}" if theme and mode == "shorts" else ""
         theme_label = f" в теме {theme}" if theme and mode == "shorts" else ""
         mode_label = "draft-черновиков" if mode == "draft" else "shorts-роликов"
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Ставлю в очередь {len(presets)} {mode_label} категории {category.title}{theme_label}: {labels}.",
             reply_markup=queue_status_keyboard(),
@@ -1345,7 +1353,7 @@ class TelegramJobQueue:
         if categories:
             controls.append("категории: " + ", ".join(universe_category_label(category) for category in categories))
         control_label = f" ({'; '.join(controls)})" if controls else ""
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Ставлю в очередь {len(plan)} shorts-роликов контент-плана{control_label}: {labels}.",
             reply_markup=queue_status_keyboard(),
@@ -1365,7 +1373,7 @@ class TelegramJobQueue:
 
     def enqueue_daily_content_plan_short(self, chat_id: int, update_id: int) -> TelegramJob:
         day_index, item = _daily_content_plan_item()
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Шортс дня: Д{day_index} {item.title}. Ставлю random shorts-ролик из тикерной вселенной в очередь.",
             reply_markup=queue_status_keyboard(),
@@ -1380,13 +1388,13 @@ class TelegramJobQueue:
 
     def enqueue_daily_publication_day(self, chat_id: int, update_id: int) -> TelegramJob:
         day_index, item = _daily_content_plan_item()
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Публикационный день: Д{day_index} {item.title}. "
             "Ставлю random shorts-ролик в очередь и отправляю пакет для поста.",
             reply_markup=queue_status_keyboard(),
         )
-        self.client.send_message(chat_id, format_daily_content_kit(), reply_markup=daily_content_kit_keyboard())
+        self._notifications.send_message(chat_id, format_daily_content_kit(), reply_markup=daily_content_kit_keyboard())
         return self.enqueue(
             chat_id,
             item.request,
@@ -1398,12 +1406,12 @@ class TelegramJobQueue:
     def enqueue_weekly_publication_pack(self, chat_id: int, update_id: int) -> list[TelegramJob]:
         plan = _weekly_content_items()
         labels = ", ".join(f"Д{index} {' / '.join(item.tickers)}" for index, item in enumerate(plan, start=1))
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Недельный выпуск: ставлю в очередь {len(plan)} shorts-роликов контент-плана: {labels}.",
             reply_markup=queue_status_keyboard(),
         )
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             format_weekly_publication_pack(plan),
             reply_markup=weekly_publication_pack_keyboard(),
@@ -1429,7 +1437,7 @@ class TelegramJobQueue:
         mode_label = "top-draft" if mode == "draft" else "top-shorts"
         theme_suffix = f" theme={theme}" if theme else ""
         theme_label = f" в теме {theme}" if theme else ""
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Ставлю в очередь {len(HOT_MENU_PRESETS)} {mode_label}{theme_label}: {labels}.",
             reply_markup=queue_status_keyboard(),
@@ -1461,7 +1469,7 @@ class TelegramJobQueue:
         preset = get_preset(preset_name)
         label = preset_button_label(preset)
         themes = ", ".join(THEME_VARIANTS)
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Ставлю в очередь {len(THEME_VARIANTS)} визуальных варианта для {label}: {themes}.",
             reply_markup=queue_status_keyboard(),
@@ -1492,7 +1500,7 @@ class TelegramJobQueue:
         category_label = f" категории {universe_category_label(resolved_category)}" if resolved_category else ""
         count_label = f", {count} тикер{'' if count == 1 else 'а' if count in {2, 3} else 'ов'}" if count else ""
         theme_label = f", тема {theme}" if theme else ""
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Случайный шортс{category_label}{count_label}{theme_label}: {item.title}. Ставлю shorts-ролик в очередь.",
             reply_markup=queue_status_keyboard(),
@@ -1519,7 +1527,7 @@ class TelegramJobQueue:
         item = build_random_content_idea(resolved_category, count=count, mode="draft")
         category_label = f" категории {universe_category_label(resolved_category)}" if resolved_category else ""
         count_label = f", {count} тикер{'' if count == 1 else 'а' if count in {2, 3} else 'ов'}" if count else ""
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Случайный черновик{category_label}{count_label}: {item.title}. Ставлю короткий draft в очередь.",
             reply_markup=queue_status_keyboard(),
@@ -1566,7 +1574,7 @@ class TelegramJobQueue:
 
     def enqueue_example_drafts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
         labels = ", ".join(example.button_label for example in _TELEGRAM_EXAMPLES)
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Ставлю в очередь {len(_TELEGRAM_EXAMPLES)} draft-примеров: {labels}.",
             reply_markup=queue_status_keyboard(),
@@ -1586,7 +1594,7 @@ class TelegramJobQueue:
 
     def enqueue_random_example_draft(self, chat_id: int, update_id: int) -> TelegramJob:
         example = random.choice(_TELEGRAM_EXAMPLES)
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Случайный пример: {example.button_label}. Ставлю короткий draft в очередь.",
             reply_markup=queue_status_keyboard(),
@@ -1607,7 +1615,7 @@ class TelegramJobQueue:
         previews = "\n".join(f"{index}. {_job_preview(text, 48)}" for index, text in enumerate(texts[:6], start=1))
         if len(texts) > 6:
             previews = f"{previews}\n... еще {len(texts) - 6}"
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Поставил в очередь {len(jobs)} {task_word} из одного сообщения:\n{previews}",
             reply_markup=queue_status_keyboard(),
@@ -1698,12 +1706,13 @@ class TelegramJobQueue:
                 job.text,
                 job_id=job.job_id,
                 custom_followup_key=job.job_id,
+                notifications=self._notifications,
             )
         except Exception as exc:
             log_event("request", "failed", job_id=job.job_id, chat_id=job.chat_id, error=str(exc))
             logging.exception("Failed to process Telegram request %s", job.job_id)
             try:
-                self.client.send_message(job.chat_id, f"Job {job.job_id} failed: {exc}")
+                self._notifications.send_message(job.chat_id, f"Job {job.job_id} failed: {exc}")
             except TelegramApiError:
                 logging.exception("Could not send failure notice for Telegram job %s", job.job_id)
             return False
@@ -3242,6 +3251,7 @@ def _start_render_progress_notifier(
     display_name: str,
     first_notice_seconds: float = RENDER_PROGRESS_FIRST_NOTICE_SECONDS,
     repeat_seconds: float = RENDER_PROGRESS_REPEAT_SECONDS,
+    notifications: TelegramNotificationQueue | None = None,
 ) -> Callable[[], None]:
     stop_event = Event()
     job_label = job_id or "manual"
@@ -3252,11 +3262,14 @@ def _start_render_progress_notifier(
         notice_count = 1
         while not stop_event.is_set():
             try:
-                client.send_message(
+                send_notice = notifications.send_message if notifications else client.send_message
+                cancellation = {"cancelled": stop_event} if notifications else {}
+                send_notice(
                     chat_id,
                     f"Рендер еще идет: {display_name}\n"
                     f"Job {job_label}. Длинные периоды и 3+ тикера могут считаться несколько минут.",
                     reply_markup=queue_status_keyboard(),
+                    **cancellation,
                 )
                 log_event("render", "progress", job_id=job_id, chat_id=chat_id, notice_count=notice_count)
             except Exception:
@@ -3320,6 +3333,7 @@ def handle_ticker_message(
     text: str,
     job_id: str | None = None,
     custom_followup_key: str | None = None,
+    notifications: TelegramNotificationQueue | None = None,
 ) -> None:
     if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
         client.send_message(chat_id, "This chat is not allowed to use this bot.")
@@ -3498,33 +3512,41 @@ def handle_ticker_message(
 
     parsed = parse_telegram_video_request(text, settings.render, settings.default_engine, settings.default_market)
     render = parsed.request.render
-    client.send_message(
+    notify = notifications.send_message if notifications else client.send_message
+    render_finished = Event()
+    cancellation = {"cancelled": render_finished} if notifications else {}
+    notify(
         chat_id,
         f"Генерирую видео: {parsed.display_name}\n"
         f"{render.start_date} - {render.end_date}, {render.duration}s/{render.fps}fps\n"
         f"{_render_summary(render)}",
+        **cancellation,
     )
-    stop_progress_notifier = _start_render_progress_notifier(client, chat_id, job_id, parsed.display_name)
+    stop_progress_notifier = _start_render_progress_notifier(
+        client, chat_id, job_id, parsed.display_name, notifications=notifications,
+    )
     try:
         output_path = generate_video(parsed.request, job_id=job_id)
     finally:
+        render_finished.set()
         stop_progress_notifier()
     send_started_at = time.monotonic()
     log_event("send", "started", job_id=job_id, chat_id=chat_id, output_path=str(output_path))
-    client.send_video(chat_id, output_path, f"{parsed.display_name}: {render.start_date} - {render.end_date}")
+    send_video = notifications.send_video if notifications else client.send_video
+    send_video(chat_id, output_path, f"{parsed.display_name}: {render.start_date} - {render.end_date}")
     log_event("send", "completed", job_id=job_id, chat_id=chat_id, elapsed_ms=int((time.monotonic() - send_started_at) * 1000))
     if parsed.preset_name:
         preset = get_preset(parsed.preset_name)
-        client.send_message(chat_id, format_pulse_post(preset))
-        client.send_message(
+        notify(chat_id, format_pulse_post(preset))
+        notify(
             chat_id,
             "Быстрые варианты для этого сценария:",
             reply_markup=preset_followup_keyboard(preset.name),
         )
     else:
-        client.send_message(chat_id, format_generic_pulse_post(parsed))
+        notify(chat_id, format_generic_pulse_post(parsed))
         if custom_followup_key:
-            client.send_message(
+            notify(
                 chat_id,
                 "Быстрые варианты для этого запроса:",
                 reply_markup=custom_followup_keyboard(custom_followup_key),

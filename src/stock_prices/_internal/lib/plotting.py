@@ -6,13 +6,13 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-import matplotlib.animation as animation
 import pandas as pd
 
 from stock_prices._internal.lib.dataset_builder import build_data_list
 from stock_prices._internal.models import TickerSpec
 from stock_prices._internal.rendering.theme import ChartTheme, get_chart_theme
 from stock_prices._internal.rendering.filenames import safe_video_stem
+from stock_prices._internal.rendering.video_export import CachedFrameFFMpegWriter, VideoAnimation
 
 MAX_FRAME_RENDER_POINTS = 360
 
@@ -625,7 +625,7 @@ def create_multi_line_animation(
         last_artists = artists
         return artists
 
-    return animation.FuncAnimation(fig, animate, frames=len(all_frames), interval=1000 / fps, repeat=False, blit=False)
+    return VideoAnimation(fig, animate, content_frames=all_frames, frames=len(all_frames), interval=1000 / fps, repeat=False, blit=False)
 
 
 @dataclass
@@ -672,7 +672,8 @@ def render_charts(
     )
 
     _configure_ffmpeg()
-    writer = animation.FFMpegWriter(
+    writer = CachedFrameFFMpegWriter(
+        content_frame=lambda: anim.content_frame,
         fps=getattr(args, "fps", 20),
         codec="libx264",
         bitrate=-1,
