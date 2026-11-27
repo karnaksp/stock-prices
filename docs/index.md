@@ -32,16 +32,16 @@ hide:
 ## Что получится
 
 <figure class="sp-media">
-  <video controls muted playsinline poster="assets/demo-sber-lkoh.png">
-    <source src="assets/demo-sber-lkoh.mp4" type="video/mp4">
-    <a href="assets/demo-sber-lkoh.mp4">Скачать MP4-демо SBER/LKOH</a>
+  <video controls muted playsinline poster="assets/demo-sber-lkoh.png?v=20261127c">
+    <source src="assets/demo-sber-lkoh.mp4?v=20261127c" type="video/mp4">
+    <a href="assets/demo-sber-lkoh.mp4?v=20261127c">Скачать MP4-демо SBER/LKOH</a>
   </video>
-  <figcaption>Короткий MP4-пример реального результата: `SBER` и `LKOH`, стабильная шкала времени, синхронное движение линий и подписей.</figcaption>
+  <figcaption>Пример сравнения Сбера и Лукойла. По мере движения графика шкала времени расширяется, а уже показанная история сжимается.</figcaption>
 </figure>
 
 <figure class="sp-media">
-  <img src="assets/demo-sber-lkoh.gif" alt="Анимированный пример графика SBER и LKOH">
-  <figcaption>GIF-preview того же ролика для быстрых просмотров в окружениях, где видео отключено.</figcaption>
+  <img src="assets/demo-sber-lkoh.gif?v=20261127c" alt="Анимированный пример графика SBER и LKOH">
+  <figcaption>Тот же ролик в GIF для просмотра без видеоплеера.</figcaption>
 </figure>
 
 ## Быстрый старт
