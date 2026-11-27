@@ -16,4 +16,5 @@ currency/
 futures/
 *.pyc
 *.mp4
+!docs/assets/demo-sber-lkoh.mp4
 *.parquet

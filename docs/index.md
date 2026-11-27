@@ -111,7 +111,8 @@ hide:
 | Хочу | Что отправить |
 | --- | --- |
 | Открыть Mini App | `/app`, затем кнопка `Открыть Mini App` |
-| Открыть меню | `/start` или `/menu` |
+| Посмотреть готовый ролик | `/start` → «Показать пример ролика» |
+| Открыть меню | `/menu` |
 | Случайная подборка | `random mixed 1`, `random mixed 3`, `random drama 2`, `random stocks 2` |
 | Недельный план | `plan drama 5 days 2 tickers` |
 | Снять ролик по тикерам | `/shorts SBER LKOH за год` |

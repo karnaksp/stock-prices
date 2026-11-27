@@ -1,185 +1,99 @@
 (function () {
-  const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
-
+  const byId = (id) => document.getElementById(id);
   const els = {
-    tickers: document.getElementById("tickers"),
-    market: document.getElementById("market"),
-    currency: document.getElementById("currency"),
-    startDate: document.getElementById("start-date"),
-    endDate: document.getElementById("end-date"),
-    mode: document.getElementById("mode"),
-    duration: document.getElementById("duration"),
-    fps: document.getElementById("fps"),
-    metricCapital: document.getElementById("metric-capital"),
-    investment: document.getElementById("investment"),
-    investmentFields: document.getElementById("investment-fields"),
-    initial: document.getElementById("initial"),
-    monthly: document.getElementById("monthly"),
-    yearly: document.getElementById("yearly"),
-    gradient: document.getElementById("gradient"),
-    legend: document.getElementById("legend"),
-    theme: document.getElementById("theme"),
-    timelineEvents: document.getElementById("timeline-events"),
-    eventsState: document.getElementById("events-state"),
-    eventsList: document.getElementById("events-list"),
-    addEvent: document.getElementById("add-event-button"),
-    preview: document.getElementById("request-preview"),
-    previewRange: document.getElementById("preview-range"),
-    previewFormat: document.getElementById("preview-format"),
-    previewCurrency: document.getElementById("preview-currency"),
-    send: document.getElementById("send-button"),
-    copy: document.getElementById("copy-button"),
-    error: document.getElementById("error-text"),
-    telegramStatus: document.getElementById("telegram-status"),
-    modeStatus: document.getElementById("mode-status"),
-    storyTitle: document.getElementById("story-title"),
-    tickerSummary: document.getElementById("ticker-summary"),
-    assetsSummary: document.getElementById("assets-summary"),
-    historySummary: document.getElementById("history-summary"),
-    calcSummary: document.getElementById("calc-summary"),
-    formatSummary: document.getElementById("format-summary"),
-    dockTitle: document.getElementById("dock-title"),
+    form: byId("video-form"),
+    tickers: byId("tickers"),
+    market: byId("market"),
+    currency: byId("currency"),
+    startDate: byId("start-date"),
+    endDate: byId("end-date"),
+    customDates: byId("custom-dates"),
+    mode: byId("mode"),
+    duration: byId("duration"),
+    fps: byId("fps"),
+    videoFields: byId("video-fields"),
+    metric: byId("metric"),
+    investment: byId("investment"),
+    investmentFields: byId("investment-fields"),
+    initial: byId("initial"),
+    monthly: byId("monthly"),
+    yearly: byId("yearly"),
+    gradient: byId("gradient"),
+    legend: byId("legend"),
+    theme: byId("theme"),
+    eventsState: byId("events-state"),
+    eventsList: byId("events-list"),
+    addEvent: byId("add-event-button"),
+    preview: byId("request-preview"),
+    manualCopy: byId("manual-copy"),
+    send: byId("send-button"),
+    hint: byId("action-hint"),
+    status: byId("status-text"),
   };
-
-  const modeLabels = {
-    shorts: "Шортс",
-    draft: "Черновик",
-    custom: "Вручную",
-  };
-
-  const marketLabels = {
-    "": "Авто / MOEX",
-    global: "Глобальный",
-    metals: "Металлы",
-    futures: "Фьючерсы",
-    crypto: "Крипто",
-    selt: "Валютный рынок",
-  };
-
-  function isTelegramLaunch() {
-    return Boolean(tg && (tg.initData || (tg.platform && tg.platform !== "unknown")));
-  }
+  const periodButtons = document.querySelectorAll("[data-period]");
+  const presetButtons = document.querySelectorAll("[data-tickers]");
+  const launch = new URLSearchParams(window.location.search).get("launch");
+  const copyDestination = launch === "group" ? "ответом на сообщение бота" : "в чат с ботом";
+  let tg = null;
+  let submitting = false;
 
   function canSendToTelegram() {
-    return Boolean(tg && typeof tg.sendData === "function" && isTelegramLaunch());
+    return Boolean(tg && launch === "keyboard" && !tg.initData && typeof tg.sendData === "function");
   }
 
-  function todayIso() {
-    return new Date().toISOString().slice(0, 10);
+  function updateAction() {
+    const send = canSendToTelegram();
+    els.send.textContent = send ? "Создать видео" : "Скопировать запрос";
+    els.hint.textContent = send
+      ? "Готовое видео придёт в этот чат."
+      : `Отправьте запрос ${copyDestination}. Там появится видео.`;
   }
 
-  function addYears(date, years) {
-    const next = new Date(date);
-    next.setFullYear(next.getFullYear() + years);
-    return next;
+  function initTelegram() {
+    const bridge = window.Telegram && window.Telegram.WebApp;
+    if (!bridge || tg || !(bridge.initData || (bridge.platform && bridge.platform !== "unknown"))) {
+      return;
+    }
+    tg = bridge;
+    updateAction();
+    if (typeof tg.ready === "function") {
+      tg.ready();
+    }
+    if (typeof tg.expand === "function") {
+      tg.expand();
+    }
   }
 
-  function setPeriod(years) {
-    const end = new Date();
-    const start = addYears(end, -years);
-    els.startDate.value = start.toISOString().slice(0, 10);
-    els.endDate.value = end.toISOString().slice(0, 10);
+  function localDate(date) {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${date.getFullYear()}-${month}-${day}`;
   }
 
-  function tickerList() {
-    return els.tickers.value
-      .split(/[\s,;]+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
+  function selectPeriod(period) {
+    const custom = period === "custom";
+    els.customDates.hidden = !custom;
+    periodButtons.forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.period === period));
+    });
+    if (!custom) {
+      const end = new Date();
+      const year = end.getFullYear() - Number(period);
+      const month = end.getMonth();
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const start = new Date(year, month, Math.min(lastDay, end.getDate()));
+      els.startDate.value = localDate(start);
+      els.endDate.value = localDate(end);
+    }
   }
 
   function normalizedTickers() {
-    return tickerList().join(" ");
+    return els.tickers.value.split(/[\s,;]+/).filter(Boolean).join(" ");
   }
 
   function readPositiveInt(input, fallback) {
     const value = Number.parseInt(input.value, 10);
     return Number.isFinite(value) ? value : fallback;
-  }
-
-  function clampNumberInput(input, min, max) {
-    const value = readPositiveInt(input, min);
-    input.value = String(Math.min(max, Math.max(min, value)));
-  }
-
-  function yearWord(years) {
-    const mod10 = years % 10;
-    const mod100 = years % 100;
-    if (mod10 === 1 && mod100 !== 11) {
-      return "год";
-    }
-    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
-      return "года";
-    }
-    return "лет";
-  }
-
-  function formatPeriodLabel() {
-    if (!els.startDate.value || !els.endDate.value) {
-      return "Период";
-    }
-    const start = new Date(`${els.startDate.value}T00:00:00`);
-    const end = new Date(`${els.endDate.value}T00:00:00`);
-    const years = Math.max(0, (end - start) / (365.25 * 24 * 60 * 60 * 1000));
-    if (years >= 1) {
-      const roundedYears = Math.round(years);
-      if (Math.abs(years - roundedYears) < 0.05) {
-        return `${roundedYears} ${yearWord(roundedYears)}`;
-      }
-      return `${years.toFixed(years >= 10 ? 0 : 1)} лет`;
-    }
-    return `${Math.max(1, Math.round(years * 12))} мес`;
-  }
-
-  function formatMoney(value, currency) {
-    return new Intl.NumberFormat("ru-RU", {
-      maximumFractionDigits: 0,
-      style: "currency",
-      currency,
-    }).format(value);
-  }
-
-  function formatTickersForTitle() {
-    const tickers = tickerList();
-    if (!tickers.length) {
-      return "тикеров";
-    }
-    return tickers.slice(0, 4).join(" / ");
-  }
-
-  function setActiveButtons(selector, activeValue, dataKey) {
-    document.querySelectorAll(selector).forEach((button) => {
-      button.classList.toggle("active", button.dataset[dataKey] === activeValue);
-    });
-  }
-
-  function syncVisualControls() {
-    setActiveButtons("[data-mode]", els.mode.value, "mode");
-    setActiveButtons("[data-metric]", els.metricCapital.checked ? "capital" : "close", "metric");
-    document.querySelectorAll("[data-tickers]").forEach((button) => {
-      button.classList.toggle("active", button.dataset.tickers === normalizedTickers());
-    });
-  }
-
-  function renderTickerSummary() {
-    const tickers = tickerList();
-    els.tickerSummary.replaceChildren();
-    if (!tickers.length) {
-      const empty = document.createElement("span");
-      empty.textContent = "Введите тикер";
-      els.tickerSummary.appendChild(empty);
-      return;
-    }
-    tickers.slice(0, 5).forEach((ticker) => {
-      const chip = document.createElement("span");
-      chip.textContent = ticker;
-      els.tickerSummary.appendChild(chip);
-    });
-    if (tickers.length > 5) {
-      const more = document.createElement("span");
-      more.textContent = `+${tickers.length - 5}`;
-      els.tickerSummary.appendChild(more);
-    }
   }
 
   function eventRows() {
@@ -216,15 +130,11 @@
 
   function updateEventsState() {
     const count = completeEventCount();
-    els.eventsState.textContent = count ? `${count} ${eventWord(count)}` : "Выключены";
-    els.eventsState.classList.toggle("is-active", count > 0);
+    els.eventsState.hidden = count === 0;
+    els.eventsState.textContent = `${count} ${eventWord(count)}`;
   }
 
   function createEventRow() {
-    if (eventRows().length >= 12) {
-      updateStatus("Можно добавить не больше 12 событий.", false);
-      return;
-    }
     const row = document.createElement("article");
     row.className = "event-row";
     row.innerHTML = `
@@ -232,11 +142,11 @@
         <strong>Событие</strong>
         <button class="remove-event-button" type="button" aria-label="Удалить событие">Удалить</button>
       </div>
-      <label class="field event-title-field">
+      <label class="field">
         <span class="field-label">Название</span>
         <input class="text-input" data-event-title maxlength="80" placeholder="Смягчение ФРС" autocomplete="off">
       </label>
-      <div class="event-fields">
+      <div class="field-grid">
         <label class="field">
           <span class="field-label">С</span>
           <input class="text-input" data-event-start type="date">
@@ -255,10 +165,6 @@
         </label>
       </div>
     `;
-    row.querySelectorAll("input, select").forEach((element) => {
-      element.addEventListener("input", update);
-      element.addEventListener("change", update);
-    });
     row.querySelector(".remove-event-button").addEventListener("click", () => {
       row.remove();
       update();
@@ -277,7 +183,7 @@
         continue;
       }
       if (!event.title || !event.start || !event.end) {
-        return { events: [], error: "Заполни название и обе даты события." };
+        return { events: [], error: "Заполните название и обе даты события." };
       }
       if (event.start > event.end) {
         return { events: [], error: `У события «${event.title}» дата начала позже даты окончания.` };
@@ -297,19 +203,19 @@
     const parts = [];
 
     if (!tickers) {
-      return { text: "", error: "Укажи хотя бы один тикер." };
+      return { text: "", error: "Укажите хотя бы один тикер." };
     }
     if (!els.startDate.value || !els.endDate.value) {
-      return { text: "", error: "Укажи период." };
+      return { text: "", error: "Укажите обе даты периода." };
     }
-    if (els.startDate.value > els.endDate.value) {
-      return { text: "", error: "Дата начала должна быть раньше даты конца." };
+    if (els.startDate.value >= els.endDate.value) {
+      return { text: "", error: "Дата начала должна быть раньше даты окончания." };
     }
-    if (duration < 1 || duration > 90) {
-      return { text: "", error: "Длина видео: 1-90 секунд." };
+    if (els.mode.value === "custom" && !els.duration.validity.valid) {
+      return { text: "", error: "Укажите длину видео от 1 до 90 секунд." };
     }
-    if (fps < 1 || fps > 30) {
-      return { text: "", error: "FPS: 1-30." };
+    if (els.mode.value === "custom" && !els.fps.validity.valid) {
+      return { text: "", error: "Укажите частоту от 1 до 30 кадров в секунду." };
     }
     const timelineEvents = readTimelineEvents();
     if (timelineEvents.error) {
@@ -323,7 +229,7 @@
       parts.push(els.market.value);
     }
     parts.push(els.currency.value);
-    parts.push(els.metricCapital.checked ? "capital" : "close");
+    parts.push(els.metric.value);
 
     if (els.investment.checked) {
       parts.push("invest");
@@ -350,13 +256,104 @@
     }
     parts.push(`theme=${els.theme.value}`);
     timelineEvents.events.forEach((event) => {
-      parts.push(`event=${event.start}~${event.end}~${encodeURIComponent(event.title)}~${event.impact}`);
+      parts.push(`event=${event.start}~${event.end}~${encodeURIComponent(event.title).replace(/~/g, "%7E")}~${event.impact}`);
     });
 
     return { text: parts.join(" "), error: "" };
   }
 
-  function applyModeDefaults() {
+  function updateStatus(message, ok) {
+    els.status.textContent = message;
+    els.status.classList.toggle("is-ok", Boolean(ok));
+  }
+
+  function update() {
+    const tickers = normalizedTickers().toUpperCase();
+    presetButtons.forEach((button) => {
+      const selected = button.dataset.tickers.toUpperCase() === tickers &&
+        button.dataset.market === els.market.value && button.dataset.currency === els.currency.value;
+      button.setAttribute("aria-pressed", String(selected));
+    });
+    els.investmentFields.hidden = !els.investment.checked;
+    els.videoFields.hidden = els.mode.value !== "custom";
+    els.addEvent.disabled = eventRows().length >= 12;
+    els.manualCopy.hidden = true;
+    els.tickers.removeAttribute("aria-invalid");
+    updateEventsState();
+    updateStatus("");
+  }
+
+  async function copyRequest(text, message) {
+    els.preview.value = text;
+    try {
+      await navigator.clipboard.writeText(text);
+      updateStatus(message || `Запрос скопирован. Отправьте его ${copyDestination}.`, true);
+    } catch {
+      els.manualCopy.hidden = false;
+      els.preview.focus();
+      els.preview.select();
+      updateStatus(`Скопируйте выделенный запрос и отправьте его ${copyDestination}.`);
+    }
+  }
+
+  async function submitRequest(event) {
+    event.preventDefault();
+    if (submitting) {
+      return;
+    }
+    const result = buildRequest();
+    if (result.error) {
+      if (!normalizedTickers()) {
+        els.tickers.setAttribute("aria-invalid", "true");
+        els.tickers.focus();
+      }
+      updateStatus(result.error);
+      return;
+    }
+
+    const text = result.text;
+    if (text.length > 4096) {
+      updateStatus("Запрос не помещается в сообщение Telegram. Сократите названия событий или уберите часть событий.");
+      return;
+    }
+
+    submitting = true;
+    els.send.disabled = true;
+    const payload = JSON.stringify({
+      type: "stock_prices.video_request.v1",
+      text: result.text,
+      source: "telegram-mini-app",
+    });
+    try {
+      if (canSendToTelegram() && new Blob([payload]).size <= 4096) {
+        tg.sendData(payload);
+        updateStatus("Запрос передан в Telegram. Статус появится в чате с ботом.", true);
+      } else {
+        await copyRequest(text);
+      }
+    } catch {
+      await copyRequest(text, "Прямая отправка недоступна. Запрос скопирован для отправки в чат с ботом.");
+    } finally {
+      submitting = false;
+      els.send.disabled = false;
+    }
+  }
+
+  periodButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      selectPeriod(button.dataset.period);
+      update();
+    });
+  });
+  presetButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      els.tickers.value = button.dataset.tickers;
+      els.market.value = button.dataset.market;
+      els.currency.value = button.dataset.currency;
+      update();
+    });
+  });
+  els.mode.addEventListener("change", () => {
     if (els.mode.value === "shorts") {
       els.duration.value = "16";
       els.fps.value = "24";
@@ -367,207 +364,33 @@
       els.gradient.checked = false;
     }
     update();
-  }
-
-  function updateTelegramButton(text, error) {
-    if (!isTelegramLaunch() || !tg.MainButton) {
-      return;
-    }
-    tg.MainButton.setText("Отправить в бот");
-    if (error || !text) {
-      tg.MainButton.disable();
-      tg.MainButton.hide();
-    } else {
-      tg.MainButton.enable();
-      tg.MainButton.show();
-    }
-  }
-
-  function updateStatus(message, ok) {
-    els.error.textContent = message;
-    els.error.classList.toggle("is-ok", Boolean(ok));
-  }
-
-  function updatePreviewMeta() {
-    const duration = readPositiveInt(els.duration, 16);
-    const fps = readPositiveInt(els.fps, 24);
-    const period = formatPeriodLabel();
-    const tickersTitle = formatTickersForTitle();
-    const market = marketLabels[els.market.value] || els.market.value || "Авто / MOEX";
-    const metric = els.metricCapital.checked ? "Капитал" : "Цена";
-    const monthly = Math.max(0, readPositiveInt(els.monthly, 0));
-    const investmentText = els.investment.checked
-      ? `Инвестиции · ${formatMoney(monthly, els.currency.value)} / мес`
-      : metric;
-
-    els.previewRange.textContent = period;
-    els.previewFormat.textContent = `${duration}s / ${fps}fps`;
-    els.previewCurrency.textContent = els.currency.value;
-    els.modeStatus.textContent = modeLabels[els.mode.value] || "Вручную";
-    els.assetsSummary.textContent = `${market} · ${els.currency.value}`;
-    els.historySummary.textContent = period;
-    els.calcSummary.textContent = investmentText;
-    els.formatSummary.textContent = `${duration}s · ${fps}fps`;
-    els.storyTitle.textContent = els.investment.checked
-      ? `Что было бы с ${formatMoney(monthly, els.currency.value)} каждый месяц?`
-      : `Видео из ${tickersTitle}`;
-    els.dockTitle.textContent = `Видео из ${tickersTitle}`;
-  }
-
-  function update() {
-    clampNumberInput(els.duration, 1, 90);
-    clampNumberInput(els.fps, 1, 30);
-    els.investmentFields.hidden = !els.investment.checked;
-    updateEventsState();
-    syncVisualControls();
-    renderTickerSummary();
-    updatePreviewMeta();
-    const result = buildRequest();
-    els.preview.textContent = result.text || "SBER LKOH from=2020-01-01 to=2024-12-31 RUB capital shorts";
-    updateStatus(result.error, false);
-    els.send.disabled = Boolean(result.error);
-    updateTelegramButton(result.text, result.error);
-    return result;
-  }
-
-  async function copyText(text) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(text);
-      return;
-    }
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.setAttribute("readonly", "readonly");
-    textarea.style.position = "fixed";
-    textarea.style.opacity = "0";
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand("copy");
-    textarea.remove();
-  }
-
-  function submitRequest() {
-    const result = update();
-    if (result.error) {
-      return;
-    }
-    const payload = JSON.stringify({
-      type: "stock_prices.video_request.v1",
-      text: result.text,
-      source: "telegram-mini-app",
-    });
-    if (canSendToTelegram()) {
-      tg.sendData(payload);
-      updateStatus("Запрос отправлен. Если чат не обновился, открой Mini App через /app.", true);
-      return;
-    }
-    copyText(result.text)
-      .then(() => {
-        updateStatus("Запрос скопирован. Чтобы отправить напрямую, открой Mini App из чата через /app.", true);
-      })
-      .catch(() => {
-        updateStatus("Не удалось отправить напрямую. Открой Mini App из чата через /app.", false);
-      });
-  }
-
-  function initTelegram() {
-    if (!isTelegramLaunch()) {
-      els.telegramStatus.textContent = "Браузер";
-      return;
-    }
-    tg.ready();
-    tg.expand();
-    els.telegramStatus.textContent = "Telegram";
-    if (tg.MainButton) {
-      tg.MainButton.onClick(submitRequest);
-    }
-  }
-
-  document.querySelectorAll("[data-period]").forEach((button) => {
-    button.addEventListener("click", () => {
-      document.querySelectorAll("[data-period]").forEach((item) => item.classList.remove("active"));
-      button.classList.add("active");
-      const period = button.dataset.period;
-      if (period === "1y") {
-        setPeriod(1);
-      } else if (period === "3y") {
-        setPeriod(3);
-      } else if (period === "10y") {
-        setPeriod(10);
-      }
-      update();
-    });
-  });
-
-  document.querySelectorAll("[data-mode]").forEach((button) => {
-    button.addEventListener("click", () => {
-      els.mode.value = button.dataset.mode || "shorts";
-      applyModeDefaults();
-    });
-  });
-
-  els.timelineEvents.addEventListener("toggle", () => {
-    if (els.timelineEvents.open && !eventRows().length) {
-      createEventRow();
-    }
   });
   els.addEvent.addEventListener("click", createEventRow);
-
-  document.querySelectorAll("[data-metric]").forEach((button) => {
-    button.addEventListener("click", () => {
-      els.metricCapital.checked = button.dataset.metric === "capital";
+  els.form.addEventListener("input", (event) => {
+    if (event.target !== els.preview) {
       update();
-    });
+    }
   });
-
-  document.querySelectorAll("[data-tickers]").forEach((button) => {
-    button.addEventListener("click", () => {
-      els.tickers.value = button.dataset.tickers || "";
-      if (button.dataset.market !== undefined) {
-        els.market.value = button.dataset.market;
-      }
-      if (button.dataset.currency !== undefined) {
-        els.currency.value = button.dataset.currency;
-      }
+  els.form.addEventListener("change", (event) => {
+    if (event.target !== els.preview) {
       update();
-    });
+    }
   });
-
-  [
-    els.tickers,
-    els.market,
-    els.currency,
-    els.startDate,
-    els.endDate,
-    els.duration,
-    els.fps,
-    els.metricCapital,
-    els.investment,
-    els.initial,
-    els.monthly,
-    els.yearly,
-    els.gradient,
-    els.legend,
-    els.theme,
-  ].forEach((element) => {
-    element.addEventListener("input", update);
-    element.addEventListener("change", update);
-  });
-
-  els.send.addEventListener("click", submitRequest);
-  els.copy.addEventListener("click", () => {
-    const result = update();
-    if (!result.error) {
-      copyText(result.text).then(() => {
-        updateStatus("Запрос скопирован.", true);
-      }).catch(() => {
-        updateStatus("Не удалось скопировать запрос.", false);
-      });
+  els.form.addEventListener("submit", submitRequest);
+  const example = document.querySelector(".example");
+  const videoTemplate = example.querySelector("template");
+  example.addEventListener("toggle", () => {
+    const video = example.querySelector("video");
+    if (example.open && !video) {
+      example.appendChild(videoTemplate.content.cloneNode(true));
+    } else if (!example.open && video) {
+      video.pause();
     }
   });
 
-  els.endDate.value = todayIso();
-  setPeriod(10);
-  initTelegram();
+  selectPeriod("1");
   update();
+  updateAction();
+  byId("telegram-sdk").addEventListener("load", initTelegram);
+  initTelegram();
 })();
