@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from stock_prices._internal.lib import downloader
+from stock_prices._internal.lib import downloader, moex_data
 
 
 def test_download_history_returns_in_memory_frames(monkeypatch, tmp_path) -> None:
@@ -42,3 +42,13 @@ def test_download_history_raises_after_source_failure(monkeypatch, tmp_path) -> 
             pd.Timestamp("2026-05-27"),
             "RUB",
         )
+
+
+def test_moex_session_uses_its_own_ca_bundle(monkeypatch, tmp_path) -> None:
+    ca_bundle = tmp_path / "moex-ca.pem"
+    monkeypatch.delenv("STOCK_PRICES_MOEX_CA_BUNDLE", raising=False)
+    with moex_data._make_moex_session() as session:
+        assert session.verify is True
+    monkeypatch.setenv("STOCK_PRICES_MOEX_CA_BUNDLE", str(ca_bundle))
+    with moex_data._make_moex_session() as session:
+        assert session.verify == str(ca_bundle)
