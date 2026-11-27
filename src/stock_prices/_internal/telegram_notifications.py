@@ -31,12 +31,12 @@ class TelegramNotificationQueue:
         else:
             self._queue.put((1, next(self._sequence), lambda: self.client.send_message(chat_id, text, **kwargs), cancelled, None))
 
-    def send_video(self, chat_id: int, path: Path, caption: str) -> None:
+    def send_video(self, chat_id: int, path: Path, caption: str, **kwargs) -> None:
         if self._thread is None:
-            self.client.send_video(chat_id, path, caption)
+            self.client.send_video(chat_id, path, caption, **kwargs)
             return
         result = Future()
-        self._queue.put((0, next(self._sequence), lambda: self.client.send_video(chat_id, path, caption), None, result))
+        self._queue.put((0, next(self._sequence), lambda: self.client.send_video(chat_id, path, caption, **kwargs), None, result))
         result.result()
 
     def join(self) -> None:

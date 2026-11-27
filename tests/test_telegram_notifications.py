@@ -10,17 +10,19 @@ def test_slow_notifications_do_not_block_rendering_or_delete_unsent_video(monkey
     sending = Event()
     release = Event()
     rendered = Event()
+    first_sent = Event()
     videos = []
     requests = []
 
     class Client:
         def send_message(self, *args, **kwargs):
-            if args[1].startswith("Пост для Пульса"):
+            if args[1].startswith("Задача поставлена в очередь"):
                 sending.set()
                 assert release.wait(5)
 
-        def send_video(self, chat_id, path, caption):
+        def send_video(self, chat_id, path, caption, **kwargs):
             videos.append(path.read_bytes())
+            first_sent.set()
 
     def generate(request, job_id=None):
         path = tmp_path / f"{job_id}.mp4"
@@ -39,7 +41,8 @@ def test_slow_notifications_do_not_block_rendering_or_delete_unsent_video(monkey
     queue = telegram_bot.TelegramJobQueue(Client(), settings)
     queue.start()
     try:
-        queue.enqueue(123, "SBER", 1)
+        queue.enqueue(123, "SBER", 1, notify=False)
+        assert first_sent.wait(5)
         queue.enqueue(123, "SBER", 2)
         assert sending.wait(5)
         assert rendered.wait(5)
@@ -60,7 +63,7 @@ def test_waiting_for_an_acknowledgement_does_not_delay_starting_render(monkeypat
             sending.set()
             assert release.wait(5)
 
-        def send_video(self, chat_id, path, caption):
+        def send_video(self, chat_id, path, caption, **kwargs):
             assert path.exists()
 
     def generate(request, job_id=None):

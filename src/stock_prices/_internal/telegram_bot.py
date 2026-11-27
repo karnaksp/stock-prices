@@ -29,6 +29,7 @@ from stock_prices._internal.pipeline import generate_video, log_event
 from stock_prices._internal.telegram_presets import (
     PRESET_CATEGORIES,
     PRESETS,
+    expand_preset_text,
     format_cover_list,
     format_music_list,
     format_preset_category,
@@ -43,6 +44,7 @@ from stock_prices._internal.telegram_presets import (
     presets_for_category,
     ready_preset_commands,
 )
+from stock_prices._internal.telegram_help import HELP_TOPICS, help_page
 from stock_prices._internal.telegram_requests import ParsedTelegramRequest, parse_telegram_video_request
 
 
@@ -51,14 +53,16 @@ class TelegramApiError(RuntimeError):
 
 
 TELEGRAM_BOT_COMMANDS: tuple[tuple[str, str], ...] = (
-    ("menu", "главный пульт"),
-    ("app", "мини-приложение"),
-    ("shoot", "быстрый запуск"),
-    ("shorts", "истории или свой запрос"),
-    ("params", "параметры запроса"),
-    ("queue", "статус очереди"),
-    ("help", "короткая справка"),
+    ("app", "Сравнить свои активы"),
+    ("menu", "Открыть меню"),
+    ("queue", "Проверить очередь"),
+    ("help", "Как пользоваться ботом"),
 )
+BOT_DESCRIPTION = (
+    "Сравните активы в коротком видео с графиком. Выберите активы и период, "
+    "а MarketMotion пришлёт ролик в этот чат. Готовый пример доступен через /start, инструкции через /help."
+)
+BOT_SHORT_DESCRIPTION = "Короткие видео с графиками для сравнения активов. Готовый пример по /start."
 RENDER_PROGRESS_FIRST_NOTICE_SECONDS = 90.0
 RENDER_PROGRESS_REPEAT_SECONDS = 180.0
 MINI_APP_PAYLOAD_TYPE = "stock_prices.video_request.v1"
@@ -146,6 +150,20 @@ class TelegramClient:
             data["message_thread_id"] = message_thread_id
         with self._send_lock:
             self.call("sendMessage", **data)
+
+    def edit_message_text(self, chat_id: int, message_id: int, text: str, reply_markup: dict[str, Any]) -> None:
+        with self._send_lock:
+            self.call(
+                "editMessageText",
+                chat_id=chat_id,
+                message_id=message_id,
+                text=text,
+                reply_markup=json.dumps(reply_markup, ensure_ascii=False),
+            )
+
+    def set_my_description(self, description: str, short_description: str) -> None:
+        self.call("setMyDescription", description=description)
+        self.call("setMyShortDescription", short_description=short_description)
 
     def set_my_commands(self, commands: list[dict[str, str]]) -> None:
         self.call("setMyCommands", commands=json.dumps(commands, ensure_ascii=False))
@@ -240,8 +258,13 @@ class TelegramQueueSnapshot:
 QUEUE_STATUS_CALLBACK_DATA = "queue:status"
 MENU_CALLBACK_PREFIX = "menu:"
 COMPARE_ASSETS_BUTTON = {"text": "Сравнить свои активы", "callback_data": f"{MENU_CALLBACK_PREFIX}mini_app"}
+INFO_BUTTON = {"text": "Информация", "callback_data": f"{MENU_CALLBACK_PREFIX}help"}
+HELP_VIEWS = {f"help_{topic}": topic for topic in HELP_TOPICS | {"index"}}
+ACCESS_DENIED = "В этом чате доступ закрыт. Если вы уже пользовались ботом, обратитесь к администратору."
+ACCESS_DENIED_SHORT = "В этом чате доступ закрыт."
 PRESET_CATEGORY_CALLBACK_PREFIX = "category:"
 MENU_ACTIONS = {
+    *HELP_VIEWS,
     "guide",
     "help",
     "main_menu",
@@ -453,47 +476,27 @@ def queue_status_keyboard() -> dict[str, list[list[dict[str, str]]]]:
 
 
 def main_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
-    return {
-        "inline_keyboard": [
-            [
-                {"text": "🌐 Mini App", "callback_data": f"{MENU_CALLBACK_PREFIX}mini_app"},
-            ],
-            [
-                {"text": "✍️ Свой ролик", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
-                {"text": "🎲 Random", "callback_data": f"{MENU_CALLBACK_PREFIX}random_menu"},
-            ],
-            [
-                {"text": "🧩 Серия", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
-                {"text": "⚙️ Параметры", "callback_data": f"{MENU_CALLBACK_PREFIX}parameters"},
-            ],
-            [
-                {"text": "⏳ Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
-                {"text": "📚 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
-            ],
-            [
-                {"text": "❔ Help", "callback_data": f"{MENU_CALLBACK_PREFIX}help"},
-            ],
-        ]
-    }
+    return {"inline_keyboard": [
+        [COMPARE_ASSETS_BUTTON],
+        [{"text": "Показать пример ролика", "callback_data": f"{MENU_CALLBACK_PREFIX}demo_video"}],
+        [{"text": "Идеи и серии", "callback_data": f"{MENU_CALLBACK_PREFIX}help_ideas"}],
+        [{"text": "Проверить очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA}, INFO_BUTTON],
+    ]}
 
 
 def reference_keyboard() -> dict[str, list[list[dict[str, str]]]]:
-    return {
-        "inline_keyboard": [
-            [
-                {"text": "📚 Истории", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"},
-                {"text": "💬 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}examples"},
-            ],
-            [
-                {"text": "📝 Посты", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
-                {"text": "🎵 Музыка", "callback_data": f"{MENU_CALLBACK_PREFIX}music"},
-            ],
-            [
-                {"text": "🖼 Обложки", "callback_data": f"{MENU_CALLBACK_PREFIX}covers"},
-                {"text": "🏠 Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
-            ],
-        ]
-    }
+    return {"inline_keyboard": [
+        [{"text": "Готовые сценарии", "callback_data": f"{MENU_CALLBACK_PREFIX}preset_categories"}],
+        [{"text": "Примеры запросов", "callback_data": f"{MENU_CALLBACK_PREFIX}examples"}],
+        [
+            {"text": "Посты для Пульса", "callback_data": f"{MENU_CALLBACK_PREFIX}posts"},
+            {"text": "Обложки", "callback_data": f"{MENU_CALLBACK_PREFIX}covers"},
+        ],
+        [
+            {"text": "Музыка", "callback_data": f"{MENU_CALLBACK_PREFIX}music"},
+            {"text": "В меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
+        ],
+    ]}
 
 
 def random_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
@@ -522,7 +525,10 @@ def random_menu_keyboard() -> dict[str, list[list[dict[str, str]]]]:
 
 
 def quick_launch_keyboard() -> dict[str, list[list[dict[str, str]]]]:
-    return main_menu_keyboard()
+    return {"inline_keyboard": [
+        [COMPARE_ASSETS_BUTTON],
+        [{"text": "Настройки видео", "callback_data": f"{MENU_CALLBACK_PREFIX}help_settings"}, INFO_BUTTON],
+    ]}
 
 
 def _mini_app_launch_url(mini_app_url: str, launch: str) -> str:
@@ -543,58 +549,28 @@ def mini_app_keyboard(mini_app_url: str) -> dict[str, Any]:
             ],
             [
                 {"text": "Меню"},
-                {"text": "Статус очереди"},
+                {"text": "Очередь"},
             ],
         ],
         "resize_keyboard": True,
         "one_time_keyboard": False,
-        "input_field_placeholder": "Открой Mini App или напиши тикеры вручную",
-    }
-
-
-def help_keyboard() -> dict[str, list[list[dict[str, str]]]]:
-    return {
-        "inline_keyboard": [
-            [
-                {"text": "✍️ Свой ролик", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
-                {"text": "🎲 Random", "callback_data": f"{MENU_CALLBACK_PREFIX}random_menu"},
-            ],
-            [
-                {"text": "🧩 Серия", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
-                {"text": "📚 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
-            ],
-            [
-                {"text": "⚙️ Параметры", "callback_data": f"{MENU_CALLBACK_PREFIX}parameters"},
-                {"text": "🧭 Гайд", "callback_data": f"{MENU_CALLBACK_PREFIX}guide"},
-            ],
-            [
-                {"text": "⏳ Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
-                {"text": "🏠 Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
-            ],
-        ]
+        "input_field_placeholder": "Выберите активы или введите тикеры",
     }
 
 
 def custom_followup_keyboard(request_key: str) -> dict[str, list[list[dict[str, str]]]]:
-    return {
-        "inline_keyboard": [
-            [
-                {"text": "Черновик 4s", "callback_data": f"custom:{request_key}:draft"},
-                {"text": "Шортс 16s", "callback_data": f"custom:{request_key}:shorts"},
-            ],
-            [
-                {"text": "12s", "callback_data": f"custom:{request_key}:12s"},
-            ],
-            [
-                {"text": "Aurora 16s", "callback_data": f"custom:{request_key}:aurora"},
-                {"text": "Studio 16s", "callback_data": f"custom:{request_key}:studio"},
-            ],
-            [
-                {"text": "Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
-                {"text": "Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
-            ],
-        ]
-    }
+    return {"inline_keyboard": [
+        [{"text": "Пост для Пульса", "callback_data": f"custom:{request_key}:post"}],
+        [
+            {"text": "Черновик · 4 с", "callback_data": f"custom:{request_key}:draft"},
+            {"text": "Ролик · 16 с", "callback_data": f"custom:{request_key}:shorts"},
+            {"text": "Ролик · 12 с", "callback_data": f"custom:{request_key}:12s"},
+        ],
+        [
+            {"text": "Тема Aurora", "callback_data": f"custom:{request_key}:aurora"},
+            {"text": "Тема Studio", "callback_data": f"custom:{request_key}:studio"},
+        ],
+    ]}
 
 
 def _ru_plural(count: int, one: str, few: str, many: str) -> str:
@@ -681,17 +657,7 @@ def _get_telegram_example(name: str) -> TelegramExample | None:
 
 
 def format_example_list() -> str:
-    lines = [
-        "Проверенные примеры запросов без LLM:",
-        "",
-    ]
-    for index, example in enumerate(_TELEGRAM_EXAMPLES, start=1):
-        lines.append(f"{index}. {example.button_label} - {example.description}")
-        lines.append(f"   {example.request}")
-        lines.append("")
-    lines.append("Кнопки ниже запускают пример, случайный draft или весь набор draft-примеров.")
-    lines.append("Идеи фиксированные: без автопридумывания и LLM.")
-    return "\n".join(lines).strip()
+    return "Примеры запросов\n\nВыберите сравнение для ролика. Например, отправьте /shorts SBER LKOH за год."
 
 
 def example_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
@@ -716,17 +682,7 @@ def example_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, s
 
 
 def format_post_list() -> str:
-    lines = [
-        "Текстовые пакеты для Пульса:",
-        "",
-    ]
-    for preset in PRESETS:
-        lines.append(f"{preset_button_label(preset)}: post {preset.name}")
-        lines.append(preset.description)
-        lines.append("")
-    lines.append("Кнопки ниже возвращают готовый текст, обложки, хэштеги, музыку и дисклеймер без рендера.")
-    lines.append("Для произвольного запроса: post LKOH SBER 2020 2024 или текст SBER LKOH за год.")
-    return "\n".join(lines).strip()
+    return "Посты для Пульса\n\nВыберите сценарий или отправьте запрос со своими активами, например post SBER LKOH 2020 2024."
 
 
 def post_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
@@ -862,15 +818,19 @@ def preset_kit_keyboard(preset_name: str) -> dict[str, list[list[dict[str, str]]
     return {
         "inline_keyboard": [
             [
-                {"text": "Шортс 16s", "callback_data": f"preset:{preset.name}:shorts"},
-                {"text": "Черновик 4s", "callback_data": f"preset:{preset.name}:draft"},
+                {"text": "Ролик · 16 с", "callback_data": f"preset:{preset.name}:shorts"},
+                {"text": "Черновик · 4 с", "callback_data": f"preset:{preset.name}:draft"},
             ],
             [
-                {"text": "Все темы x3", "callback_data": f"preset:{preset.name}:themes"},
-                {"text": "12s", "callback_data": f"preset:{preset.name}:12s"},
+                {"text": "Все 3 темы", "callback_data": f"preset:{preset.name}:themes"},
+                {"text": "Ролик · 12 с", "callback_data": f"preset:{preset.name}:12s"},
             ],
             [
-                {"text": "Пост", "callback_data": f"post:{preset.name}"},
+                {"text": "Тема Aurora", "callback_data": f"preset:{preset.name}:aurora"},
+                {"text": "Тема Studio", "callback_data": f"preset:{preset.name}:studio"},
+            ],
+            [
+                {"text": "Пост для Пульса", "callback_data": f"post:{preset.name}"},
                 {"text": "Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
             ],
         ]
@@ -1018,16 +978,7 @@ def weekly_publication_pack_keyboard() -> dict[str, list[list[dict[str, str]]]]:
 
 
 def format_preset_kit_list() -> str:
-    lines = [
-        "Публикационные пакеты сценариев:",
-        "",
-    ]
-    for preset in PRESETS:
-        lines.append(f"{preset_button_label(preset)}: kit {preset.name}")
-        lines.append(preset.description)
-        lines.append("")
-    lines.append("Кнопки ниже открывают хук, обложки, музыку и действия для выбранного preset без немедленного рендера.")
-    return "\n".join(lines).strip()
+    return "Материалы по сценариям\n\nВыберите сценарий, чтобы открыть обложки, музыку и варианты ролика."
 
 
 def preset_kit_inline_keyboard(columns: int = 2) -> dict[str, list[list[dict[str, str]]]]:
@@ -1044,7 +995,7 @@ def preset_category_inline_keyboard(columns: int = 2, mode: str = "shorts") -> d
         msg = f"Unknown preset category keyboard mode: {mode}."
         raise ValueError(msg)
     category_suffix = ":draft" if mode == "draft" else ""
-    all_label = "Полный список" if mode == "draft" else "Все preset"
+    all_label = "Все черновики" if mode == "draft" else "Все сценарии"
     all_callback = "draft_presets" if mode == "draft" else "ideas"
     buttons = [
         {"text": category.title, "callback_data": f"{PRESET_CATEGORY_CALLBACK_PREFIX}{category.name}{category_suffix}"}
@@ -1082,14 +1033,7 @@ def preset_category_keyboard(category_name: str, columns: int = 2, mode: str = "
 
 
 def format_pulse_pack() -> str:
-    return (
-        "Пакеты для Пульса\n\n"
-        "Здесь только готовые production-действия: top-серия, черновики, случайный ролик "
-        "или batch по всем preset.\n\n"
-        "Истории по категориям, тексты, музыку, обложки и полный список preset держу в Справочнике, чтобы этот экран "
-        "оставался коротким.\n\n"
-        "Это фиксированный пакет без LLM и без автопридумывания идей."
-    )
+    return "Ролики для Пульса\n\nВыберите случайный ролик, серию или черновики."
 
 
 def pulse_pack_keyboard() -> dict[str, list[list[dict[str, str]]]]:
@@ -1157,12 +1101,14 @@ class TelegramCustomFollowupCallback:
     chat_id: int
     request_key: str
     mode: str
+    message_thread_id: int | None = None
 
 
 @dataclass(frozen=True)
 class TelegramQueueStatusCallback:
     callback_query_id: str
     chat_id: int
+    message_thread_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -1172,6 +1118,7 @@ class TelegramMenuCallback:
     action: str
     chat_type: str | None
     message_thread_id: int | None
+    message_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -1219,7 +1166,7 @@ class TelegramJobQueue:
         self._active_started_at: float | None = None
         self._completed_count = 0
         self._failed_count = 0
-        self._followup_texts: dict[str, str] = {}
+        self._followup_texts: dict[tuple[int, str], str] = {}
 
     def start(self) -> None:
         if self._thread is not None:
@@ -1256,11 +1203,11 @@ class TelegramJobQueue:
         if notify:
             self._notifications.send_message(
                 chat_id,
-                f"Задача ID {job.job_id} поставлена в очередь.\nПозиция: {queue_position}.",
+                "Задача поставлена в очередь. Видео придёт сюда.",
                 reply_markup=queue_status_keyboard(),
             )
         with self._lock:
-            self._followup_texts[job.job_id] = text
+            self._followup_texts[(chat_id, job.job_id)] = text
             if len(self._followup_texts) > 100:
                 oldest_key = next(iter(self._followup_texts))
                 self._followup_texts.pop(oldest_key, None)
@@ -1268,15 +1215,9 @@ class TelegramJobQueue:
         self._jobs.put(job)
         return job
 
-    def build_custom_followup_text(self, request_key: str, mode: str) -> str | None:
-        mode_suffix = CUSTOM_FOLLOWUP_MODES.get(mode)
-        if mode_suffix is None:
-            return None
+    def custom_request_text(self, chat_id: int, request_key: str) -> str | None:
         with self._lock:
-            text = self._followup_texts.get(request_key)
-        if text is None:
-            return None
-        return f"{text} {mode_suffix}"
+            return self._followup_texts.get((chat_id, request_key))
 
     def enqueue_preset_drafts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
         labels = ", ".join(preset_button_label(preset) for preset in PRESETS)
@@ -1679,6 +1620,25 @@ class TelegramJobQueue:
                 failed_count=self._failed_count,
             )
 
+    def chat_status_text(self, chat_id: int) -> str:
+        with self._lock:
+            active = self._active_job
+            waiting = len(self._pending_jobs)
+            positions = [i for i, job in enumerate(self._pending_jobs, start=1) if job.chat_id == chat_id]
+        if active is None and not waiting:
+            return "Очередь свободна."
+        if active is not None and active.chat_id == chat_id:
+            lines = ["Готовлю ваш ролик."]
+        elif not positions:
+            lines = ["У вас нет роликов в очереди."]
+        else:
+            lines = []
+        if positions:
+            lines.append(f"Ваших роликов в ожидании — {len(positions)}. Ближайший на месте {positions[0]}.")
+        if waiting > len(positions):
+            lines.append(f"Других роликов в ожидании — {waiting - len(positions)}.")
+        return "\n".join(lines)
+
     def status_text(self) -> str:
         snapshot = self.snapshot()
         lines = ["Очередь Telegram"]
@@ -1747,7 +1707,11 @@ class TelegramJobQueue:
             log_event("request", "failed", job_id=job.job_id, chat_id=job.chat_id, error=str(exc))
             logging.exception("Failed to process Telegram request %s", job.job_id)
             try:
-                self._notifications.send_message(job.chat_id, f"Job {job.job_id} failed: {exc}")
+                self._notifications.send_message(
+                    job.chat_id,
+                    "Не удалось создать видео. Проверьте активы, рынок и период, затем попробуйте снова.",
+                    reply_markup={"inline_keyboard": [[INFO_BUTTON]]},
+                )
             except TelegramApiError:
                 logging.exception("Could not send failure notice for Telegram job %s", job.job_id)
             return False
@@ -1918,9 +1882,12 @@ def _extract_custom_followup_callback(update: dict[str, Any]) -> TelegramCustomF
         return None
     request_key = parts[1]
     mode = parts[2].lower()
-    if not request_key or mode not in CUSTOM_FOLLOWUP_MODES:
+    if not request_key or (mode not in CUSTOM_FOLLOWUP_MODES and mode not in {"details", "post"}):
         return None
-    return TelegramCustomFollowupCallback(str(callback_query_id), int(chat_id), request_key, mode)
+    return TelegramCustomFollowupCallback(
+        str(callback_query_id), int(chat_id), request_key, mode,
+        message.get("message_thread_id") if message.get("is_topic_message") else None,
+    )
 
 
 def _extract_queue_status_callback(update: dict[str, Any]) -> TelegramQueueStatusCallback | None:
@@ -1934,7 +1901,10 @@ def _extract_queue_status_callback(update: dict[str, Any]) -> TelegramQueueStatu
     chat_id = chat.get("id")
     if chat_id is None:
         return None
-    return TelegramQueueStatusCallback(str(callback_query_id), int(chat_id))
+    return TelegramQueueStatusCallback(
+        str(callback_query_id), int(chat_id),
+        message.get("message_thread_id") if message.get("is_topic_message") else None,
+    )
 
 
 def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | None:
@@ -1957,6 +1927,7 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
         action,
         chat.get("type"),
         message.get("message_thread_id") if message.get("is_topic_message") else None,
+        message.get("message_id"),
     )
 
 
@@ -1990,6 +1961,7 @@ def _send_welcome(client: TelegramClient, chat_id: int, *, message_thread_id: in
         reply_markup={"inline_keyboard": [
             [{"text": "Показать пример ролика", "callback_data": f"{MENU_CALLBACK_PREFIX}demo_video"}],
             [COMPARE_ASSETS_BUTTON],
+            [INFO_BUTTON],
         ]},
         message_thread_id=message_thread_id,
     )
@@ -2023,56 +1995,32 @@ def _send_demo_video(client: TelegramClient, chat_id: int, *, message_thread_id:
         )
 
 
-def _main_menu_text() -> str:
-    return (
-        "Market Motion Bot\n"
-        "Создает короткие видео по любым тикерам, рынкам и инвестиционным сценариям.\n\n"
-        "Открой Mini App, напиши запрос одной строкой или выбери быстрый режим ниже."
-    )
-
-
-def _send_main_menu(client: TelegramClient, chat_id: int) -> None:
-    client.send_message(chat_id, _main_menu_text(), reply_markup=main_menu_keyboard())
+def _send_main_menu(client: TelegramClient, chat_id: int, *, message_thread_id: int | None = None) -> None:
+    client.send_message(chat_id, "Что хотите сделать?", reply_markup=main_menu_keyboard(), message_thread_id=message_thread_id)
 
 
 def format_random_menu() -> str:
-    return (
-        "Random video\n"
-        "Бот сам выбирает тикеры из universe, берет пересечение истории и ставит ролик в очередь.\n\n"
-        "Размер: 1, 2 или 3 тикера.\n"
-        "Фильтр: mixed, metals, drama, stocks, crypto.\n\n"
-        "Команды: random mixed 2, random metals 1, random drama 2."
-    )
+    return "Бот подберёт активы для ролика. Выберите количество или тему."
 
 
 def format_reference_menu() -> str:
-    return (
-        "Примеры и материалы\n\n"
-        "Здесь не основной сценарий, а ориентиры: проверенные истории, готовые запросы, "
-        "посты, музыка и обложки."
-    )
+    return "Выберите готовый сценарий, пример запроса или материалы для публикации."
 
 
 def format_quick_launch() -> str:
     return (
-        "Свой ролик\n"
-        "Напиши тикеры, период, валюту и режим. Бот скачает данные, построит график и пришлет MP4.\n\n"
-        "Примеры:\n"
-        "/shorts SBER LKOH за год\n"
-        "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n"
-        "AAPL MSFT NVDA global USD shorts\n\n"
-        "Параметры: /params. Подбор без ручного выбора тикеров: random mixed 2."
+        "Выберите активы в конструкторе или отправьте их тикеры и период одним сообщением.\n\n"
+        "/shorts SBER LKOH за год"
     )
 
 
-def _send_quick_launch(client: TelegramClient, chat_id: int) -> None:
-    client.send_message(chat_id, format_quick_launch(), reply_markup=quick_launch_keyboard())
+def _send_quick_launch(client: TelegramClient, chat_id: int, *, message_thread_id: int | None = None) -> None:
+    client.send_message(chat_id, format_quick_launch(), reply_markup=quick_launch_keyboard(), message_thread_id=message_thread_id)
 
 
 def format_mini_app_launch() -> str:
     return (
-        "MarketMotion\n\n"
-        "Нажми «Открыть Mini App», выбери тикеры и период. "
+        "Выберите активы и период в Mini App. "
         "Готовое видео придёт в этот чат."
     )
 
@@ -2091,8 +2039,7 @@ def _send_mini_app_launch(
         markup = mini_app_keyboard(settings.mini_app_url)
     else:
         text = (
-            "MarketMotion\n\n"
-            "Выбери тикеры и период, скопируй запрос и отправь его ответом на это сообщение. "
+            "Выберите активы и период, скопируйте запрос и отправьте его ответом на это сообщение. "
             "Готовое видео придёт в этот чат."
         )
         markup = {"inline_keyboard": [[{
@@ -2102,113 +2049,36 @@ def _send_mini_app_launch(
     client.send_message(chat_id, text, reply_markup=markup, message_thread_id=message_thread_id)
 
 
-def parameters_keyboard() -> dict[str, list[list[dict[str, str]]]]:
-    return {
-        "inline_keyboard": [
-            [
-                {"text": "✍️ Свой ролик", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
-                {"text": "🧭 Гайд", "callback_data": f"{MENU_CALLBACK_PREFIX}guide"},
-            ],
-            [
-                {"text": "📚 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
-                {"text": "⏳ Очередь", "callback_data": QUEUE_STATUS_CALLBACK_DATA},
-            ],
-            [
-                {"text": "🏠 Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
-            ],
-        ]
+def _send_help(
+    client: TelegramClient,
+    chat_id: int,
+    topic: str = "index",
+    *,
+    message_thread_id: int | None = None,
+    edit_message_id: int | None = None,
+) -> None:
+    text, markup = help_page(topic)
+    if edit_message_id is not None:
+        try:
+            client.edit_message_text(chat_id, edit_message_id, text, markup)
+            return
+        except TelegramApiError as exc:
+            if "message is not modified" in str(exc).lower():
+                return
+            logging.warning("Could not edit the Telegram help page.", exc_info=True)
+    client.send_message(chat_id, text, reply_markup=markup, message_thread_id=message_thread_id)
+
+
+def _help_topic(text: str) -> str:
+    command = _slash_command_and_payload(text)
+    query = command[1].casefold().replace("ё", "е") if command else ""
+    aliases = {
+        "ролик": "first_video", "пример": "first_video", "app": "first_video",
+        "параметры": "settings", "настройки": "settings", "params": "settings",
+        "идеи": "ideas", "серии": "ideas", "материалы": "materials", "посты": "materials",
+        "очередь": "queue", "queue": "queue",
     }
-
-
-def format_parameters_guide() -> str:
-    return (
-        "Параметры запроса\n\n"
-        "Пиши параметры в той же строке после тикеров. Их можно комбинировать.\n\n"
-        "Период:\n"
-        "from=2010-01-01, to=2026-06-01, 2010-2026, за год, last 3 years.\n\n"
-        "Рынок и тикеры:\n"
-        "SBER, AAPL global, GC=F futures, BTC crypto, EURUSD currency.\n"
-        "ticker|engine|market, engine=stock/global/currency/futures, market=shares/forts/metals/commodities/crypto/selt.\n\n"
-        "Видео:\n"
-        "duration=12 или 12s (1-90), fps=24 (1-30).\n"
-        "shorts = 16s/24fps/gradient, draft = 4s/8fps/line.\n"
-        "gradient, nogradient, gradient=true/false, legend=true/false, nolegend.\n\n"
-        "Деньги и метрика:\n"
-        "RUB/USD/EUR/CNY/GBP/JPY/CHF или currency=USD.\n"
-        "close/price/value=CLOSE; capital/reinvest/value=CAPITAL_REINVEST.\n\n"
-        "Инвестиции:\n"
-        "invest, initial=0, monthly=30000, yearly=100000.\n"
-        "Можно по-русски: с нуля ежемесячно 30к₽.\n\n"
-        "Вид:\n"
-        "theme=default|aurora|studio, title=My_Title.\n\n"
-        "Примеры:\n"
-        "SBER LKOH from=2020-01-01 to=2024-12-31 duration=12 fps=24 gradient theme=studio\n"
-        "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 shorts\n"
-        "AAPL MSFT global USD close 12s nogradient"
-    )
-
-
-def _send_parameters_guide(client: TelegramClient, chat_id: int) -> None:
-    client.send_message(chat_id, format_parameters_guide(), reply_markup=parameters_keyboard())
-
-
-def production_guide_keyboard() -> dict[str, list[list[dict[str, str]]]]:
-    return {
-        "inline_keyboard": [
-            [
-                {"text": "✍️ Свой ролик", "callback_data": f"{MENU_CALLBACK_PREFIX}quick_launch"},
-                {"text": "🎲 Random", "callback_data": f"{MENU_CALLBACK_PREFIX}random_menu"},
-            ],
-            [
-                {"text": "🧩 Серия", "callback_data": f"{MENU_CALLBACK_PREFIX}content_plan"},
-                {"text": "⚙️ Параметры", "callback_data": f"{MENU_CALLBACK_PREFIX}parameters"},
-            ],
-            [
-                {"text": "⏳ Очередь", "callback_data": f"{MENU_CALLBACK_PREFIX}queue"},
-                {"text": "📚 Примеры", "callback_data": f"{MENU_CALLBACK_PREFIX}reference"},
-            ],
-            [
-                {"text": "🏠 Меню", "callback_data": f"{MENU_CALLBACK_PREFIX}main_menu"},
-            ],
-        ]
-    }
-
-
-def format_production_guide() -> str:
-    return (
-        "Product guide\n\n"
-        "Ценность бота - универсальное видео из одной строки, а не список пресетов.\n\n"
-        "1. Свой ролик\n"
-        "/shorts SBER LKOH за год\n"
-        "gold silver palladium 2010-2026 RUB capital invest initial=0 monthly=30000 gradient\n\n"
-        "2. Подбор тикеров\n"
-        "random mixed 2 - любой рынок\n"
-        "random metals 1 - один металл\n"
-        "random drama 2 - две волатильные истории\n\n"
-        "3. Серия\n"
-        "plan drama 5 days 2 tickers - показать сетку\n"
-        "plan shorts metals count=1 days=5 - поставить серию в очередь\n\n"
-        "4. Контроль\n"
-        "/queue или статус - очередь и ошибки.\n\n"
-        "Пресеты и примеры остаются как ориентиры, но рабочий путь - свой запрос, random или серия."
-    )
-
-
-def _help_text(default_engine: str, default_market: str) -> str:
-    return (
-        "Market Motion: как сделать ролик\n"
-        f"По умолчанию: {default_engine}|{default_market}\n"
-        "\n"
-        "Mini App: /app. Свой: /shorts + тикеры + период + валюта + invest/monthly.\n"
-        "Random: random mixed 1/2/3, random metals 1, random drama 2.\n"
-        "Серия: plan drama 5 days 2 tickers или plan shorts metals count=1 days=5.\n"
-        "Статус: /queue или статус.\n\n"
-        "Примеры:\n"
-        "/shorts SBER LKOH за год\n"
-        "золото серебро палладий 2010-2026 RUB капитал с нуля ежемесячно 30к₽ gradient\n"
-        "AAPL MSFT NVDA global USD shorts\n\n"
-        "Параметры: /params. Подробный процесс: /guide. Меню: /menu."
-    )
+    return aliases.get(query, query if query in HELP_TOPICS else "index")
 
 
 def cleanup_old_outputs(output_dir: Path, retention_days: int, keep: set[Path] | None = None) -> list[Path]:
@@ -2238,6 +2108,13 @@ def configure_telegram_command_menu(client: TelegramClient) -> None:
         logging.warning("Failed to update Telegram bot command menu.", exc_info=True)
 
 
+def configure_telegram_profile(client: TelegramClient) -> None:
+    try:
+        client.set_my_description(BOT_DESCRIPTION, BOT_SHORT_DESCRIPTION)
+    except TelegramApiError:
+        logging.warning("Failed to update Telegram bot description.", exc_info=True)
+
+
 def configure_telegram_mini_app_menu_button(client: TelegramClient, mini_app_url: str, *, enabled: bool = True) -> None:
     menu_button: dict[str, Any]
     if enabled and mini_app_url:
@@ -2254,9 +2131,26 @@ def _slash_command_and_payload(text: str) -> tuple[str, str] | None:
     stripped = text.strip()
     if not stripped.startswith("/"):
         return None
-    command, _separator, payload = stripped.partition(" ")
-    command = command.split("@", 1)[0].lower()
-    return command, payload.strip()
+    parts = stripped.split(maxsplit=1)
+    command = parts[0].split("@", 1)[0].lower()
+    return command, parts[1] if len(parts) == 2 else ""
+
+
+def _normalize_addressed_command(text: str) -> str:
+    parts = text.split(maxsplit=1)
+    if parts and parts[0].startswith("/") and "@" in parts[0]:
+        parts[0] = parts[0].split("@", 1)[0]
+        return " ".join(parts)
+    return text
+
+
+def _unknown_slash_command(text: str) -> bool:
+    if _slash_command_and_payload(text) is None:
+        return False
+    try:
+        return expand_preset_text(text)[1] is None
+    except ValueError:
+        return True
 
 
 def _is_start(text: str) -> bool:
@@ -2269,14 +2163,16 @@ def _is_start(text: str) -> bool:
 def _is_help(text: str) -> bool:
     command = _slash_command_and_payload(text)
     if command is not None:
-        return command[0] in {"/help", "/помощь"}
+        return command[0] in {"/help", "/info", "/помощь", "/информация"}
     normalized = text.strip().lower()
-    return normalized in {"помощь", "help"}
+    return normalized in {"помощь", "help", "информация", "info"}
 
 
 def _is_quick_launch(text: str) -> bool:
     command = _slash_command_and_payload(text)
     if command is not None:
+        if command[0] == "/shoot" and command[1].lower() in {"plan", "day", "week"}:
+            return False
         return command[0] in {
             "/quick",
             "/shoot",
@@ -3034,6 +2930,10 @@ def _append_plan_category(categories: list[str | None], raw_category: str) -> No
 
 def _content_plan_action(text: str) -> TelegramContentPlanAction | None:
     normalized = " ".join(text.strip().lower().replace("ё", "е").replace("_", " ").replace("-", " ").split())
+    if normalized.startswith("/") and normalized.split()[0][1:] not in (
+        _PLAN_WORDS | _PLAN_IGNORED_WORDS | _PLAN_SHORTS_WORDS
+    ):
+        return None
     tokens = [token.lstrip("/") for token in normalized.split()]
     if not tokens or not any(token in _PLAN_WORDS for token in tokens):
         return None
@@ -3097,6 +2997,11 @@ def _content_plan_action(text: str) -> TelegramContentPlanAction | None:
 
 def _random_content_action(text: str) -> TelegramRandomContentAction | None:
     normalized = " ".join(text.strip().lower().replace("ё", "е").replace("_", " ").replace("-", " ").split())
+    if normalized.startswith("/"):
+        first_word = normalized.split()[0][1:]
+        random_prefixes = _RANDOM_WORDS | _RANDOM_SHORT_WORDS | _RANDOM_DRAFT_WORDS | HOT_BATCH_THEME_ALIASES.keys()
+        if first_word not in random_prefixes and resolve_universe_category(first_word) is None:
+            return None
     for explicit_prefix in ("category ", "категория "):
         if normalized.startswith(explicit_prefix):
             normalized = normalized.removeprefix(explicit_prefix).strip()
@@ -3368,8 +3273,7 @@ def _start_render_progress_notifier(
                 cancellation = {"cancelled": stop_event} if notifications else {}
                 send_notice(
                     chat_id,
-                    f"Рендер еще идет: {display_name}\n"
-                    f"Job {job_label}. Длинные периоды и 3+ тикера могут считаться несколько минут.",
+                    f"Видео ещё готовится · {display_name}",
                     reply_markup=queue_status_keyboard(),
                     **cancellation,
                 )
@@ -3377,7 +3281,7 @@ def _start_render_progress_notifier(
             except Exception:
                 logging.exception("Failed to send render progress notice for %s", job_label)
             notice_count += 1
-            if stop_event.wait(max(repeat_seconds, 1.0)):
+            if notifications or stop_event.wait(max(repeat_seconds, 1.0)):
                 return
 
     thread = Thread(target=notify_loop, name=f"telegram-render-progress-{job_label}", daemon=True)
@@ -3438,13 +3342,14 @@ def handle_ticker_message(
     notifications: TelegramNotificationQueue | None = None,
 ) -> None:
     if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
-        client.send_message(chat_id, "This chat is not allowed to use this bot.")
+        client.send_message(chat_id, ACCESS_DENIED)
         return
     if _is_start(text):
         _send_welcome(client, chat_id)
         return
+    text = _normalize_addressed_command(text)
     if _is_help(text):
-        client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market), reply_markup=help_keyboard())
+        _send_help(client, chat_id, _help_topic(text))
         return
     if _is_mini_app(text):
         _send_mini_app_launch(client, settings, chat_id)
@@ -3453,10 +3358,10 @@ def handle_ticker_message(
         _send_quick_launch(client, chat_id)
         return
     if _is_parameters_guide(text):
-        _send_parameters_guide(client, chat_id)
+        _send_help(client, chat_id, "settings")
         return
     if _is_production_guide(text):
-        client.send_message(chat_id, format_production_guide(), reply_markup=production_guide_keyboard())
+        _send_help(client, chat_id)
         return
     if _is_menu(text):
         _send_main_menu(client, chat_id)
@@ -3615,29 +3520,38 @@ def handle_ticker_message(
     parsed = parse_telegram_video_request(text, settings.render, settings.default_engine, settings.default_market)
     render = parsed.request.render
     notify = notifications.send_message if notifications else client.send_message
-    render_finished = Event()
-    cancellation = {"cancelled": render_finished} if notifications else {}
-    notify(
-        chat_id,
-        f"Генерирую видео: {parsed.display_name}\n"
-        f"{render.start_date} - {render.end_date}, {render.duration}s/{render.fps}fps\n"
-        f"{_render_summary(render)}",
-        **cancellation,
-    )
+    if not notifications:
+        notify(
+            chat_id,
+            f"Генерирую видео: {parsed.display_name}\n"
+            f"{render.start_date} - {render.end_date}, {render.duration}s/{render.fps}fps\n"
+            f"{_render_summary(render)}",
+        )
     stop_progress_notifier = _start_render_progress_notifier(
         client, chat_id, job_id, parsed.display_name, notifications=notifications,
     )
     try:
         output_path = generate_video(parsed.request, job_id=job_id)
     finally:
-        render_finished.set()
         stop_progress_notifier()
     send_started_at = time.monotonic()
     log_event("send", "started", job_id=job_id, chat_id=chat_id, output_path=str(output_path))
     send_video = notifications.send_video if notifications else client.send_video
-    send_video(chat_id, output_path, f"{parsed.display_name}: {render.start_date} - {render.end_date}")
+    caption = f"{parsed.display_name}: {render.start_date} - {render.end_date}"
+    action = None
+    if notifications and parsed.preset_name:
+        action = f"kit:{parsed.preset_name}"
+    elif notifications and custom_followup_key:
+        action = f"custom:{custom_followup_key}:details"
+    if action and len(action.encode("utf-8")) <= 64:
+        send_video(
+            chat_id, output_path, caption,
+            reply_markup={"inline_keyboard": [[{"text": "Материалы и варианты", "callback_data": action}]]},
+        )
+    else:
+        send_video(chat_id, output_path, caption)
     log_event("send", "completed", job_id=job_id, chat_id=chat_id, elapsed_ms=int((time.monotonic() - send_started_at) * 1000))
-    if parsed.preset_name:
+    if not notifications and parsed.preset_name:
         preset = get_preset(parsed.preset_name)
         notify(chat_id, format_pulse_post(preset))
         notify(
@@ -3645,7 +3559,7 @@ def handle_ticker_message(
             "Быстрые варианты для этого сценария:",
             reply_markup=preset_followup_keyboard(preset.name),
         )
-    else:
+    elif not notifications:
         notify(chat_id, format_generic_pulse_post(parsed))
         if custom_followup_key:
             notify(
@@ -3668,6 +3582,7 @@ def handle_ticker_message(
 def run_telegram_bot(settings: TelegramBotSettings) -> None:
     client = TelegramClient(settings.token, settings.poll_timeout, group_topic_ids=settings.group_topic_ids)
     configure_telegram_command_menu(client)
+    configure_telegram_profile(client)
     configure_telegram_mini_app_menu_button(
         client,
         settings.mini_app_url,
@@ -3692,42 +3607,27 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                     extracted = _extract_text_message(update)
                     if extracted is not None:
                         chat_id, text = extracted
+                        text = _normalize_addressed_command(text)
+                        message = update["message"]
+                        thread_id = message.get("message_thread_id") if message.get("is_topic_message") else None
                         if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
-                            client.send_message(chat_id, "This chat is not allowed to use this bot.")
+                            client.send_message(chat_id, ACCESS_DENIED, message_thread_id=thread_id)
                         elif _is_start(text):
-                            message = update["message"]
-                            _send_welcome(
-                                client,
-                                chat_id,
-                                message_thread_id=message.get("message_thread_id") if message.get("is_topic_message") else None,
-                            )
+                            _send_welcome(client, chat_id, message_thread_id=thread_id)
                         elif _is_help(text):
-                            client.send_message(
-                                chat_id,
-                                _help_text(settings.default_engine, settings.default_market),
-                                reply_markup=help_keyboard(),
-                            )
+                            _send_help(client, chat_id, _help_topic(text), message_thread_id=thread_id)
                         elif _is_mini_app(text):
-                            message = update["message"]
                             _send_mini_app_launch(
-                                client,
-                                settings,
-                                chat_id,
-                                chat_type=message["chat"].get("type"),
-                                message_thread_id=message.get("message_thread_id") if message.get("is_topic_message") else None,
+                                client, settings, chat_id, chat_type=message["chat"].get("type"), message_thread_id=thread_id,
                             )
                         elif _is_quick_launch(text):
-                            _send_quick_launch(client, chat_id)
+                            _send_quick_launch(client, chat_id, message_thread_id=thread_id)
                         elif _is_parameters_guide(text):
-                            _send_parameters_guide(client, chat_id)
+                            _send_help(client, chat_id, "settings", message_thread_id=thread_id)
                         elif _is_production_guide(text):
-                            client.send_message(
-                                chat_id,
-                                format_production_guide(),
-                                reply_markup=production_guide_keyboard(),
-                            )
+                            _send_help(client, chat_id, message_thread_id=thread_id)
                         elif _is_menu(text):
-                            _send_main_menu(client, chat_id)
+                            _send_main_menu(client, chat_id, message_thread_id=thread_id)
                         else:
                             shortcut = _shortcut_mode_and_text(text)
                             if shortcut is not None:
@@ -3855,7 +3755,10 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             elif _is_random_example_draft(text):
                                 job_queue.enqueue_random_example_draft(chat_id, int(update["update_id"]))
                             elif _is_queue_status(text):
-                                client.send_message(chat_id, job_queue.status_text(), reply_markup=queue_status_keyboard())
+                                client.send_message(
+                                    chat_id, job_queue.chat_status_text(chat_id),
+                                    reply_markup=queue_status_keyboard(), message_thread_id=thread_id,
+                                )
                             elif _is_preset_categories(text):
                                 client.send_message(
                                     chat_id,
@@ -3917,7 +3820,17 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                     )
                                 else:
                                     batch_lines = _batch_request_lines(text)
-                                    if len(batch_lines) > 1:
+                                    if any(
+                                        _shortcut_mode_and_text(line) is None and _unknown_slash_command(line)
+                                        for line in batch_lines
+                                    ):
+                                        client.send_message(
+                                            chat_id,
+                                            "Команда не найдена. Посмотрите, что умеет бот, в разделе «Информация».",
+                                            reply_markup={"inline_keyboard": [[INFO_BUTTON]]},
+                                            message_thread_id=thread_id,
+                                        )
+                                    elif len(batch_lines) > 1:
                                         job_queue.enqueue_batch(chat_id, batch_lines, int(update["update_id"]))
                                     else:
                                         job_queue.enqueue(chat_id, text, int(update["update_id"]))
@@ -3925,11 +3838,11 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                     menu_callback = _extract_menu_callback(update)
                     if menu_callback is not None:
                         if settings.allowed_chat_ids and menu_callback.chat_id not in settings.allowed_chat_ids:
-                            client.answer_callback_query(menu_callback.callback_query_id, "This chat is not allowed.")
-                            client.send_message(menu_callback.chat_id, "This chat is not allowed to use this bot.")
+                            client.answer_callback_query(menu_callback.callback_query_id, ACCESS_DENIED_SHORT)
+                            client.send_message(menu_callback.chat_id, ACCESS_DENIED)
                         elif menu_callback.action == "main_menu":
                             client.answer_callback_query(menu_callback.callback_query_id, "Меню открыто.")
-                            _send_main_menu(client, menu_callback.chat_id)
+                            _send_main_menu(client, menu_callback.chat_id, message_thread_id=menu_callback.message_thread_id)
                         elif menu_callback.action == "demo_video":
                             client.answer_callback_query(menu_callback.callback_query_id)
                             _send_demo_video(
@@ -3948,13 +3861,14 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             )
                         elif menu_callback.action == "quick_launch":
                             client.answer_callback_query(menu_callback.callback_query_id, "Быстрый запуск открыт.")
-                            _send_quick_launch(client, menu_callback.chat_id)
+                            _send_quick_launch(client, menu_callback.chat_id, message_thread_id=menu_callback.message_thread_id)
                         elif menu_callback.action == "reference":
                             client.answer_callback_query(menu_callback.callback_query_id, "Справочник открыт.")
                             client.send_message(
                                 menu_callback.chat_id,
                                 format_reference_menu(),
                                 reply_markup=reference_keyboard(),
+                                message_thread_id=menu_callback.message_thread_id,
                             )
                         elif menu_callback.action == "random_menu":
                             client.answer_callback_query(menu_callback.callback_query_id, "Random открыт.")
@@ -3962,23 +3876,17 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 menu_callback.chat_id,
                                 format_random_menu(),
                                 reply_markup=random_menu_keyboard(),
+                                message_thread_id=menu_callback.message_thread_id,
                             )
-                        elif menu_callback.action == "parameters":
-                            client.answer_callback_query(menu_callback.callback_query_id, "Параметры открыты.")
-                            _send_parameters_guide(client, menu_callback.chat_id)
-                        elif menu_callback.action == "help":
-                            client.answer_callback_query(menu_callback.callback_query_id, "Помощь открыта.")
-                            client.send_message(
-                                menu_callback.chat_id,
-                                _help_text(settings.default_engine, settings.default_market),
-                                reply_markup=help_keyboard(),
-                            )
-                        elif menu_callback.action == "guide":
-                            client.answer_callback_query(menu_callback.callback_query_id, "Шпаргалка открыта.")
-                            client.send_message(
-                                menu_callback.chat_id,
-                                format_production_guide(),
-                                reply_markup=production_guide_keyboard(),
+                        elif menu_callback.action in {"help", "guide", "parameters"}:
+                            client.answer_callback_query(menu_callback.callback_query_id)
+                            topic = "settings" if menu_callback.action == "parameters" else "index"
+                            _send_help(client, menu_callback.chat_id, topic, message_thread_id=menu_callback.message_thread_id)
+                        elif menu_callback.action in HELP_VIEWS:
+                            client.answer_callback_query(menu_callback.callback_query_id)
+                            _send_help(
+                                client, menu_callback.chat_id, HELP_VIEWS[menu_callback.action],
+                                message_thread_id=menu_callback.message_thread_id, edit_message_id=menu_callback.message_id,
                             )
                         elif menu_callback.action == "preset_categories":
                             client.answer_callback_query(menu_callback.callback_query_id, "Истории открыты.")
@@ -4124,15 +4032,16 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             client.answer_callback_query(menu_callback.callback_query_id, "Статус очереди обновлен.")
                             client.send_message(
                                 menu_callback.chat_id,
-                                job_queue.status_text(),
+                                job_queue.chat_status_text(menu_callback.chat_id),
                                 reply_markup=queue_status_keyboard(),
+                                message_thread_id=menu_callback.message_thread_id,
                             )
                         continue
                     category_callback = _extract_preset_category_callback(update)
                     if category_callback is not None:
                         if settings.allowed_chat_ids and category_callback.chat_id not in settings.allowed_chat_ids:
-                            client.answer_callback_query(category_callback.callback_query_id, "This chat is not allowed.")
-                            client.send_message(category_callback.chat_id, "This chat is not allowed to use this bot.")
+                            client.answer_callback_query(category_callback.callback_query_id, ACCESS_DENIED_SHORT)
+                            client.send_message(category_callback.chat_id, ACCESS_DENIED)
                         else:
                             category = get_preset_category(category_callback.category_name)
                             client.answer_callback_query(category_callback.callback_query_id, "Категория открыта.")
@@ -4145,21 +4054,22 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                     queue_callback = _extract_queue_status_callback(update)
                     if queue_callback is not None:
                         if settings.allowed_chat_ids and queue_callback.chat_id not in settings.allowed_chat_ids:
-                            client.answer_callback_query(queue_callback.callback_query_id, "This chat is not allowed.")
-                            client.send_message(queue_callback.chat_id, "This chat is not allowed to use this bot.")
+                            client.answer_callback_query(queue_callback.callback_query_id, ACCESS_DENIED_SHORT)
+                            client.send_message(queue_callback.chat_id, ACCESS_DENIED)
                         else:
                             client.answer_callback_query(queue_callback.callback_query_id, "Статус очереди обновлен.")
                             client.send_message(
                                 queue_callback.chat_id,
-                                job_queue.status_text(),
+                                job_queue.chat_status_text(queue_callback.chat_id),
                                 reply_markup=queue_status_keyboard(),
+                                message_thread_id=queue_callback.message_thread_id,
                             )
                         continue
                     example_callback = _extract_example_callback(update)
                     if example_callback is not None:
                         if settings.allowed_chat_ids and example_callback.chat_id not in settings.allowed_chat_ids:
-                            client.answer_callback_query(example_callback.callback_query_id, "This chat is not allowed.")
-                            client.send_message(example_callback.chat_id, "This chat is not allowed to use this bot.")
+                            client.answer_callback_query(example_callback.callback_query_id, ACCESS_DENIED_SHORT)
+                            client.send_message(example_callback.chat_id, ACCESS_DENIED)
                         else:
                             client.answer_callback_query(example_callback.callback_query_id, "Пример поставлен в очередь.")
                             job_queue.enqueue(
@@ -4172,8 +4082,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                     post_callback = _extract_post_callback(update)
                     if post_callback is not None:
                         if settings.allowed_chat_ids and post_callback.chat_id not in settings.allowed_chat_ids:
-                            client.answer_callback_query(post_callback.callback_query_id, "This chat is not allowed.")
-                            client.send_message(post_callback.chat_id, "This chat is not allowed to use this bot.")
+                            client.answer_callback_query(post_callback.callback_query_id, ACCESS_DENIED_SHORT)
+                            client.send_message(post_callback.chat_id, ACCESS_DENIED)
                         else:
                             preset = get_preset(post_callback.preset_name)
                             client.answer_callback_query(post_callback.callback_query_id, "Пост открыт.")
@@ -4182,8 +4092,8 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                     kit_callback = _extract_preset_kit_callback(update)
                     if kit_callback is not None:
                         if settings.allowed_chat_ids and kit_callback.chat_id not in settings.allowed_chat_ids:
-                            client.answer_callback_query(kit_callback.callback_query_id, "This chat is not allowed.")
-                            client.send_message(kit_callback.chat_id, "This chat is not allowed to use this bot.")
+                            client.answer_callback_query(kit_callback.callback_query_id, ACCESS_DENIED_SHORT)
+                            client.send_message(kit_callback.chat_id, ACCESS_DENIED)
                         else:
                             client.answer_callback_query(kit_callback.callback_query_id, "Пакет открыт.")
                             client.send_message(
@@ -4195,27 +4105,40 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                     custom_callback = _extract_custom_followup_callback(update)
                     if custom_callback is not None:
                         if settings.allowed_chat_ids and custom_callback.chat_id not in settings.allowed_chat_ids:
-                            client.answer_callback_query(custom_callback.callback_query_id, "This chat is not allowed.")
-                            client.send_message(custom_callback.chat_id, "This chat is not allowed to use this bot.")
+                            client.answer_callback_query(custom_callback.callback_query_id, ACCESS_DENIED_SHORT)
+                            client.send_message(custom_callback.chat_id, ACCESS_DENIED)
                         else:
-                            followup_text = job_queue.build_custom_followup_text(
-                                custom_callback.request_key,
-                                custom_callback.mode,
-                            )
-                            if followup_text is None:
-                                client.answer_callback_query(
-                                    custom_callback.callback_query_id,
-                                    "Исходный запрос уже недоступен.",
-                                )
+                            request_text = job_queue.custom_request_text(custom_callback.chat_id, custom_callback.request_key)
+                            if request_text is None:
+                                client.answer_callback_query(custom_callback.callback_query_id, "Запрос устарел.")
                                 client.send_message(
                                     custom_callback.chat_id,
-                                    "Исходный запрос для кнопки уже недоступен. Отправь текст запроса еще раз.",
+                                    "Отправьте исходный запрос ещё раз, чтобы открыть материалы и варианты.",
+                                    message_thread_id=custom_callback.message_thread_id,
+                                )
+                            elif custom_callback.mode == "details":
+                                client.answer_callback_query(custom_callback.callback_query_id)
+                                client.send_message(
+                                    custom_callback.chat_id,
+                                    "Материалы и варианты ролика",
+                                    reply_markup=custom_followup_keyboard(custom_callback.request_key),
+                                    message_thread_id=custom_callback.message_thread_id,
+                                )
+                            elif custom_callback.mode == "post":
+                                client.answer_callback_query(custom_callback.callback_query_id)
+                                parsed = parse_telegram_video_request(
+                                    request_text, settings.render, settings.default_engine, settings.default_market,
+                                )
+                                client.send_message(
+                                    custom_callback.chat_id, format_generic_pulse_post(parsed),
+                                    message_thread_id=custom_callback.message_thread_id,
                                 )
                             else:
-                                client.answer_callback_query(custom_callback.callback_query_id, "Вариант поставлен в очередь.")
+                                client.answer_callback_query(custom_callback.callback_query_id)
+                                mode_suffix = CUSTOM_FOLLOWUP_MODES[custom_callback.mode]
                                 job_queue.enqueue(
                                     custom_callback.chat_id,
-                                    followup_text,
+                                    f"{request_text} {mode_suffix}",
                                     int(update["update_id"]),
                                     job_suffix=f"variant-{custom_callback.mode}",
                                 )
@@ -4225,11 +4148,11 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         if settings.allowed_chat_ids and preset_theme_variants_callback.chat_id not in settings.allowed_chat_ids:
                             client.answer_callback_query(
                                 preset_theme_variants_callback.callback_query_id,
-                                "This chat is not allowed.",
+                                ACCESS_DENIED_SHORT,
                             )
                             client.send_message(
                                 preset_theme_variants_callback.chat_id,
-                                "This chat is not allowed to use this bot.",
+                                ACCESS_DENIED,
                             )
                         else:
                             client.answer_callback_query(
@@ -4244,10 +4167,13 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         continue
                     callback = _extract_preset_callback(update)
                     if callback is None:
+                        callback_id = (update.get("callback_query") or {}).get("id")
+                        if callback_id:
+                            client.answer_callback_query(callback_id, "Кнопка устарела. Откройте /menu.")
                         continue
                     if settings.allowed_chat_ids and callback.chat_id not in settings.allowed_chat_ids:
-                        client.answer_callback_query(callback.callback_query_id, "This chat is not allowed.")
-                        client.send_message(callback.chat_id, "This chat is not allowed to use this bot.")
+                        client.answer_callback_query(callback.callback_query_id, ACCESS_DENIED_SHORT)
+                        client.send_message(callback.chat_id, ACCESS_DENIED)
                     else:
                         client.answer_callback_query(callback.callback_query_id, "Сценарий поставлен в очередь.")
                         job_queue.enqueue(callback.chat_id, callback.text, int(update["update_id"]))

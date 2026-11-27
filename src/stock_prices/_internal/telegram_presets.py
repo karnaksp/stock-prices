@@ -386,35 +386,35 @@ PRESET_CATEGORIES: tuple[TelegramPresetCategory, ...] = (
         name="quiet",
         aliases=("тихий", "тихие", "спокойный", "спокойные", "менее хайповые", "quiet"),
         title="Тихие российские истории",
-        description="Узнаваемые бумаги без ставки только на хайп: банки, дивиденды, госы и понятные бизнесы.",
+        description="Банки, дивидендные компании и знакомые российские бренды.",
         preset_names=("bluechips", "banks", "dividends", "stateowned", "vodka", "telecoms", "retailers", "utilities"),
     ),
     TelegramPresetCategory(
         name="drama",
         aliases=("драма", "драматичный", "просадки", "памп", "дамп", "drama"),
         title="Драмы и просадки",
-        description="Сюжеты, где аудитория сразу видит цену хайпа, цикла или неудачного выбора.",
+        description="Акции с резкими взлётами и просадками.",
         preset_names=("neweconomy", "builders", "wagons", "mechel", "coalminers", "retailers"),
     ),
     TelegramPresetCategory(
         name="commodities",
         aliases=("сырье", "сырьевой", "сырьевые", "металлы", "commodities"),
         title="Сырье и циклы",
-        description="Металлы, экспортеры и циклические акции с сильными движениями на длинной дистанции.",
+        description="Металлы, экспортёры и угольные компании.",
         preset_names=("metals", "exporters", "coalminers", "mechel", "dividends"),
     ),
     TelegramPresetCategory(
         name="growth",
         aliases=("рост", "ростовый", "ростовые", "tech", "тех", "growth"),
         title="Рост и ожидания",
-        description="Истории про мечту роста: tech, IPO-эйфория, девелоперы и ожидания будущего.",
+        description="Технологии, девелоперы и акции после IPO.",
         preset_names=("neweconomy", "techru", "builders", "wagons"),
     ),
     TelegramPresetCategory(
         name="weekly",
         aliases=("неделя", "план", "weekly"),
         title="Недельный контент-план",
-        description="Семь сценариев для регулярной недели публикаций: от драмы до спокойной базы.",
+        description="Семь разных сценариев на неделю публикаций.",
         preset_names=("neweconomy", "metals", "banks", "telecoms", "retailers", "utilities", "bluechips"),
     ),
 )
@@ -534,16 +534,14 @@ def get_preset(name: str) -> TelegramPreset:
     normalized = _normalize_name(name)
     if normalized in _PRESET_BY_NAME:
         return _PRESET_BY_NAME[normalized]
-    options = ", ".join(preset.name for preset in PRESETS)
-    raise ValueError(f"Unknown preset: {name}. Use one of: {options}.")
+    raise ValueError("Сценарий не найден. Выберите готовый вариант в /ideas.")
 
 
 def get_preset_category(name: str) -> TelegramPresetCategory:
     normalized = _normalize_name(name)
     if normalized in _CATEGORY_BY_NAME:
         return _CATEGORY_BY_NAME[normalized]
-    options = ", ".join(category.name for category in PRESET_CATEGORIES)
-    raise ValueError(f"Unknown preset category: {name}. Use one of: {options}.")
+    raise ValueError("Тема не найдена. Чтобы увидеть список, отправьте «категории».")
 
 
 def presets_for_category(name: str) -> tuple[TelegramPreset, ...]:
@@ -553,14 +551,12 @@ def presets_for_category(name: str) -> tuple[TelegramPreset, ...]:
 
 def _match_preset_tokens(tokens: list[str]) -> tuple[TelegramPreset, list[str]]:
     if not tokens:
-        options = ", ".join(preset.name for preset in PRESETS)
-        raise ValueError(f"Send preset name, for example: preset metals. Options: {options}.")
+        raise ValueError("Укажите сценарий, например preset metals, или выберите вариант в /ideas.")
     for end in range(len(tokens), 0, -1):
         normalized = _normalize_name(" ".join(tokens[:end]))
         if normalized in _PRESET_BY_NAME:
             return _PRESET_BY_NAME[normalized], tokens[end:]
-    options = ", ".join(preset.name for preset in PRESETS)
-    raise ValueError(f"Unknown preset: {' '.join(tokens)}. Use one of: {options}.")
+    raise ValueError("Сценарий не найден. Выберите готовый вариант в /ideas.")
 
 
 def _match_direct_preset_tokens(tokens: list[str]) -> tuple[TelegramPreset, list[str]] | None:
@@ -618,25 +614,17 @@ def expand_preset_text(text: str) -> tuple[str, TelegramPreset | None]:
 
 
 def format_preset_list(mode: str = "shorts") -> str:
-    lines = [
-        "Готовые сценарии для Пульса:",
-        "",
-    ]
-    for preset in PRESETS:
-        aliases = f" ({', '.join(preset.aliases[:2])})" if preset.aliases else ""
-        lines.append(f"preset {preset.name}{aliases}")
-        lines.append(f"{preset.title} — {preset.description}")
-        lines.append("")
-    lines.append("Можно дописать параметры: preset metals duration=12 theme=studio")
-    lines.append("Коротко: металлы, металлы студио, studio metals, черновик металлы")
-    lines.append("Для полного выпуска: все шортсы, все шортсы студио или все шортсы аурора - поставить в очередь shorts-ролики всех сценариев.")
-    lines.append("Для отбора идей: все черновики - поставить в очередь draft-прогоны всех сценариев.")
-    lines.append("Статус очереди: /queue или очередь.")
-    lines.append("После preset-видео бот покажет кнопки: Черновик 4s, Шортс 16s, 12s, Aurora 16s и Studio 16s.")
     if mode == "draft":
-        lines.append("Draft-кнопки ниже запустят быстрый черновик: duration=4 fps=8 без gradient.")
-        lines.append("Текстом: preset metals draft")
-    return "\n".join(lines).strip()
+        return (
+            "Все черновики\n\n"
+            "Выберите сценарий, чтобы создать черновик на 4 секунды.\n"
+            "Например, отправьте «preset metals draft» для сравнения металлов."
+        )
+    return (
+        "Все сценарии\n\n"
+        "Выберите сценарий, чтобы создать ролик.\n"
+        "Например, отправьте «preset metals» для сравнения металлов."
+    )
 
 
 def ready_preset_commands(preset: TelegramPreset) -> tuple[str, ...]:
@@ -653,23 +641,15 @@ def format_preset_category_list(mode: str = "shorts") -> str:
     if mode not in {"shorts", "draft"}:
         msg = f"Unknown preset category mode: {mode}."
         raise ValueError(msg)
-    title = "Черновики по категориям" if mode == "draft" else "Истории для Пульса"
-    action_hint = (
-        "Внутри категории кнопки сразу ставят draft 4s в очередь."
-        if mode == "draft"
-        else "Внутри категории кнопки сразу ставят shorts 16s в очередь."
+    if mode == "draft":
+        return (
+            "Черновики по темам\n\n"
+            "Выберите тему, затем сценарий для черновика на 4 секунды."
+        )
+    return (
+        "Сценарии по темам\n\n"
+        "Выберите тему, затем сценарий для ролика на 16 секунд."
     )
-    category_titles = " / ".join(category.title for category in PRESET_CATEGORIES)
-    lines = [
-        title,
-        "",
-        "Выберите категорию кнопкой ниже.",
-        category_titles,
-        action_hint,
-        "Своя идея: /shorts SBER LKOH за год.",
-        "Статус: /queue или статус.",
-    ]
-    return "\n".join(lines).strip()
 
 
 def format_preset_category(category_name: str, mode: str = "shorts") -> str:
@@ -677,48 +657,29 @@ def format_preset_category(category_name: str, mode: str = "shorts") -> str:
         msg = f"Unknown preset category mode: {mode}."
         raise ValueError(msg)
     category = get_preset_category(category_name)
-    button_hint = (
-        "Кнопки ниже запускают draft 4s по выбранному сценарию."
+    action = (
+        "Выберите сценарий для черновика на 4 секунды."
         if mode == "draft"
-        else "Кнопки ниже запускают shorts 16s по выбранному сценарию."
+        else "Выберите сценарий для ролика на 16 секунд."
     )
-    lines = [
-        f"Категория: {category.title}",
-        category.description,
-        button_hint,
-        "",
-    ]
-    for preset in presets_for_category(category.name):
-        lines.append(f"{preset_button_label(preset)} - {preset.description}")
-    lines.append("")
-    lines.append("Пакет без рендера: kit <name>. Назад: категории. Статус: /queue.")
-    return "\n".join(lines).strip()
+    return f"{category.title}\n\n{category.description}\n{action}"
 
 
 def format_music_list() -> str:
-    lines = [
-        "Музыкальные референсы для Пульса:",
-        "",
-    ]
+    lines = ["Музыка для роликов", ""]
     for preset in PRESETS:
         tracks = ", ".join(preset.music_tracks)
-        lines.append(f"{preset.title}: {tracks}")
-    lines.append("")
-    lines.append("Это идеи для монтажа; права на треки нужно проверять отдельно перед публикацией.")
-    return "\n".join(lines).strip()
+        lines.append(f"{preset_button_label(preset)} — {tracks}")
+    lines.extend(["", "Перед публикацией проверьте права на выбранный трек."])
+    return "\n".join(lines)
 
 
 def format_cover_list() -> str:
-    lines = [
-        "Тексты для обложек Пульса:",
-        "",
-    ]
+    lines = ["Тексты для обложек", ""]
     for preset in PRESETS:
-        covers = " / ".join(preset.cover_texts)
-        lines.append(f"{preset.title}: {covers}")
-    lines.append("")
-    lines.append("Короткие варианты рассчитаны на титр или первый кадр вертикального ролика.")
-    return "\n".join(lines).strip()
+        covers = " · ".join(preset.cover_texts)
+        lines.append(f"{preset_button_label(preset)} — {covers}")
+    return "\n".join(lines)
 
 
 def format_pulse_post(preset: TelegramPreset) -> str:
