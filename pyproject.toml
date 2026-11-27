@@ -69,6 +69,7 @@ getter = "scripts.get_version:get_version"
 excludes = ["**/.pytest_cache", "**/.mypy_cache"]
 source-includes = [
     "docs",
+    "pdm_build.py",
     "scripts",
     "tests",
     "mkdocs.yml",

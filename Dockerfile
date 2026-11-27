@@ -11,7 +11,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md LICENSE ./
+COPY pyproject.toml pdm_build.py README.md LICENSE ./
+COPY docs/assets/demo-sber-lkoh.mp4 ./docs/assets/
 COPY scripts ./scripts
 COPY src ./src
 

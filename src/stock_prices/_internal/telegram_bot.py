@@ -60,6 +60,7 @@ TELEGRAM_BOT_COMMANDS: tuple[tuple[str, str], ...] = (
 RENDER_PROGRESS_FIRST_NOTICE_SECONDS = 90.0
 RENDER_PROGRESS_REPEAT_SECONDS = 180.0
 MINI_APP_PAYLOAD_TYPE = "stock_prices.video_request.v1"
+DEMO_VIDEO_NAME = "demo-sber-lkoh.mp4"
 
 
 def telegram_bot_command_menu() -> list[dict[str, str]]:
@@ -136,12 +137,25 @@ class TelegramClient:
             data["text"] = text
         self.call("answerCallbackQuery", **data)
 
-    def send_video(self, chat_id: int, video_path: Path, caption: str) -> None:
+    def send_video(
+        self,
+        chat_id: int,
+        video_path: Path,
+        caption: str,
+        *,
+        reply_markup: dict[str, Any] | None = None,
+        message_thread_id: int | None = None,
+    ) -> None:
+        data: dict[str, Any] = {"chat_id": chat_id, "caption": caption, "supports_streaming": True}
+        if reply_markup is not None:
+            data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
+        if message_thread_id is not None:
+            data["message_thread_id"] = message_thread_id
         with video_path.open("rb") as video:
             try:
                 response = requests.post(
                     f"{self.base_url}/sendVideo",
-                    data={"chat_id": chat_id, "caption": caption, "supports_streaming": True},
+                    data=data,
                     files={"video": (video_path.name, video, "video/mp4")},
                     timeout=max(self.timeout + 60, 120),
                 )
@@ -205,11 +219,13 @@ class TelegramQueueSnapshot:
 
 QUEUE_STATUS_CALLBACK_DATA = "queue:status"
 MENU_CALLBACK_PREFIX = "menu:"
+COMPARE_ASSETS_BUTTON = {"text": "Сравнить свои активы", "callback_data": f"{MENU_CALLBACK_PREFIX}mini_app"}
 PRESET_CATEGORY_CALLBACK_PREFIX = "category:"
 MENU_ACTIONS = {
     "guide",
     "help",
     "main_menu",
+    "demo_video",
     "mini_app",
     "parameters",
     "quick_launch",
@@ -1939,6 +1955,46 @@ def _extract_preset_category_callback(update: dict[str, Any]) -> TelegramPresetC
     return TelegramPresetCategoryCallback(str(callback_query_id), int(chat_id), category.name, callback_mode)
 
 
+def _send_welcome(client: TelegramClient, chat_id: int, *, message_thread_id: int | None = None) -> None:
+    client.send_message(
+        chat_id,
+        "MarketMotion превращает сравнение активов в короткое видео с графиком.",
+        reply_markup={"inline_keyboard": [
+            [{"text": "Показать пример ролика", "callback_data": f"{MENU_CALLBACK_PREFIX}demo_video"}],
+            [COMPARE_ASSETS_BUTTON],
+        ]},
+        message_thread_id=message_thread_id,
+    )
+
+
+def _demo_video_path() -> Path:
+    module_path = Path(__file__).resolve()
+    installed_demo = module_path.with_name(DEMO_VIDEO_NAME)
+    if installed_demo.is_file():
+        return installed_demo
+    return module_path.parents[3] / "docs" / "assets" / DEMO_VIDEO_NAME
+
+
+def _send_demo_video(client: TelegramClient, chat_id: int, *, message_thread_id: int | None = None) -> None:
+    markup = {"inline_keyboard": [[COMPARE_ASSETS_BUTTON]]}
+    try:
+        client.send_video(
+            chat_id,
+            _demo_video_path(),
+            "Пример ролика · Сбер и Лукойл",
+            reply_markup=markup,
+            message_thread_id=message_thread_id,
+        )
+    except (OSError, TelegramApiError):
+        logging.warning("Failed to send the MarketMotion demo video.", exc_info=True)
+        client.send_message(
+            chat_id,
+            "Не удалось открыть пример. Попробуйте ещё раз или создайте своё видео.",
+            reply_markup=markup,
+            message_thread_id=message_thread_id,
+        )
+
+
 def _main_menu_text() -> str:
     return (
         "Market Motion Bot\n"
@@ -3351,7 +3407,7 @@ def handle_ticker_message(
         client.send_message(chat_id, "This chat is not allowed to use this bot.")
         return
     if _is_start(text):
-        _send_main_menu(client, chat_id)
+        _send_welcome(client, chat_id)
         return
     if _is_help(text):
         client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market), reply_markup=help_keyboard())
@@ -3592,7 +3648,12 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
                             client.send_message(chat_id, "This chat is not allowed to use this bot.")
                         elif _is_start(text):
-                            _send_main_menu(client, chat_id)
+                            message = update["message"]
+                            _send_welcome(
+                                client,
+                                chat_id,
+                                message_thread_id=message.get("message_thread_id") if message.get("is_topic_message") else None,
+                            )
                         elif _is_help(text):
                             client.send_message(
                                 chat_id,
@@ -3822,6 +3883,13 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif menu_callback.action == "main_menu":
                             client.answer_callback_query(menu_callback.callback_query_id, "Меню открыто.")
                             _send_main_menu(client, menu_callback.chat_id)
+                        elif menu_callback.action == "demo_video":
+                            client.answer_callback_query(menu_callback.callback_query_id)
+                            _send_demo_video(
+                                client,
+                                menu_callback.chat_id,
+                                message_thread_id=menu_callback.message_thread_id,
+                            )
                         elif menu_callback.action == "mini_app":
                             client.answer_callback_query(menu_callback.callback_query_id)
                             _send_mini_app_launch(
