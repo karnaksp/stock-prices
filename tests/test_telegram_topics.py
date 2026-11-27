@@ -80,6 +80,7 @@ def test_polling_ignores_wrong_topic_before_running_commands(monkeypatch):
     client = Client()
     monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *args, **kwargs: client)
     monkeypatch.setattr(telegram_bot, "configure_telegram_command_menu", lambda *args: None)
+    monkeypatch.setattr(telegram_bot, "configure_telegram_profile", lambda *args: None)
     monkeypatch.setattr(telegram_bot, "configure_telegram_mini_app_menu_button", lambda *args, **kwargs: None)
     monkeypatch.setattr(telegram_bot, "TelegramJobQueue", lambda *args: SimpleNamespace(start=lambda: None, join=lambda: None, stop=lambda: None))
     settings = telegram_bot.TelegramBotSettings(
