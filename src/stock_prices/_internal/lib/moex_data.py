@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 import apimoex
 import pandas as pd
@@ -20,6 +21,9 @@ class _TimeoutSession(requests.Session):
 
 def _make_moex_session() -> requests.Session:
     session = _TimeoutSession()
+    ca_bundle = os.getenv("STOCK_PRICES_MOEX_CA_BUNDLE", "").strip()
+    if ca_bundle:
+        session.verify = ca_bundle
     retries = Retry(
         total=3,
         connect=3,
