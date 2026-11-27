@@ -3,6 +3,11 @@
   const els = {
     form: byId("video-form"),
     tickers: byId("tickers"),
+    selectedAssets: byId("selected-assets"),
+    suggestions: byId("asset-suggestions"),
+    assetSummary: byId("asset-summary"),
+    assetError: byId("asset-error"),
+    dateError: byId("date-error"),
     market: byId("market"),
     currency: byId("currency"),
     startDate: byId("start-date"),
@@ -30,12 +35,28 @@
     hint: byId("action-hint"),
     status: byId("status-text"),
   };
+  const catalog = (window.marketMotionCatalog || []).map(([ticker, name, engine, market, aliases = ""]) => ({
+    ticker, name, engine, market, aliases: aliases.split(" "),
+  }));
+  const marketDefaults = {
+    "": ["stock", "shares"],
+    global: ["global", "stocks"],
+    metals: ["global", "metals"],
+    crypto: ["global", "crypto"],
+    futures: ["futures", "forts"],
+    selt: ["currency", "selt"],
+  };
+  const tickerPattern = /^[A-Z0-9^][A-Z0-9._=\/^\-]{0,20}$/i;
   const periodButtons = document.querySelectorAll("[data-period]");
   const presetButtons = document.querySelectorAll("[data-tickers]");
   const launch = new URLSearchParams(window.location.search).get("launch");
   const copyDestination = launch === "group" ? "ответом на сообщение бота" : "в чат с ботом";
   let tg = null;
   let submitting = false;
+  let assets = [];
+  let suggestions = [];
+  let activeSuggestion = -1;
+  let currencyWasSet = false;
 
   function canSendToTelegram() {
     return Boolean(tg && launch === "keyboard" && !tg.initData && typeof tg.sendData === "function");
@@ -87,8 +108,185 @@
     }
   }
 
-  function normalizedTickers() {
-    return els.tickers.value.split(/[\s,;]+/).filter(Boolean).join(" ");
+  function normalizedQuery(value) {
+    return value.trim().toLowerCase().replace(/ё/g, "е");
+  }
+
+  function manualAsset(value) {
+    const [rawTicker, engine, market, rest] = value.split("|");
+    if (!tickerPattern.test(rawTicker) || rest !== undefined ||
+        (engine !== undefined && (!/^(stock|global|currency|futures)$/i.test(engine) || !/^[a-z0-9_-]+$/i.test(market || "")))) {
+      return null;
+    }
+    const ticker = rawTicker.toUpperCase();
+    return {
+      ticker, name: ticker,
+      engine: engine ? engine.toLowerCase() : "", market: market ? market.toLowerCase() : "",
+    };
+  }
+
+  function assetSource(asset) {
+    if (asset.engine) {
+      return [asset.engine, asset.market];
+    }
+    if (els.market.value) {
+      return marketDefaults[els.market.value];
+    }
+    if (asset.ticker.endsWith("-USD")) {
+      return ["global", "crypto"];
+    }
+    if (asset.ticker.endsWith("=F")) {
+      return ["global", "futures"];
+    }
+    if (asset.ticker.endsWith("=X")) {
+      return ["global", "currency"];
+    }
+    if (asset.ticker.startsWith("^") || asset.ticker.includes(".")) {
+      return ["global", "stocks"];
+    }
+    return marketDefaults[""];
+  }
+
+  function assetSpec(asset) {
+    return [asset.ticker, ...assetSource(asset)].join("|");
+  }
+
+  function exactAsset(term) {
+    const query = normalizedQuery(term);
+    return catalog.find((asset) => [asset.ticker, asset.name, ...asset.aliases].some((value) => normalizedQuery(value) === query));
+  }
+
+  function closeSuggestions() {
+    els.suggestions.hidden = true;
+    els.tickers.setAttribute("aria-expanded", "false");
+    els.tickers.removeAttribute("aria-activedescendant");
+    activeSuggestion = -1;
+  }
+
+  function highlightSuggestion(index) {
+    activeSuggestion = index;
+    Array.from(els.suggestions.children).forEach((option, optionIndex) => {
+      option.setAttribute("aria-selected", String(optionIndex === index));
+    });
+    const option = els.suggestions.children[index];
+    els.tickers.setAttribute("aria-activedescendant", option.id);
+  }
+
+  function updateSuggestions() {
+    closeSuggestions();
+    els.suggestions.textContent = "";
+    const query = normalizedQuery(els.tickers.value);
+    if (!query) {
+      return;
+    }
+
+    const matches = catalog.map((asset) => {
+      const words = [asset.ticker, asset.name, ...asset.aliases].map(normalizedQuery);
+      const rank = words.includes(query) ? 0 : words.some((word) => word.startsWith(query)) ? 1 : 2;
+      return { asset, rank, matches: words.some((word) => word.includes(query)) };
+    }).filter((entry) => entry.matches)
+      .sort((left, right) => left.rank - right.rank)
+      .slice(0, 5);
+    suggestions = matches.map(({ asset }) => ({ assets: [asset], label: asset.name, tickers: asset.ticker }));
+    const terms = els.tickers.value.trim().split(/[\s,;]+/).filter(Boolean);
+    const typedAssets = terms.map((term) => {
+      const mayBeTicker = terms.length === 1 || term === term.toUpperCase();
+      return exactAsset(term) || (mayBeTicker ? manualAsset(term) : null);
+    });
+    if (typedAssets.length && typedAssets.every(Boolean) && !exactAsset(query)) {
+      const tickers = typedAssets.map((asset) => asset.ticker).join(", ");
+      suggestions.push({ assets: typedAssets, label: "Добавить " + tickers, tickers: "" });
+    }
+
+    suggestions.forEach(({ label, tickers }, index) => {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "asset-option";
+      option.id = "asset-option-" + index;
+      option.tabIndex = -1;
+      option.dataset.suggestion = String(index);
+      option.setAttribute("role", "option");
+      option.setAttribute("aria-selected", "false");
+      const name = document.createElement("span");
+      name.className = "asset-option-name";
+      name.textContent = label;
+      const ticker = document.createElement("span");
+      ticker.className = "asset-option-ticker";
+      ticker.textContent = tickers;
+      option.append(name, ticker);
+      els.suggestions.append(option);
+    });
+    if (!suggestions.length) {
+      const note = document.createElement("p");
+      note.className = "asset-no-results";
+      note.textContent = "Ничего не нашли. Попробуйте другое название или введите тикер латиницей.";
+      note.setAttribute("role", "status");
+      els.suggestions.append(note);
+    }
+    els.suggestions.hidden = false;
+    els.tickers.setAttribute("aria-expanded", String(suggestions.length > 0));
+  }
+
+  function updateSelection(preferredCurrency) {
+    els.selectedAssets.textContent = "";
+    assets.forEach((asset, index) => {
+      const chip = document.createElement("span");
+      chip.className = "asset-chip";
+      const name = document.createElement("span");
+      name.className = "asset-chip-label";
+      name.textContent = asset.name;
+      chip.append(name);
+      if (asset.name !== asset.ticker) {
+        const ticker = document.createElement("span");
+        ticker.className = "asset-chip-ticker";
+        ticker.textContent = asset.ticker;
+        chip.append(ticker);
+      }
+      const remove = document.createElement("button");
+      remove.className = "asset-remove";
+      remove.type = "button";
+      remove.dataset.removeAsset = String(index);
+      remove.setAttribute("aria-label", "Удалить " + asset.name);
+      remove.textContent = "×";
+      chip.append(remove);
+      els.selectedAssets.append(chip);
+    });
+    els.selectedAssets.hidden = assets.length === 0;
+    els.assetSummary.hidden = assets.length === 0;
+    const word = { one: "актив", few: "актива", many: "активов" };
+    els.assetSummary.textContent = assets.length + " " + word[new Intl.PluralRules("ru").select(assets.length)];
+    if (!currencyWasSet) {
+      const onlyGlobal = assets.length && assets.every((asset) => assetSource(asset)[0] === "global");
+      els.currency.value = preferredCurrency || (onlyGlobal ? "USD" : "RUB");
+    }
+    clearError(els.assetError, [els.tickers]);
+    update();
+  }
+
+  function applySuggestion(index) {
+    const suggestion = suggestions[index];
+    for (const asset of suggestion.assets) {
+      if (!assets.some((selected) => assetSpec(selected) === assetSpec(asset))) {
+        assets.push(asset);
+      }
+    }
+    els.tickers.value = "";
+    closeSuggestions();
+    updateSelection();
+    els.tickers.focus();
+  }
+
+  function clearError(container, fields) {
+    container.hidden = true;
+    container.textContent = "";
+    fields.forEach((field) => field.removeAttribute("aria-invalid"));
+  }
+
+  function fieldError(field, container, message) {
+    container.hidden = false;
+    container.textContent = message;
+    field.setAttribute("aria-invalid", "true");
+    field.focus();
   }
 
   function readPositiveInt(input, fallback) {
@@ -197,19 +395,21 @@
   }
 
   function buildRequest() {
-    const tickers = normalizedTickers();
     const duration = readPositiveInt(els.duration, 16);
     const fps = readPositiveInt(els.fps, 24);
     const parts = [];
 
-    if (!tickers) {
-      return { text: "", error: "Укажите хотя бы один тикер." };
+    if (els.tickers.value.trim()) {
+      return { field: els.tickers, error: "Выберите актив в списке или очистите поиск." };
+    }
+    if (!assets.length) {
+      return { field: els.tickers, error: "Выберите хотя бы один актив." };
     }
     if (!els.startDate.value || !els.endDate.value) {
-      return { text: "", error: "Укажите обе даты периода." };
+      return { field: els.startDate.value ? els.endDate : els.startDate, error: "Укажите обе даты периода." };
     }
     if (els.startDate.value >= els.endDate.value) {
-      return { text: "", error: "Дата начала должна быть раньше даты окончания." };
+      return { field: els.endDate, error: "Дата окончания должна быть позже даты начала." };
     }
     if (els.mode.value === "custom" && !els.duration.validity.valid) {
       return { text: "", error: "Укажите длину видео от 1 до 90 секунд." };
@@ -222,12 +422,9 @@
       return { text: "", error: timelineEvents.error };
     }
 
-    parts.push(tickers);
+    parts.push(...assets.map(assetSpec));
     parts.push(`from=${els.startDate.value}`);
     parts.push(`to=${els.endDate.value}`);
-    if (els.market.value) {
-      parts.push(els.market.value);
-    }
     parts.push(els.currency.value);
     parts.push(els.metric.value);
 
@@ -268,17 +465,15 @@
   }
 
   function update() {
-    const tickers = normalizedTickers().toUpperCase();
     presetButtons.forEach((button) => {
-      const selected = button.dataset.tickers.toUpperCase() === tickers &&
-        button.dataset.market === els.market.value && button.dataset.currency === els.currency.value;
+      const tickers = button.dataset.tickers.split(/\s+/).map((ticker) => (exactAsset(ticker) || manualAsset(ticker)).ticker);
+      const selected = tickers.length === assets.length && tickers.every((ticker, index) => assets[index].ticker === ticker);
       button.setAttribute("aria-pressed", String(selected));
     });
     els.investmentFields.hidden = !els.investment.checked;
     els.videoFields.hidden = els.mode.value !== "custom";
     els.addEvent.disabled = eventRows().length >= 12;
     els.manualCopy.hidden = true;
-    els.tickers.removeAttribute("aria-invalid");
     updateEventsState();
     updateStatus("");
   }
@@ -303,11 +498,14 @@
     }
     const result = buildRequest();
     if (result.error) {
-      if (!normalizedTickers()) {
-        els.tickers.setAttribute("aria-invalid", "true");
-        els.tickers.focus();
+      if (result.field === els.tickers) {
+        fieldError(els.tickers, els.assetError, result.error);
+        updateSuggestions();
+      } else if (result.field) {
+        fieldError(result.field, els.dateError, result.error);
+      } else {
+        updateStatus(result.error);
       }
-      updateStatus(result.error);
       return;
     }
 
@@ -342,17 +540,85 @@
   periodButtons.forEach((button) => {
     button.addEventListener("click", () => {
       selectPeriod(button.dataset.period);
+      clearError(els.dateError, [els.startDate, els.endDate]);
       update();
     });
   });
   presetButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      els.tickers.value = button.dataset.tickers;
-      els.market.value = button.dataset.market;
-      els.currency.value = button.dataset.currency;
-      update();
+      assets = button.dataset.tickers.split(/\s+/).map((ticker) => exactAsset(ticker) || manualAsset(ticker));
+      currencyWasSet = false;
+      els.tickers.value = "";
+      closeSuggestions();
+      updateSelection(button.dataset.currency);
     });
   });
+  els.tickers.setAttribute("role", "combobox");
+  els.tickers.setAttribute("aria-autocomplete", "list");
+  els.tickers.setAttribute("aria-controls", els.suggestions.id);
+  els.suggestions.setAttribute("role", "listbox");
+  els.suggestions.setAttribute("aria-label", "Результаты поиска");
+  [els.tickers, els.startDate, els.endDate].forEach((field) => {
+    const error = field === els.tickers ? els.assetError : els.dateError;
+    const describedBy = new Set((field.getAttribute("aria-describedby") || "").split(" ").filter(Boolean));
+    describedBy.add(error.id);
+    field.setAttribute("aria-describedby", Array.from(describedBy).join(" "));
+  });
+  els.tickers.addEventListener("focus", () => {
+    if (els.tickers.value.trim()) {
+      updateSuggestions();
+    }
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (event.target !== els.tickers && !els.suggestions.contains(event.target)) {
+      closeSuggestions();
+    }
+  });
+  els.tickers.addEventListener("input", () => {
+    clearError(els.assetError, [els.tickers]);
+    updateSuggestions();
+  });
+  els.tickers.addEventListener("keydown", (event) => {
+    if (event.isComposing) {
+      return;
+    }
+    if (event.key === "Escape") {
+      closeSuggestions();
+    } else if (event.key === "Enter" && els.tickers.value.trim()) {
+      event.preventDefault();
+      if (!els.suggestions.hidden && suggestions.length) {
+        applySuggestion(Math.max(activeSuggestion, 0));
+      }
+    } else if (["ArrowDown", "ArrowUp"].includes(event.key) && !els.suggestions.hidden && suggestions.length) {
+      event.preventDefault();
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      const index = activeSuggestion === -1 && step === -1 ? suggestions.length - 1 : activeSuggestion + step;
+      highlightSuggestion((index + suggestions.length) % suggestions.length);
+    }
+  });
+  els.suggestions.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-suggestion]");
+    if (option) {
+      applySuggestion(Number(option.dataset.suggestion));
+    }
+  });
+  els.selectedAssets.addEventListener("click", (event) => {
+    const remove = event.target.closest("[data-remove-asset]");
+    if (remove) {
+      const index = Number(remove.dataset.removeAsset);
+      assets.splice(index, 1);
+      updateSelection();
+      const next = els.selectedAssets.querySelector(`[data-remove-asset="${Math.min(index, assets.length - 1)}"]`);
+      (next || els.tickers).focus();
+    }
+  });
+  els.currency.addEventListener("change", () => {
+    currencyWasSet = true;
+  });
+  els.market.addEventListener("change", () => updateSelection());
+  [els.startDate, els.endDate].forEach((field) => field.addEventListener("input", () => {
+    clearError(els.dateError, [els.startDate, els.endDate]);
+  }));
   els.mode.addEventListener("change", () => {
     if (els.mode.value === "shorts") {
       els.duration.value = "16";
@@ -379,17 +645,27 @@
   els.form.addEventListener("submit", submitRequest);
   const example = document.querySelector(".example");
   const videoTemplate = example.querySelector("template");
+  example.querySelector("summary").addEventListener("click", (event) => {
+    if (example.open) {
+      return;
+    }
+    event.preventDefault();
+    example.open = true;
+    if (!example.querySelector("video")) {
+      example.appendChild(videoTemplate.content.cloneNode(true));
+    }
+    example.querySelector("video").play().catch(() => {});
+  });
   example.addEventListener("toggle", () => {
     const video = example.querySelector("video");
-    if (example.open && !video) {
-      example.appendChild(videoTemplate.content.cloneNode(true));
-    } else if (!example.open && video) {
+    if (!example.open && video) {
       video.pause();
     }
   });
 
   selectPeriod("1");
-  update();
+  closeSuggestions();
+  updateSelection();
   updateAction();
   byId("telegram-sdk").addEventListener("load", initTelegram);
   initTelegram();

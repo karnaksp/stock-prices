@@ -11,11 +11,16 @@ def test_miniapp_static_entrypoint_exists() -> None:
     html = (MINIAPP_DIR / "index.html").read_text(encoding="utf-8")
 
     assert '<script id="telegram-sdk" async src="https://telegram.org/js/telegram-web-app.js">' in html
-    versions = re.findall(r'\./app\.(?:js|css)\?v=(\d+)', html)
+    versions = re.findall(r'\./app\.(?:js|css)\?v=([0-9a-z]+)', html)
     assert len(versions) == 2 and versions[0] == versions[1]
     assert "MarketMotion" in html
     assert 'id="video-form"' in html
     assert 'id="tickers"' in html
+    assert 'id="selected-assets"' in html
+    assert 'id="asset-suggestions"' in html
+    assert f'./catalog.js?v={versions[0]}' in html
+    assert html.index("Смотреть пример") < html.index('id="video-form"')
+    assert html.index('id="send-button"') < html.index("Дополнительные настройки")
     assert 'data-period="1" aria-pressed="true"' in html
     assert 'id="custom-dates" hidden' in html
     assert '<details class="disclosure settings">' in html
@@ -51,4 +56,4 @@ def test_miniapp_css_keeps_mobile_layout_stable() -> None:
     assert "env(safe-area-inset-bottom" in css
     assert "minmax(0, 1fr)" in css
     assert "min-height: 44px" in css
-    assert "position: sticky" in css
+    assert "position: sticky" not in css
