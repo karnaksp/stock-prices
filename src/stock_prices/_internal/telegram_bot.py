@@ -10,10 +10,13 @@ from pathlib import Path
 from queue import Queue
 from threading import Event, Lock, Thread
 from typing import Any, Callable
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import requests
 
 from stock_prices._internal.env import get_cleanup_retention_days, get_mini_app_url
+from stock_prices._internal.telegram_topics import get_group_topic_ids, update_is_in_group_topic
+from stock_prices._internal.telegram_notifications import TelegramNotificationQueue
 from stock_prices._internal.content_universe import (
     GeneratedContentIdea,
     build_random_content_idea,
@@ -59,6 +62,7 @@ TELEGRAM_BOT_COMMANDS: tuple[tuple[str, str], ...] = (
 RENDER_PROGRESS_FIRST_NOTICE_SECONDS = 90.0
 RENDER_PROGRESS_REPEAT_SECONDS = 180.0
 MINI_APP_PAYLOAD_TYPE = "stock_prices.video_request.v1"
+DEMO_VIDEO_NAME = "demo-sber-lkoh.mp4"
 
 
 def telegram_bot_command_menu() -> list[dict[str, str]]:
@@ -82,17 +86,34 @@ def _redact_token(text: str, token: str) -> str:
 
 
 class TelegramClient:
-    def __init__(self, token: str, timeout: int = 30) -> None:
+    def __init__(self, token: str, timeout: int = 30, *, group_topic_ids: dict[int, int] | None = None) -> None:
         self.token = token
         self.base_url = f"https://api.telegram.org/bot{token}"
         self.timeout = timeout
+        self.group_topic_ids = dict(group_topic_ids or {})
+        self._send_lock = Lock()
 
     def call(self, method: str, **data: Any) -> Any:
-        try:
-            response = requests.post(f"{self.base_url}/{method}", data=data, timeout=self.timeout + 10)
-        except requests.RequestException as exc:
-            raise TelegramApiError(f"Telegram {method} request failed: {_redact_token(str(exc), self.token)}") from None
-        payload = response.json()
+        return self._post(method, data=data, timeout=self.timeout + 10)
+
+    def _post(self, method: str, *, data: dict[str, Any], timeout: int, files: dict[str, Any] | None = None) -> Any:
+        for attempt in range(3):
+            kwargs: dict[str, Any] = {"data": data, "timeout": timeout}
+            if files is not None:
+                for _name, stream, _mime in files.values():
+                    stream.seek(0)
+                kwargs["files"] = files
+            try:
+                response = requests.post(f"{self.base_url}/{method}", **kwargs)
+            except requests.RequestException as exc:
+                raise TelegramApiError(f"Telegram {method} request failed: {_redact_token(str(exc), self.token)}") from None
+            payload = response.json()
+            retry_after = (payload.get("parameters") or {}).get("retry_after")
+            if (payload.get("error_code") == 429 and attempt < 2
+                    and type(retry_after) is int and 0 < retry_after <= 60):
+                time.sleep(retry_after)
+                continue
+            break
         if not response.ok or not payload.get("ok"):
             description = payload.get("description", response.text)
             raise TelegramApiError(f"Telegram {method} failed: {description}")
@@ -108,11 +129,23 @@ class TelegramClient:
             data["offset"] = offset
         return self.call("getUpdates", **data)
 
-    def send_message(self, chat_id: int, text: str, reply_markup: dict[str, Any] | None = None) -> None:
+    def send_message(
+        self,
+        chat_id: int,
+        text: str,
+        reply_markup: dict[str, Any] | None = None,
+        *,
+        message_thread_id: int | None = None,
+    ) -> None:
         data: dict[str, Any] = {"chat_id": chat_id, "text": text}
         if reply_markup is not None:
             data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
-        self.call("sendMessage", **data)
+        if message_thread_id is None:
+            message_thread_id = self.group_topic_ids.get(chat_id)
+        if message_thread_id is not None:
+            data["message_thread_id"] = message_thread_id
+        with self._send_lock:
+            self.call("sendMessage", **data)
 
     def set_my_commands(self, commands: list[dict[str, str]]) -> None:
         self.call("setMyCommands", commands=json.dumps(commands, ensure_ascii=False))
@@ -126,21 +159,30 @@ class TelegramClient:
             data["text"] = text
         self.call("answerCallbackQuery", **data)
 
-    def send_video(self, chat_id: int, video_path: Path, caption: str) -> None:
+    def send_video(
+        self,
+        chat_id: int,
+        video_path: Path,
+        caption: str,
+        *,
+        reply_markup: dict[str, Any] | None = None,
+        message_thread_id: int | None = None,
+    ) -> None:
+        data: dict[str, Any] = {"chat_id": chat_id, "caption": caption, "supports_streaming": True}
+        if reply_markup is not None:
+            data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
+        if message_thread_id is None:
+            message_thread_id = self.group_topic_ids.get(chat_id)
+        if message_thread_id is not None:
+            data["message_thread_id"] = message_thread_id
         with video_path.open("rb") as video:
-            try:
-                response = requests.post(
-                    f"{self.base_url}/sendVideo",
-                    data={"chat_id": chat_id, "caption": caption, "supports_streaming": True},
+            with self._send_lock:
+                self._post(
+                    "sendVideo",
+                    data=data,
                     files={"video": (video_path.name, video, "video/mp4")},
                     timeout=max(self.timeout + 60, 120),
                 )
-            except requests.RequestException as exc:
-                raise TelegramApiError(f"Telegram sendVideo request failed: {_redact_token(str(exc), self.token)}") from None
-        payload = response.json()
-        if not response.ok or not payload.get("ok"):
-            description = payload.get("description", response.text)
-            raise TelegramApiError(f"Telegram sendVideo failed: {description}")
 
 
 class TelegramBotSettings:
@@ -156,10 +198,12 @@ class TelegramBotSettings:
         cleanup_retention_days: int | None = None,
         mini_app_url: str | None = None,
         mini_app_menu_button: bool = False,
+        group_topic_ids: dict[int, int] | None = None,
     ) -> None:
         self.token = token
         self.render = render
         self.allowed_chat_ids = allowed_chat_ids or set()
+        self.group_topic_ids = get_group_topic_ids() if group_topic_ids is None else dict(group_topic_ids)
         self.default_engine = default_engine
         self.default_market = default_market
         self.poll_timeout = poll_timeout
@@ -195,11 +239,13 @@ class TelegramQueueSnapshot:
 
 QUEUE_STATUS_CALLBACK_DATA = "queue:status"
 MENU_CALLBACK_PREFIX = "menu:"
+COMPARE_ASSETS_BUTTON = {"text": "Сравнить свои активы", "callback_data": f"{MENU_CALLBACK_PREFIX}mini_app"}
 PRESET_CATEGORY_CALLBACK_PREFIX = "category:"
 MENU_ACTIONS = {
     "guide",
     "help",
     "main_menu",
+    "demo_video",
     "mini_app",
     "parameters",
     "quick_launch",
@@ -479,13 +525,20 @@ def quick_launch_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return main_menu_keyboard()
 
 
+def _mini_app_launch_url(mini_app_url: str, launch: str) -> str:
+    url = urlsplit(mini_app_url)
+    query = [(key, value) for key, value in parse_qsl(url.query, keep_blank_values=True) if key != "launch"]
+    query.append(("launch", launch))
+    return url._replace(query=urlencode(query)).geturl()
+
+
 def mini_app_keyboard(mini_app_url: str) -> dict[str, Any]:
     return {
         "keyboard": [
             [
                 {
                     "text": "Открыть Mini App",
-                    "web_app": {"url": mini_app_url},
+                    "web_app": {"url": _mini_app_launch_url(mini_app_url, "keyboard")},
                 }
             ],
             [
@@ -1117,6 +1170,8 @@ class TelegramMenuCallback:
     callback_query_id: str
     chat_id: int
     action: str
+    chat_type: str | None
+    message_thread_id: int | None
 
 
 @dataclass(frozen=True)
@@ -1155,6 +1210,7 @@ class TelegramJobQueue:
     def __init__(self, client: TelegramClient, settings: TelegramBotSettings) -> None:
         self.client = client
         self.settings = settings
+        self._notifications = TelegramNotificationQueue(client)
         self._jobs: Queue[TelegramJob | None] = Queue()
         self._thread: Thread | None = None
         self._lock = Lock()
@@ -1168,6 +1224,7 @@ class TelegramJobQueue:
     def start(self) -> None:
         if self._thread is not None:
             return
+        self._notifications.start()
         self._thread = Thread(target=self._run_worker, name="telegram-job-worker", daemon=True)
         self._thread.start()
 
@@ -1177,9 +1234,11 @@ class TelegramJobQueue:
         self._jobs.put(None)
         self._thread.join()
         self._thread = None
+        self._notifications.stop()
 
     def join(self) -> None:
         self._jobs.join()
+        self._notifications.join()
 
     def enqueue(self, chat_id: int, text: str, update_id: int, job_suffix: str = "", notify: bool = True) -> TelegramJob:
         suffix = f"-{job_suffix}" if job_suffix else ""
@@ -1195,7 +1254,7 @@ class TelegramJobQueue:
             text_length=len(text),
         )
         if notify:
-            self.client.send_message(
+            self._notifications.send_message(
                 chat_id,
                 f"Задача ID {job.job_id} поставлена в очередь.\nПозиция: {queue_position}.",
                 reply_markup=queue_status_keyboard(),
@@ -1221,7 +1280,7 @@ class TelegramJobQueue:
 
     def enqueue_preset_drafts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
         labels = ", ".join(preset_button_label(preset) for preset in PRESETS)
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Ставлю в очередь {len(PRESETS)} черновиков: {labels}.",
             reply_markup=queue_status_keyboard(),
@@ -1243,7 +1302,7 @@ class TelegramJobQueue:
         labels = ", ".join(preset_button_label(preset) for preset in PRESETS)
         theme_suffix = f" theme={theme}" if theme else ""
         theme_label = f" в теме {theme}" if theme else ""
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Ставлю в очередь {len(PRESETS)} shorts-роликов{theme_label}: {labels}.",
             reply_markup=queue_status_keyboard(),
@@ -1279,7 +1338,7 @@ class TelegramJobQueue:
         theme_suffix = f" theme={theme}" if theme and mode == "shorts" else ""
         theme_label = f" в теме {theme}" if theme and mode == "shorts" else ""
         mode_label = "draft-черновиков" if mode == "draft" else "shorts-роликов"
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Ставлю в очередь {len(presets)} {mode_label} категории {category.title}{theme_label}: {labels}.",
             reply_markup=queue_status_keyboard(),
@@ -1329,7 +1388,7 @@ class TelegramJobQueue:
         if categories:
             controls.append("категории: " + ", ".join(universe_category_label(category) for category in categories))
         control_label = f" ({'; '.join(controls)})" if controls else ""
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Ставлю в очередь {len(plan)} shorts-роликов контент-плана{control_label}: {labels}.",
             reply_markup=queue_status_keyboard(),
@@ -1349,7 +1408,7 @@ class TelegramJobQueue:
 
     def enqueue_daily_content_plan_short(self, chat_id: int, update_id: int) -> TelegramJob:
         day_index, item = _daily_content_plan_item()
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Шортс дня: Д{day_index} {item.title}. Ставлю random shorts-ролик из тикерной вселенной в очередь.",
             reply_markup=queue_status_keyboard(),
@@ -1364,13 +1423,13 @@ class TelegramJobQueue:
 
     def enqueue_daily_publication_day(self, chat_id: int, update_id: int) -> TelegramJob:
         day_index, item = _daily_content_plan_item()
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Публикационный день: Д{day_index} {item.title}. "
             "Ставлю random shorts-ролик в очередь и отправляю пакет для поста.",
             reply_markup=queue_status_keyboard(),
         )
-        self.client.send_message(chat_id, format_daily_content_kit(), reply_markup=daily_content_kit_keyboard())
+        self._notifications.send_message(chat_id, format_daily_content_kit(), reply_markup=daily_content_kit_keyboard())
         return self.enqueue(
             chat_id,
             item.request,
@@ -1382,12 +1441,12 @@ class TelegramJobQueue:
     def enqueue_weekly_publication_pack(self, chat_id: int, update_id: int) -> list[TelegramJob]:
         plan = _weekly_content_items()
         labels = ", ".join(f"Д{index} {' / '.join(item.tickers)}" for index, item in enumerate(plan, start=1))
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Недельный выпуск: ставлю в очередь {len(plan)} shorts-роликов контент-плана: {labels}.",
             reply_markup=queue_status_keyboard(),
         )
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             format_weekly_publication_pack(plan),
             reply_markup=weekly_publication_pack_keyboard(),
@@ -1413,7 +1472,7 @@ class TelegramJobQueue:
         mode_label = "top-draft" if mode == "draft" else "top-shorts"
         theme_suffix = f" theme={theme}" if theme else ""
         theme_label = f" в теме {theme}" if theme else ""
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Ставлю в очередь {len(HOT_MENU_PRESETS)} {mode_label}{theme_label}: {labels}.",
             reply_markup=queue_status_keyboard(),
@@ -1445,7 +1504,7 @@ class TelegramJobQueue:
         preset = get_preset(preset_name)
         label = preset_button_label(preset)
         themes = ", ".join(THEME_VARIANTS)
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Ставлю в очередь {len(THEME_VARIANTS)} визуальных варианта для {label}: {themes}.",
             reply_markup=queue_status_keyboard(),
@@ -1476,7 +1535,7 @@ class TelegramJobQueue:
         category_label = f" категории {universe_category_label(resolved_category)}" if resolved_category else ""
         count_label = f", {count} тикер{'' if count == 1 else 'а' if count in {2, 3} else 'ов'}" if count else ""
         theme_label = f", тема {theme}" if theme else ""
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Случайный шортс{category_label}{count_label}{theme_label}: {item.title}. Ставлю shorts-ролик в очередь.",
             reply_markup=queue_status_keyboard(),
@@ -1503,7 +1562,7 @@ class TelegramJobQueue:
         item = build_random_content_idea(resolved_category, count=count, mode="draft")
         category_label = f" категории {universe_category_label(resolved_category)}" if resolved_category else ""
         count_label = f", {count} тикер{'' if count == 1 else 'а' if count in {2, 3} else 'ов'}" if count else ""
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Случайный черновик{category_label}{count_label}: {item.title}. Ставлю короткий draft в очередь.",
             reply_markup=queue_status_keyboard(),
@@ -1550,7 +1609,7 @@ class TelegramJobQueue:
 
     def enqueue_example_drafts(self, chat_id: int, update_id: int) -> list[TelegramJob]:
         labels = ", ".join(example.button_label for example in _TELEGRAM_EXAMPLES)
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Ставлю в очередь {len(_TELEGRAM_EXAMPLES)} draft-примеров: {labels}.",
             reply_markup=queue_status_keyboard(),
@@ -1570,7 +1629,7 @@ class TelegramJobQueue:
 
     def enqueue_random_example_draft(self, chat_id: int, update_id: int) -> TelegramJob:
         example = random.choice(_TELEGRAM_EXAMPLES)
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Случайный пример: {example.button_label}. Ставлю короткий draft в очередь.",
             reply_markup=queue_status_keyboard(),
@@ -1591,7 +1650,7 @@ class TelegramJobQueue:
         previews = "\n".join(f"{index}. {_job_preview(text, 48)}" for index, text in enumerate(texts[:6], start=1))
         if len(texts) > 6:
             previews = f"{previews}\n... еще {len(texts) - 6}"
-        self.client.send_message(
+        self._notifications.send_message(
             chat_id,
             f"Поставил в очередь {len(jobs)} {task_word} из одного сообщения:\n{previews}",
             reply_markup=queue_status_keyboard(),
@@ -1682,11 +1741,15 @@ class TelegramJobQueue:
                 job.text,
                 job_id=job.job_id,
                 custom_followup_key=job.job_id,
+                notifications=self._notifications,
             )
         except Exception as exc:
             log_event("request", "failed", job_id=job.job_id, chat_id=job.chat_id, error=str(exc))
             logging.exception("Failed to process Telegram request %s", job.job_id)
-            self.client.send_message(job.chat_id, f"Job {job.job_id} failed: {exc}")
+            try:
+                self._notifications.send_message(job.chat_id, f"Job {job.job_id} failed: {exc}")
+            except TelegramApiError:
+                logging.exception("Could not send failure notice for Telegram job %s", job.job_id)
             return False
         return True
 
@@ -1888,7 +1951,13 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
     chat_id = chat.get("id")
     if chat_id is None:
         return None
-    return TelegramMenuCallback(str(callback_query_id), int(chat_id), action)
+    return TelegramMenuCallback(
+        str(callback_query_id),
+        int(chat_id),
+        action,
+        chat.get("type"),
+        message.get("message_thread_id") if message.get("is_topic_message") else None,
+    )
 
 
 def _extract_preset_category_callback(update: dict[str, Any]) -> TelegramPresetCategoryCallback | None:
@@ -1912,6 +1981,46 @@ def _extract_preset_category_callback(update: dict[str, Any]) -> TelegramPresetC
     except ValueError:
         return None
     return TelegramPresetCategoryCallback(str(callback_query_id), int(chat_id), category.name, callback_mode)
+
+
+def _send_welcome(client: TelegramClient, chat_id: int, *, message_thread_id: int | None = None) -> None:
+    client.send_message(
+        chat_id,
+        "MarketMotion превращает сравнение активов в короткое видео с графиком.",
+        reply_markup={"inline_keyboard": [
+            [{"text": "Показать пример ролика", "callback_data": f"{MENU_CALLBACK_PREFIX}demo_video"}],
+            [COMPARE_ASSETS_BUTTON],
+        ]},
+        message_thread_id=message_thread_id,
+    )
+
+
+def _demo_video_path() -> Path:
+    module_path = Path(__file__).resolve()
+    installed_demo = module_path.with_name(DEMO_VIDEO_NAME)
+    if installed_demo.is_file():
+        return installed_demo
+    return module_path.parents[3] / "docs" / "assets" / DEMO_VIDEO_NAME
+
+
+def _send_demo_video(client: TelegramClient, chat_id: int, *, message_thread_id: int | None = None) -> None:
+    markup = {"inline_keyboard": [[COMPARE_ASSETS_BUTTON]]}
+    try:
+        client.send_video(
+            chat_id,
+            _demo_video_path(),
+            "Пример ролика · Сбер и Лукойл",
+            reply_markup=markup,
+            message_thread_id=message_thread_id,
+        )
+    except (OSError, TelegramApiError):
+        logging.warning("Failed to send the MarketMotion demo video.", exc_info=True)
+        client.send_message(
+            chat_id,
+            "Не удалось открыть пример. Попробуйте ещё раз или создайте своё видео.",
+            reply_markup=markup,
+            message_thread_id=message_thread_id,
+        )
 
 
 def _main_menu_text() -> str:
@@ -1962,14 +2071,35 @@ def _send_quick_launch(client: TelegramClient, chat_id: int) -> None:
 
 def format_mini_app_launch() -> str:
     return (
-        "Market Motion Mini App\n\n"
-        "Открой форму, собери запрос кнопками и отправь его в бот. "
-        "После отправки ролик попадет в очередь генерации."
+        "MarketMotion\n\n"
+        "Нажми «Открыть Mini App», выбери тикеры и период. "
+        "Готовое видео придёт в этот чат."
     )
 
 
-def _send_mini_app_launch(client: TelegramClient, settings: TelegramBotSettings, chat_id: int) -> None:
-    client.send_message(chat_id, format_mini_app_launch(), reply_markup=mini_app_keyboard(settings.mini_app_url))
+def _send_mini_app_launch(
+    client: TelegramClient,
+    settings: TelegramBotSettings,
+    chat_id: int,
+    *,
+    chat_type: str | None = None,
+    message_thread_id: int | None = None,
+) -> None:
+    is_private = chat_type == "private" if chat_type else chat_id > 0
+    if is_private:
+        text = format_mini_app_launch()
+        markup = mini_app_keyboard(settings.mini_app_url)
+    else:
+        text = (
+            "MarketMotion\n\n"
+            "Выбери тикеры и период, скопируй запрос и отправь его ответом на это сообщение. "
+            "Готовое видео придёт в этот чат."
+        )
+        markup = {"inline_keyboard": [[{
+            "text": "Открыть MarketMotion",
+            "url": _mini_app_launch_url(settings.mini_app_url, "group"),
+        }]]}
+    client.send_message(chat_id, text, reply_markup=markup, message_thread_id=message_thread_id)
 
 
 def parameters_keyboard() -> dict[str, list[list[dict[str, str]]]]:
@@ -3004,7 +3134,8 @@ def _random_content_action(text: str) -> TelegramRandomContentAction | None:
 
 
 def _is_queue_status(text: str) -> bool:
-    normalized = " ".join(text.strip().lower().split())
+    command = _slash_command_and_payload(text)
+    normalized = command[0] if command is not None and not command[1] else " ".join(text.strip().lower().split())
     return normalized in {
         "/queue",
         "/status",
@@ -3222,6 +3353,7 @@ def _start_render_progress_notifier(
     display_name: str,
     first_notice_seconds: float = RENDER_PROGRESS_FIRST_NOTICE_SECONDS,
     repeat_seconds: float = RENDER_PROGRESS_REPEAT_SECONDS,
+    notifications: TelegramNotificationQueue | None = None,
 ) -> Callable[[], None]:
     stop_event = Event()
     job_label = job_id or "manual"
@@ -3232,11 +3364,14 @@ def _start_render_progress_notifier(
         notice_count = 1
         while not stop_event.is_set():
             try:
-                client.send_message(
+                send_notice = notifications.send_message if notifications else client.send_message
+                cancellation = {"cancelled": stop_event} if notifications else {}
+                send_notice(
                     chat_id,
                     f"Рендер еще идет: {display_name}\n"
                     f"Job {job_label}. Длинные периоды и 3+ тикера могут считаться несколько минут.",
                     reply_markup=queue_status_keyboard(),
+                    **cancellation,
                 )
                 log_event("render", "progress", job_id=job_id, chat_id=chat_id, notice_count=notice_count)
             except Exception:
@@ -3300,12 +3435,13 @@ def handle_ticker_message(
     text: str,
     job_id: str | None = None,
     custom_followup_key: str | None = None,
+    notifications: TelegramNotificationQueue | None = None,
 ) -> None:
     if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
         client.send_message(chat_id, "This chat is not allowed to use this bot.")
         return
     if _is_start(text):
-        _send_main_menu(client, chat_id)
+        _send_welcome(client, chat_id)
         return
     if _is_help(text):
         client.send_message(chat_id, _help_text(settings.default_engine, settings.default_market), reply_markup=help_keyboard())
@@ -3478,33 +3614,41 @@ def handle_ticker_message(
 
     parsed = parse_telegram_video_request(text, settings.render, settings.default_engine, settings.default_market)
     render = parsed.request.render
-    client.send_message(
+    notify = notifications.send_message if notifications else client.send_message
+    render_finished = Event()
+    cancellation = {"cancelled": render_finished} if notifications else {}
+    notify(
         chat_id,
         f"Генерирую видео: {parsed.display_name}\n"
         f"{render.start_date} - {render.end_date}, {render.duration}s/{render.fps}fps\n"
         f"{_render_summary(render)}",
+        **cancellation,
     )
-    stop_progress_notifier = _start_render_progress_notifier(client, chat_id, job_id, parsed.display_name)
+    stop_progress_notifier = _start_render_progress_notifier(
+        client, chat_id, job_id, parsed.display_name, notifications=notifications,
+    )
     try:
         output_path = generate_video(parsed.request, job_id=job_id)
     finally:
+        render_finished.set()
         stop_progress_notifier()
     send_started_at = time.monotonic()
     log_event("send", "started", job_id=job_id, chat_id=chat_id, output_path=str(output_path))
-    client.send_video(chat_id, output_path, f"{parsed.display_name}: {render.start_date} - {render.end_date}")
+    send_video = notifications.send_video if notifications else client.send_video
+    send_video(chat_id, output_path, f"{parsed.display_name}: {render.start_date} - {render.end_date}")
     log_event("send", "completed", job_id=job_id, chat_id=chat_id, elapsed_ms=int((time.monotonic() - send_started_at) * 1000))
     if parsed.preset_name:
         preset = get_preset(parsed.preset_name)
-        client.send_message(chat_id, format_pulse_post(preset))
-        client.send_message(
+        notify(chat_id, format_pulse_post(preset))
+        notify(
             chat_id,
             "Быстрые варианты для этого сценария:",
             reply_markup=preset_followup_keyboard(preset.name),
         )
     else:
-        client.send_message(chat_id, format_generic_pulse_post(parsed))
+        notify(chat_id, format_generic_pulse_post(parsed))
         if custom_followup_key:
-            client.send_message(
+            notify(
                 chat_id,
                 "Быстрые варианты для этого запроса:",
                 reply_markup=custom_followup_keyboard(custom_followup_key),
@@ -3522,7 +3666,7 @@ def handle_ticker_message(
 
 
 def run_telegram_bot(settings: TelegramBotSettings) -> None:
-    client = TelegramClient(settings.token, settings.poll_timeout)
+    client = TelegramClient(settings.token, settings.poll_timeout, group_topic_ids=settings.group_topic_ids)
     configure_telegram_command_menu(client)
     configure_telegram_mini_app_menu_button(
         client,
@@ -3540,13 +3684,23 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                 updates = client.get_updates(offset=offset, timeout=settings.poll_timeout)
                 for update in updates:
                     offset = int(update["update_id"]) + 1
+                    if not update_is_in_group_topic(update, settings.group_topic_ids):
+                        callback = update.get("callback_query") or {}
+                        if callback.get("id"):
+                            client.answer_callback_query(callback["id"], "Используйте тему «Читы».")
+                        continue
                     extracted = _extract_text_message(update)
                     if extracted is not None:
                         chat_id, text = extracted
                         if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
                             client.send_message(chat_id, "This chat is not allowed to use this bot.")
                         elif _is_start(text):
-                            _send_main_menu(client, chat_id)
+                            message = update["message"]
+                            _send_welcome(
+                                client,
+                                chat_id,
+                                message_thread_id=message.get("message_thread_id") if message.get("is_topic_message") else None,
+                            )
                         elif _is_help(text):
                             client.send_message(
                                 chat_id,
@@ -3554,7 +3708,14 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 reply_markup=help_keyboard(),
                             )
                         elif _is_mini_app(text):
-                            _send_mini_app_launch(client, settings, chat_id)
+                            message = update["message"]
+                            _send_mini_app_launch(
+                                client,
+                                settings,
+                                chat_id,
+                                chat_type=message["chat"].get("type"),
+                                message_thread_id=message.get("message_thread_id") if message.get("is_topic_message") else None,
+                            )
                         elif _is_quick_launch(text):
                             _send_quick_launch(client, chat_id)
                         elif _is_parameters_guide(text):
@@ -3769,9 +3930,22 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                         elif menu_callback.action == "main_menu":
                             client.answer_callback_query(menu_callback.callback_query_id, "Меню открыто.")
                             _send_main_menu(client, menu_callback.chat_id)
+                        elif menu_callback.action == "demo_video":
+                            client.answer_callback_query(menu_callback.callback_query_id)
+                            _send_demo_video(
+                                client,
+                                menu_callback.chat_id,
+                                message_thread_id=menu_callback.message_thread_id,
+                            )
                         elif menu_callback.action == "mini_app":
-                            client.answer_callback_query(menu_callback.callback_query_id, "Mini App открыт.")
-                            _send_mini_app_launch(client, settings, menu_callback.chat_id)
+                            client.answer_callback_query(menu_callback.callback_query_id)
+                            _send_mini_app_launch(
+                                client,
+                                settings,
+                                menu_callback.chat_id,
+                                chat_type=menu_callback.chat_type,
+                                message_thread_id=menu_callback.message_thread_id,
+                            )
                         elif menu_callback.action == "quick_launch":
                             client.answer_callback_query(menu_callback.callback_query_id, "Быстрый запуск открыт.")
                             _send_quick_launch(client, menu_callback.chat_id)

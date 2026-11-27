@@ -3,287 +3,190 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0b0f14">
-  <title>Mini App рыночных видео</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="./app.css?v=20260727">
+  <meta name="theme-color" content="#0d1119">
+  <title>MarketMotion — видео об активах</title>
+  <link rel="stylesheet" href="./app.css?v=20261127b">
+  <script id="telegram-sdk" async src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script defer src="./catalog.js?v=20261127b"></script>
+  <script defer src="./app.js?v=20261127b"></script>
 </head>
 <body>
   <main class="app-shell">
-    <header class="app-header">
-      <div>
-        <p class="eyebrow">Рыночное видео</p>
-        <h1>Собрать видео</h1>
-      </div>
-      <div class="status-stack" aria-label="Статус">
-        <span class="status-pill" id="telegram-status">Telegram</span>
-        <span class="status-pill status-pill--accent" id="mode-status">Шортс</span>
-      </div>
+    <header class="masthead">
+      <p class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>MarketMotion</p>
     </header>
 
-    <section class="story-card" aria-label="Сценарий ролика">
-      <div class="story-copy">
-        <p class="section-kicker">Сценарий ролика</p>
-        <h2 id="story-title">Сравнить активы за 10 лет</h2>
-        <div class="ticker-preview" id="ticker-summary" aria-label="Выбранные тикеры">
-          <span>SBER</span>
-          <span>LKOH</span>
+    <section class="intro" aria-labelledby="page-title">
+      <img class="intro-chart" src="../assets/demo-sber-lkoh.png" alt="" width="540" height="960">
+      <h1 id="page-title">Сравните активы<br>в одном видео</h1>
+      <details class="example">
+        <summary><span class="play-icon" aria-hidden="true"></span>Смотреть пример</summary>
+        <div class="example-player">
+          <p>Сбер и Лукойл</p>
+          <template>
+            <video controls playsinline preload="none" poster="../assets/demo-sber-lkoh.png" src="../assets/demo-sber-lkoh.mp4" aria-label="Пример видео со сравнением Сбера и Лукойла"></video>
+          </template>
         </div>
-      </div>
-      <div class="mini-chart" aria-hidden="true">
-        <span class="chart-line chart-line--blue"></span>
-        <span class="chart-line chart-line--gold"></span>
-        <span class="chart-line chart-line--coral"></span>
-      </div>
+      </details>
     </section>
 
-    <section class="composer-card" aria-label="Тикеры">
-      <label class="field field--hero" for="tickers">
-        <span class="field-label">Что сравниваем</span>
-        <input id="tickers" class="text-input text-input--large" value="SBER LKOH" autocomplete="off" spellcheck="false" inputmode="text">
-      </label>
-      <div class="chip-row" aria-label="Быстрые наборы тикеров">
-        <button class="chip" type="button" data-tickers="SBER LKOH">SBER / LKOH</button>
-        <button class="chip" type="button" data-tickers="gold silver palladium" data-market="metals">Металлы</button>
-        <button class="chip" type="button" data-tickers="AAPL MSFT NVDA" data-market="global" data-currency="USD">Техно США</button>
-        <button class="chip" type="button" data-tickers="BTC ETH" data-market="crypto" data-currency="USD">Крипто</button>
-      </div>
-    </section>
-
-    <section class="steps-grid" aria-label="Ключевые параметры">
-      <article class="step-card step-card--active">
-        <span class="step-index">1</span>
-        <div>
-          <strong>Активы</strong>
-          <p id="assets-summary">Авто / MOEX · RUB</p>
-        </div>
-      </article>
-      <article class="step-card">
-        <span class="step-index">2</span>
-        <div>
-          <strong>История</strong>
-          <p id="history-summary">10 лет</p>
-        </div>
-      </article>
-      <article class="step-card">
-        <span class="step-index">3</span>
-        <div>
-          <strong>Расчет</strong>
-          <p id="calc-summary">Капитал</p>
-        </div>
-      </article>
-      <article class="step-card">
-        <span class="step-index">4</span>
-        <div>
-          <strong>Формат</strong>
-          <p id="format-summary">16s · 24fps</p>
-        </div>
-      </article>
-    </section>
-
-    <details class="settings-panel" open>
-      <summary>
-        <span>Настройки ролика</span>
-        <small>рынок, период, инвестиции, fps</small>
-      </summary>
-
-      <div class="settings-stack">
-        <section class="settings-block">
-          <div class="section-head">
-            <div>
-              <p class="section-kicker">Рынок</p>
-              <h2>Источник и валюта</h2>
-            </div>
+    <form id="video-form" novalidate>
+      <section class="composer" aria-label="Параметры сравнения">
+        <div class="asset-field">
+          <label class="section-label" for="tickers">Что сравниваем</label>
+          <div class="asset-search">
+            <span class="search-icon" aria-hidden="true"></span>
+            <input id="tickers" class="text-input ticker-input" type="search" placeholder="Название или тикер" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="ticker-hint">
           </div>
-          <div class="compact-grid">
+          <p id="ticker-hint" class="visually-hidden">Найдите актив по названию или введите точный тикер.</p>
+          <div id="asset-suggestions" class="asset-suggestions" aria-label="Результаты поиска" hidden></div>
+          <div id="selected-assets" class="selected-assets" aria-label="Выбранные активы"></div>
+          <p id="asset-error" class="field-error" role="status" hidden></p>
+          <div class="chip-row" role="group" aria-label="Готовые сравнения">
+            <button type="button" data-tickers="SBER LKOH" data-market="" data-currency="RUB" aria-pressed="false">Сбер и Лукойл</button>
+            <button type="button" data-tickers="AAPL MSFT NVDA" data-market="global" data-currency="USD" aria-pressed="false">Техно США</button>
+            <button type="button" data-tickers="gold silver palladium" data-market="metals" data-currency="RUB" aria-pressed="false">Металлы</button>
+            <button type="button" data-tickers="BTC ETH" data-market="crypto" data-currency="USD" aria-pressed="false">Крипто</button>
+          </div>
+        </div>
+
+        <div class="period">
+          <p class="section-label" id="period-label">Период</p>
+          <div class="period-options" role="group" aria-labelledby="period-label">
+            <button type="button" data-period="1" aria-pressed="true">1 год</button>
+            <button type="button" data-period="3" aria-pressed="false">3 года</button>
+            <button type="button" data-period="10" aria-pressed="false">10 лет</button>
+            <button type="button" data-period="custom" aria-pressed="false">Свои даты</button>
+          </div>
+          <div class="field-grid date-grid" id="custom-dates" hidden>
             <label class="field">
-              <span class="field-label">Рынок</span>
-              <select id="market" class="select-input">
-                <option value="">Авто / MOEX</option>
-                <option value="global">Глобальный</option>
-                <option value="metals">Металлы</option>
-                <option value="futures">Фьючерсы</option>
-                <option value="crypto">Крипто</option>
-                <option value="selt">Валютный рынок</option>
-              </select>
+              <span class="field-label">Начало</span>
+              <input id="start-date" class="text-input" type="date">
             </label>
             <label class="field">
-              <span class="field-label">Валюта графика</span>
-              <select id="currency" class="select-input">
-                <option>RUB</option>
-                <option>USD</option>
-                <option>EUR</option>
-                <option>CNY</option>
-                <option>GBP</option>
-                <option>JPY</option>
-                <option>CHF</option>
-              </select>
-            </label>
-          </div>
-        </section>
-
-        <section class="settings-block">
-          <div class="section-head">
-            <div>
-              <p class="section-kicker">Период</p>
-              <h2>Окно истории</h2>
-            </div>
-          </div>
-          <div class="segmented" role="radiogroup" aria-label="Период">
-            <button type="button" data-period="1y">1 год</button>
-            <button type="button" data-period="3y">3 года</button>
-            <button type="button" data-period="10y" class="active">10 лет</button>
-            <button type="button" data-period="custom">Свой</button>
-          </div>
-          <div class="date-grid">
-            <label class="field">
-              <span class="field-label">С</span>
-              <input id="start-date" class="text-input" type="date" value="2016-01-01">
-            </label>
-            <label class="field">
-              <span class="field-label">До</span>
+              <span class="field-label">Конец</span>
               <input id="end-date" class="text-input" type="date">
             </label>
+            <p id="date-error" class="field-error" role="status" hidden></p>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section class="settings-block">
-          <div class="section-head">
-            <div>
-              <p class="section-kicker">Формат</p>
-              <h2>Видео</h2>
+      <footer class="action-bar">
+        <p id="asset-summary" class="visually-hidden" role="status" hidden></p>
+        <button id="send-button" class="primary-button" type="submit">Скопировать запрос</button>
+        <p class="action-hint" id="action-hint">Отправьте запрос в чат с ботом. Там появится видео.</p>
+        <p id="status-text" class="status-text" role="status"></p>
+        <label class="field manual-copy" id="manual-copy" hidden>
+          <span class="field-label">Запрос для копирования</span>
+          <textarea id="request-preview" class="text-input" readonly rows="3"></textarea>
+        </label>
+      </footer>
+
+      <details class="disclosure settings">
+        <summary>Дополнительные настройки</summary>
+        <div class="settings-content">
+          <section class="settings-group" aria-labelledby="data-title">
+            <h2 id="data-title">Данные графика</h2>
+            <div class="field-grid">
+              <label class="field">
+                <span class="field-label">Рынок для ручного тикера</span>
+                <select id="market" class="select-input">
+                  <option value="">Авто / Мосбиржа</option>
+                  <option value="global">Глобальный</option>
+                  <option value="metals">Металлы</option>
+                  <option value="futures">Фьючерсы</option>
+                  <option value="crypto">Крипто</option>
+                  <option value="selt">Валютный рынок</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="field-label">Валюта графика</span>
+                <select id="currency" class="select-input">
+                  <option>RUB</option>
+                  <option>USD</option>
+                  <option>EUR</option>
+                  <option>CNY</option>
+                  <option>GBP</option>
+                  <option>JPY</option>
+                  <option>CHF</option>
+                </select>
+              </label>
             </div>
-          </div>
-          <select id="mode" class="visually-hidden" aria-hidden="true" tabindex="-1">
-            <option value="shorts">Шортс 16s/24fps</option>
-            <option value="draft">Черновик 4s/8fps</option>
-            <option value="custom">Вручную</option>
-          </select>
-          <div class="segmented segmented--three" role="radiogroup" aria-label="Режим видео">
-            <button type="button" data-mode="shorts" class="active">
-              <span>Шортс</span>
-              <small>16s / 24fps</small>
-            </button>
-            <button type="button" data-mode="draft">
-              <span>Черновик</span>
-              <small>4s / 8fps</small>
-            </button>
-            <button type="button" data-mode="custom">
-              <span>Вручную</span>
-              <small>вручную</small>
-            </button>
-          </div>
-          <div class="compact-grid compact-grid--three">
             <label class="field">
-              <span class="field-label">Длина, сек</span>
-              <input id="duration" class="text-input" type="number" min="1" max="90" value="16">
-            </label>
-            <label class="field">
-              <span class="field-label">FPS</span>
-              <input id="fps" class="text-input" type="number" min="1" max="30" value="24">
-            </label>
-            <label class="field">
-              <span class="field-label">Тема</span>
-              <select id="theme" class="select-input">
-                <option value="studio">Студия</option>
-                <option value="aurora">Аврора</option>
-                <option value="default">Базовая</option>
+              <span class="field-label">Что показывает график</span>
+              <select id="metric" class="select-input">
+                <option value="capital">Как менялась стоимость вложений</option>
+                <option value="close">Цена актива</option>
               </select>
             </label>
-          </div>
-        </section>
+            <label class="toggle"><input id="investment" type="checkbox"> Добавить пополнения</label>
+            <div class="field-grid" id="investment-fields" hidden>
+              <label class="field">
+                <span class="field-label">При старте</span>
+                <input id="initial" class="text-input" type="number" min="0" value="0">
+              </label>
+              <label class="field">
+                <span class="field-label">В месяц</span>
+                <input id="monthly" class="text-input" type="number" min="0" value="30000">
+              </label>
+              <label class="field">
+                <span class="field-label">В год</span>
+                <input id="yearly" class="text-input" type="number" min="0" value="0">
+              </label>
+            </div>
+          </section>
 
-        <section class="settings-block settings-block--events">
-          <details class="timeline-events" id="timeline-events">
-            <summary>
-              <div>
-                <p class="section-kicker">События</p>
-                <h2>Периоды на шкале</h2>
-              </div>
-              <span class="events-state" id="events-state">Выключены</span>
-            </summary>
-            <div class="events-builder">
-              <p class="events-help">Добавь период, который будет выделен цветом и подписан на графике.</p>
-              <div class="events-list" id="events-list"></div>
-              <button class="add-event-button" id="add-event-button" type="button">
-                <span aria-hidden="true">+</span>
-                Добавить событие
-              </button>
+          <section class="settings-group" aria-labelledby="video-title">
+            <h2 id="video-title">Оформление видео</h2>
+            <div class="field-grid">
+              <label class="field">
+                <span class="field-label">Формат</span>
+                <select id="mode" class="select-input">
+                  <option value="shorts">Ролик · 16 сек.</option>
+                  <option value="draft">Черновик · 4 сек.</option>
+                  <option value="custom">Свой формат</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="field-label">Тема</span>
+                <select id="theme" class="select-input">
+                  <option value="studio">Студия</option>
+                  <option value="aurora">Аврора</option>
+                  <option value="default">Базовая</option>
+                </select>
+              </label>
+            </div>
+            <div class="field-grid" id="video-fields" hidden>
+              <label class="field">
+                <span class="field-label">Длина, сек.</span>
+                <input id="duration" class="text-input" type="number" min="1" max="90" required value="16">
+              </label>
+              <label class="field">
+                <span class="field-label">Кадров в секунду</span>
+                <input id="fps" class="text-input" type="number" min="1" max="30" required value="24">
+              </label>
+            </div>
+            <div class="toggle-row">
+              <label class="toggle"><input id="gradient" type="checkbox" checked> Градиент</label>
+              <label class="toggle"><input id="legend" type="checkbox" checked> Подписи линий</label>
+            </div>
+          </section>
+
+          <details class="disclosure events">
+            <summary>События на графике <span id="events-state" hidden></span></summary>
+            <div class="events-content">
+              <p class="field-hint">Выделите цветом период и добавьте подпись.</p>
+              <div id="events-list"></div>
+              <button class="text-button" id="add-event-button" type="button">Добавить событие</button>
             </div>
           </details>
-        </section>
-
-        <section class="settings-block">
-          <div class="section-head">
-            <div>
-              <p class="section-kicker">Расчет</p>
-              <h2>Как строить линии</h2>
-            </div>
-          </div>
-          <input id="metric-capital" class="visually-hidden" type="checkbox" checked>
-          <div class="segmented segmented--two" role="radiogroup" aria-label="Метрика">
-            <button type="button" data-metric="capital" class="active">Капитал</button>
-            <button type="button" data-metric="close">Цена</button>
-          </div>
-          <div class="toggle-grid">
-            <label class="toggle">
-              <input id="investment" type="checkbox">
-              <span>Инвестиции</span>
-            </label>
-            <label class="toggle">
-              <input id="gradient" type="checkbox" checked>
-              <span>Градиент</span>
-            </label>
-            <label class="toggle">
-              <input id="legend" type="checkbox" checked>
-              <span>Легенда</span>
-            </label>
-          </div>
-          <div class="investment-grid" id="investment-fields" hidden>
-            <label class="field">
-              <span class="field-label">Старт</span>
-              <input id="initial" class="text-input" type="number" min="0" step="1000" value="0">
-            </label>
-            <label class="field">
-              <span class="field-label">Ежемесячно</span>
-              <input id="monthly" class="text-input" type="number" min="0" step="1000" value="30000">
-            </label>
-            <label class="field">
-              <span class="field-label">Ежегодно</span>
-              <input id="yearly" class="text-input" type="number" min="0" step="1000" value="0">
-            </label>
-          </div>
-        </section>
-      </div>
-    </details>
-
-    <aside class="send-dock" aria-label="Готовый запрос">
-      <div class="dock-summary">
-        <div>
-          <p class="section-kicker">Готово к отправке</p>
-          <h2 id="dock-title">Видео из SBER / LKOH</h2>
         </div>
-      </div>
-
-      <div class="preview-meta" aria-label="Ключевые параметры">
-        <span id="preview-range">10 лет</span>
-        <span id="preview-format">16s / 24fps</span>
-        <span id="preview-currency">RUB</span>
-      </div>
-
-      <details class="command-details">
-        <summary>Показать команду</summary>
-        <output id="request-preview" class="request-preview"></output>
       </details>
 
-      <div class="dock-actions">
-        <button id="send-button" class="primary-button" type="button">Отправить в бот</button>
-        <button id="copy-button" class="secondary-button secondary-button--dock" type="button">Скопировать</button>
-      </div>
-      <p id="error-text" class="status-text" role="status"></p>
-    </aside>
-  </main>
+    </form>
 
-  <script src="./app.js?v=20260727"></script>
+    <noscript><p>Включите JavaScript или отправьте в чат с ботом <code>/shorts SBER LKOH за год</code>.</p></noscript>
+  </main>
 </body>
 </html>

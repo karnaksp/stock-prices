@@ -29,17 +29,38 @@ class FakeClient:
     def __init__(self) -> None:
         self.messages: list[tuple[int, str]] = []
         self.message_markups: list[dict | None] = []
+        self.message_thread_ids: list[int | None] = []
         self.videos: list[tuple[int, Path, str]] = []
+        self.video_markups: list[dict | None] = []
+        self.video_thread_ids: list[int | None] = []
         self.callback_answers: list[tuple[str, str]] = []
         self.command_menus: list[list[dict[str, str]]] = []
         self.menu_buttons: list[dict] = []
 
-    def send_message(self, chat_id: int, text: str, reply_markup: dict | None = None) -> None:
+    def send_message(
+        self,
+        chat_id: int,
+        text: str,
+        reply_markup: dict | None = None,
+        *,
+        message_thread_id: int | None = None,
+    ) -> None:
         self.messages.append((chat_id, text))
         self.message_markups.append(reply_markup)
+        self.message_thread_ids.append(message_thread_id)
 
-    def send_video(self, chat_id: int, video_path: Path, caption: str) -> None:
+    def send_video(
+        self,
+        chat_id: int,
+        video_path: Path,
+        caption: str,
+        *,
+        reply_markup: dict | None = None,
+        message_thread_id: int | None = None,
+    ) -> None:
         self.videos.append((chat_id, video_path, caption))
+        self.video_markups.append(reply_markup)
+        self.video_thread_ids.append(message_thread_id)
 
     def answer_callback_query(self, callback_query_id: str, text: str = "") -> None:
         self.callback_answers.append((callback_query_id, text))
@@ -431,7 +452,6 @@ def test_run_telegram_bot_queues_generation_once(monkeypatch) -> None:
 
     assert any("поставлена в очередь" in message for _chat_id, message in client.messages)
     assert client.message_markups[0] == telegram_bot.queue_status_keyboard()
-    assert any("Генерирую видео: LKOH" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/LKOH.mp4"), "LKOH: 2020-01-01 - 2020-01-02")]
 
 
@@ -469,7 +489,7 @@ def test_run_telegram_bot_queues_shorts_slash_command(monkeypatch) -> None:
     telegram_bot.run_telegram_bot(settings)
 
     assert generated == [("tg-421", 16, 24, True, ["LKOH", "SBER"])]
-    assert any("16s/24fps" in message for _chat_id, message in client.messages)
+    assert any("поставлена в очередь" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/LKOH-SBER-shorts.mp4"), "LKOH / SBER: 2020-01-01 - 2024-12-31")]
 
 
@@ -595,7 +615,8 @@ def test_run_telegram_bot_queues_draft_preset_from_inline_button(monkeypatch) ->
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers[0][0] == "callback-2"
-    assert any("4s/8fps" in message for _chat_id, message in client.messages)
+    # A fast render may finish before its queued "generating" notice is sent.
+    assert any("поставлена в очередь" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/metals-draft.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 
@@ -640,7 +661,7 @@ def test_run_telegram_bot_queues_12s_preset_from_followup_button(monkeypatch) ->
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers == [("callback-3", "Сценарий поставлен в очередь.")]
-    assert any("12s/24fps" in message for _chat_id, message in client.messages)
+    assert any("поставлена в очередь" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/metals-12s.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 
@@ -682,7 +703,7 @@ def test_run_telegram_bot_queues_theme_preset_from_followup_button(monkeypatch) 
     telegram_bot.run_telegram_bot(settings)
 
     assert client.callback_answers == [("callback-preset-studio", "Сценарий поставлен в очередь.")]
-    assert any("Тема: studio" in message for _chat_id, message in client.messages)
+    assert any("поставлена в очередь" in message for _chat_id, message in client.messages)
     assert client.videos == [(123, Path("animations/metals-studio.mp4"), "GC=F / SI=F / PA=F: 2010-01-01 - 2026-05-27")]
 
 
@@ -2370,7 +2391,7 @@ def test_handle_ticker_message_shows_mini_app_launch_without_render(monkeypatch)
     client = FakeClient()
     settings = TelegramBotSettings(
         token="token",
-        mini_app_url="https://example.test/miniapp/",
+        mini_app_url="https://example.test/miniapp/?theme=light&launch=menu#section",
         render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
     )
 
@@ -2381,13 +2402,12 @@ def test_handle_ticker_message_shows_mini_app_launch_without_render(monkeypatch)
 
     handle_ticker_message(client, settings, 123, "/app")
 
-    assert "Market Motion Mini App" in client.messages[0][1]
-    assert "попадет в очередь" in client.messages[0][1]
-    assert client.message_markups == [telegram_bot.mini_app_keyboard("https://example.test/miniapp/")]
+    assert "MarketMotion" in client.messages[0][1]
+    assert "видео придёт в этот чат" in client.messages[0][1]
     keyboard = client.message_markups[0]["keyboard"]
     assert keyboard[0][0] == {
         "text": "Открыть Mini App",
-        "web_app": {"url": "https://example.test/miniapp/"},
+        "web_app": {"url": "https://example.test/miniapp/?theme=light&launch=keyboard#section"},
     }
     assert client.videos == []
 
@@ -2421,9 +2441,50 @@ def test_run_telegram_bot_menu_callback_opens_mini_app(monkeypatch) -> None:
 
     telegram_bot.run_telegram_bot(settings)
 
-    assert client.callback_answers == [("callback-menu-mini-app", "Mini App открыт.")]
-    assert "Market Motion Mini App" in client.messages[0][1]
+    assert client.callback_answers == [("callback-menu-mini-app", "")]
+    assert "MarketMotion" in client.messages[0][1]
     assert client.message_markups == [telegram_bot.mini_app_keyboard("https://example.test/miniapp/")]
+    assert client.videos == []
+
+
+@pytest.mark.parametrize("callback", [False, True])
+def test_run_telegram_bot_offers_copy_flow_to_forum_without_private_access(monkeypatch, callback) -> None:
+    class FakePollingClient(FakeClient):
+        def get_updates(self, *_args, **_kwargs):
+            message = {
+                "chat": {"id": -100123, "type": "supergroup"},
+                "is_topic_message": True,
+                "message_thread_id": 42,
+            }
+            forum_update = {"message": {**message, "text": "/app@MarketMotionTestBot"}}
+            if callback:
+                forum_update = {"callback_query": {
+                    "id": "callback-menu-mini-app",
+                    "data": "menu:mini_app",
+                    "message": message,
+                }}
+            return [{"update_id": 70, **forum_update}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        allowed_chat_ids={-100123},
+        mini_app_url="https://example.test/miniapp/",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert [chat_id for chat_id, _ in client.messages] == [-100123]
+    assert client.message_thread_ids == [42]
+    assert client.message_markups == [
+        {"inline_keyboard": [[{
+            "text": "Открыть MarketMotion",
+            "url": "https://example.test/miniapp/?launch=group",
+        }]]},
+    ]
     assert client.videos == []
 
 
@@ -4468,7 +4529,7 @@ def test_handle_ticker_message_shows_main_menu() -> None:
     assert client.videos == []
 
 
-def test_handle_ticker_message_start_shows_main_menu() -> None:
+def test_handle_ticker_message_start_shows_welcome() -> None:
     client = FakeClient()
     settings = TelegramBotSettings(
         token="token",
@@ -4477,9 +4538,96 @@ def test_handle_ticker_message_start_shows_main_menu() -> None:
 
     handle_ticker_message(client, settings, 123, "/start")
 
-    assert "Market Motion Bot" in client.messages[0][1]
-    assert client.message_markups[0] == telegram_bot.main_menu_keyboard()
+    assert "MarketMotion" in client.messages[0][1]
+    assert client.message_markups[0]["inline_keyboard"] == [
+        [{"text": "Показать пример ролика", "callback_data": "menu:demo_video"}],
+        [{"text": "Сравнить свои активы", "callback_data": "menu:mini_app"}],
+    ]
     assert client.videos == []
+
+
+@pytest.mark.parametrize(("chat_id", "chat_type", "thread_id"), [(123, "private", None), (-100123, "supergroup", 42)])
+def test_run_telegram_bot_sends_demo_then_opens_comparison(monkeypatch, chat_id, chat_type, thread_id) -> None:
+    class FakePollingClient(FakeClient):
+        def get_updates(self, *_args, **_kwargs):
+            message = {"chat": {"id": chat_id, "type": chat_type}}
+            if thread_id is not None:
+                message.update(is_topic_message=True, message_thread_id=thread_id)
+            return [
+                {"update_id": 70, "message": {**message, "text": "/start@MarketMotionTestBot"}},
+                {"update_id": 71, "callback_query": {"id": "demo", "data": "menu:demo_video", "message": message}},
+                {"update_id": 72, "callback_query": {"id": "own", "data": "menu:mini_app", "message": message}},
+            ]
+
+    def fail_on_render(*_args, **_kwargs):
+        raise AssertionError("showing the packaged demo must bypass render and queue")
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        allowed_chat_ids={chat_id},
+        mini_app_url="https://example.test/miniapp/",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+    demo = telegram_bot._demo_video_path()
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+    monkeypatch.setattr(telegram_bot, "generate_video", fail_on_render)
+    monkeypatch.setattr(telegram_bot.TelegramJobQueue, "enqueue", fail_on_render)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert demo.is_file()
+    assert client.callback_answers == [("demo", ""), ("own", "")]
+    assert client.message_thread_ids == [thread_id, thread_id]
+    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "menu:demo_video"
+    assert client.videos == [(chat_id, demo, "Пример ролика · Сбер и Лукойл")]
+    assert client.video_thread_ids == [thread_id]
+    assert client.video_markups == [{"inline_keyboard": [[{
+        "text": "Сравнить свои активы", "callback_data": "menu:mini_app",
+    }]]}]
+    if chat_type == "private":
+        assert client.message_markups[-1]["keyboard"][0][0]["web_app"]["url"].endswith("?launch=keyboard")
+    else:
+        assert client.message_markups[-1]["inline_keyboard"][0][0]["url"].endswith("?launch=group")
+
+
+def test_telegram_client_sends_demo_as_video_with_topic_and_button(monkeypatch) -> None:
+    markup = {"inline_keyboard": [[{"text": "Сравнить свои активы", "callback_data": "menu:mini_app"}]]}
+    demo = telegram_bot._demo_video_path()
+    calls = []
+
+    def fake_post(url, *, data, files, timeout):
+        calls.append((url, data, files["video"][0], files["video"][1].read(), files["video"][2]))
+        response = requests.Response()
+        response.status_code = 200
+        response._content = b'{"ok": true, "result": {}}'
+        return response
+
+    monkeypatch.setattr(telegram_bot.requests, "post", fake_post)
+
+    TelegramClient("token").send_video(-100123, demo, "Пример", reply_markup=markup, message_thread_id=42)
+
+    url, data, filename, content, media_type = calls[0]
+    assert url.endswith("/sendVideo")
+    assert data["chat_id"] == -100123
+    assert data["message_thread_id"] == 42
+    assert json.loads(data["reply_markup"]) == markup
+    assert (filename, content, media_type) == ("demo-sber-lkoh.mp4", demo.read_bytes(), "video/mp4")
+
+
+def test_demo_upload_failure_still_offers_comparison() -> None:
+    class FailingClient(FakeClient):
+        def send_video(self, *_args, **_kwargs):
+            raise TelegramApiError("upload failed")
+
+    client = FailingClient()
+
+    telegram_bot._send_demo_video(client, -100123, message_thread_id=42)
+
+    assert client.message_thread_ids == [42]
+    assert client.message_markups[0]["inline_keyboard"][0][0]["callback_data"] == "menu:mini_app"
+    assert "Не удалось открыть пример" in client.messages[0][1]
 
 
 def test_handle_ticker_message_shorts_slash_without_payload_shows_presets(monkeypatch) -> None:
