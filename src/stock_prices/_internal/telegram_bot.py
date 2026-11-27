@@ -10,6 +10,7 @@ from pathlib import Path
 from queue import Queue
 from threading import Event, Lock, Thread
 from typing import Any, Callable
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import requests
 
@@ -108,10 +109,19 @@ class TelegramClient:
             data["offset"] = offset
         return self.call("getUpdates", **data)
 
-    def send_message(self, chat_id: int, text: str, reply_markup: dict[str, Any] | None = None) -> None:
+    def send_message(
+        self,
+        chat_id: int,
+        text: str,
+        reply_markup: dict[str, Any] | None = None,
+        *,
+        message_thread_id: int | None = None,
+    ) -> None:
         data: dict[str, Any] = {"chat_id": chat_id, "text": text}
         if reply_markup is not None:
             data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
+        if message_thread_id is not None:
+            data["message_thread_id"] = message_thread_id
         self.call("sendMessage", **data)
 
     def set_my_commands(self, commands: list[dict[str, str]]) -> None:
@@ -479,13 +489,20 @@ def quick_launch_keyboard() -> dict[str, list[list[dict[str, str]]]]:
     return main_menu_keyboard()
 
 
+def _mini_app_launch_url(mini_app_url: str, launch: str) -> str:
+    url = urlsplit(mini_app_url)
+    query = [(key, value) for key, value in parse_qsl(url.query, keep_blank_values=True) if key != "launch"]
+    query.append(("launch", launch))
+    return url._replace(query=urlencode(query)).geturl()
+
+
 def mini_app_keyboard(mini_app_url: str) -> dict[str, Any]:
     return {
         "keyboard": [
             [
                 {
                     "text": "Открыть Mini App",
-                    "web_app": {"url": mini_app_url},
+                    "web_app": {"url": _mini_app_launch_url(mini_app_url, "keyboard")},
                 }
             ],
             [
@@ -1117,6 +1134,8 @@ class TelegramMenuCallback:
     callback_query_id: str
     chat_id: int
     action: str
+    chat_type: str | None
+    message_thread_id: int | None
 
 
 @dataclass(frozen=True)
@@ -1888,7 +1907,13 @@ def _extract_menu_callback(update: dict[str, Any]) -> TelegramMenuCallback | Non
     chat_id = chat.get("id")
     if chat_id is None:
         return None
-    return TelegramMenuCallback(str(callback_query_id), int(chat_id), action)
+    return TelegramMenuCallback(
+        str(callback_query_id),
+        int(chat_id),
+        action,
+        chat.get("type"),
+        message.get("message_thread_id") if message.get("is_topic_message") else None,
+    )
 
 
 def _extract_preset_category_callback(update: dict[str, Any]) -> TelegramPresetCategoryCallback | None:
@@ -1962,14 +1987,35 @@ def _send_quick_launch(client: TelegramClient, chat_id: int) -> None:
 
 def format_mini_app_launch() -> str:
     return (
-        "Market Motion Mini App\n\n"
-        "Открой форму, собери запрос кнопками и отправь его в бот. "
-        "После отправки ролик попадет в очередь генерации."
+        "MarketMotion\n\n"
+        "Нажми «Открыть Mini App», выбери тикеры и период. "
+        "Готовое видео придёт в этот чат."
     )
 
 
-def _send_mini_app_launch(client: TelegramClient, settings: TelegramBotSettings, chat_id: int) -> None:
-    client.send_message(chat_id, format_mini_app_launch(), reply_markup=mini_app_keyboard(settings.mini_app_url))
+def _send_mini_app_launch(
+    client: TelegramClient,
+    settings: TelegramBotSettings,
+    chat_id: int,
+    *,
+    chat_type: str | None = None,
+    message_thread_id: int | None = None,
+) -> None:
+    is_private = chat_type == "private" if chat_type else chat_id > 0
+    if is_private:
+        text = format_mini_app_launch()
+        markup = mini_app_keyboard(settings.mini_app_url)
+    else:
+        text = (
+            "MarketMotion\n\n"
+            "Выбери тикеры и период, скопируй запрос и отправь его ответом на это сообщение. "
+            "Готовое видео придёт в этот чат."
+        )
+        markup = {"inline_keyboard": [[{
+            "text": "Открыть MarketMotion",
+            "url": _mini_app_launch_url(settings.mini_app_url, "group"),
+        }]]}
+    client.send_message(chat_id, text, reply_markup=markup, message_thread_id=message_thread_id)
 
 
 def parameters_keyboard() -> dict[str, list[list[dict[str, str]]]]:
@@ -3554,7 +3600,14 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                                 reply_markup=help_keyboard(),
                             )
                         elif _is_mini_app(text):
-                            _send_mini_app_launch(client, settings, chat_id)
+                            message = update["message"]
+                            _send_mini_app_launch(
+                                client,
+                                settings,
+                                chat_id,
+                                chat_type=message["chat"].get("type"),
+                                message_thread_id=message.get("message_thread_id") if message.get("is_topic_message") else None,
+                            )
                         elif _is_quick_launch(text):
                             _send_quick_launch(client, chat_id)
                         elif _is_parameters_guide(text):
@@ -3770,8 +3823,14 @@ def run_telegram_bot(settings: TelegramBotSettings) -> None:
                             client.answer_callback_query(menu_callback.callback_query_id, "Меню открыто.")
                             _send_main_menu(client, menu_callback.chat_id)
                         elif menu_callback.action == "mini_app":
-                            client.answer_callback_query(menu_callback.callback_query_id, "Mini App открыт.")
-                            _send_mini_app_launch(client, settings, menu_callback.chat_id)
+                            client.answer_callback_query(menu_callback.callback_query_id)
+                            _send_mini_app_launch(
+                                client,
+                                settings,
+                                menu_callback.chat_id,
+                                chat_type=menu_callback.chat_type,
+                                message_thread_id=menu_callback.message_thread_id,
+                            )
                         elif menu_callback.action == "quick_launch":
                             client.answer_callback_query(menu_callback.callback_query_id, "Быстрый запуск открыт.")
                             _send_quick_launch(client, menu_callback.chat_id)

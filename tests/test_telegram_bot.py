@@ -29,14 +29,23 @@ class FakeClient:
     def __init__(self) -> None:
         self.messages: list[tuple[int, str]] = []
         self.message_markups: list[dict | None] = []
+        self.message_thread_ids: list[int | None] = []
         self.videos: list[tuple[int, Path, str]] = []
         self.callback_answers: list[tuple[str, str]] = []
         self.command_menus: list[list[dict[str, str]]] = []
         self.menu_buttons: list[dict] = []
 
-    def send_message(self, chat_id: int, text: str, reply_markup: dict | None = None) -> None:
+    def send_message(
+        self,
+        chat_id: int,
+        text: str,
+        reply_markup: dict | None = None,
+        *,
+        message_thread_id: int | None = None,
+    ) -> None:
         self.messages.append((chat_id, text))
         self.message_markups.append(reply_markup)
+        self.message_thread_ids.append(message_thread_id)
 
     def send_video(self, chat_id: int, video_path: Path, caption: str) -> None:
         self.videos.append((chat_id, video_path, caption))
@@ -2370,7 +2379,7 @@ def test_handle_ticker_message_shows_mini_app_launch_without_render(monkeypatch)
     client = FakeClient()
     settings = TelegramBotSettings(
         token="token",
-        mini_app_url="https://example.test/miniapp/",
+        mini_app_url="https://example.test/miniapp/?theme=light&launch=menu#section",
         render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
     )
 
@@ -2381,13 +2390,12 @@ def test_handle_ticker_message_shows_mini_app_launch_without_render(monkeypatch)
 
     handle_ticker_message(client, settings, 123, "/app")
 
-    assert "Market Motion Mini App" in client.messages[0][1]
-    assert "попадет в очередь" in client.messages[0][1]
-    assert client.message_markups == [telegram_bot.mini_app_keyboard("https://example.test/miniapp/")]
+    assert "MarketMotion" in client.messages[0][1]
+    assert "видео придёт в этот чат" in client.messages[0][1]
     keyboard = client.message_markups[0]["keyboard"]
     assert keyboard[0][0] == {
         "text": "Открыть Mini App",
-        "web_app": {"url": "https://example.test/miniapp/"},
+        "web_app": {"url": "https://example.test/miniapp/?theme=light&launch=keyboard#section"},
     }
     assert client.videos == []
 
@@ -2421,9 +2429,50 @@ def test_run_telegram_bot_menu_callback_opens_mini_app(monkeypatch) -> None:
 
     telegram_bot.run_telegram_bot(settings)
 
-    assert client.callback_answers == [("callback-menu-mini-app", "Mini App открыт.")]
-    assert "Market Motion Mini App" in client.messages[0][1]
+    assert client.callback_answers == [("callback-menu-mini-app", "")]
+    assert "MarketMotion" in client.messages[0][1]
     assert client.message_markups == [telegram_bot.mini_app_keyboard("https://example.test/miniapp/")]
+    assert client.videos == []
+
+
+@pytest.mark.parametrize("callback", [False, True])
+def test_run_telegram_bot_offers_copy_flow_to_forum_without_private_access(monkeypatch, callback) -> None:
+    class FakePollingClient(FakeClient):
+        def get_updates(self, *_args, **_kwargs):
+            message = {
+                "chat": {"id": -100123, "type": "supergroup"},
+                "is_topic_message": True,
+                "message_thread_id": 42,
+            }
+            forum_update = {"message": {**message, "text": "/app@MarketMotionTestBot"}}
+            if callback:
+                forum_update = {"callback_query": {
+                    "id": "callback-menu-mini-app",
+                    "data": "menu:mini_app",
+                    "message": message,
+                }}
+            return [{"update_id": 70, **forum_update}]
+
+    client = FakePollingClient()
+    settings = TelegramBotSettings(
+        token="token",
+        once=True,
+        allowed_chat_ids={-100123},
+        mini_app_url="https://example.test/miniapp/",
+        render=RenderSettings(start_date=date(2020, 1, 1), end_date=date(2020, 1, 2)),
+    )
+    monkeypatch.setattr(telegram_bot, "TelegramClient", lambda *_args, **_kwargs: client)
+
+    telegram_bot.run_telegram_bot(settings)
+
+    assert [chat_id for chat_id, _ in client.messages] == [-100123]
+    assert client.message_thread_ids == [42]
+    assert client.message_markups == [
+        {"inline_keyboard": [[{
+            "text": "Открыть MarketMotion",
+            "url": "https://example.test/miniapp/?launch=group",
+        }]]},
+    ]
     assert client.videos == []
 
 
