@@ -168,7 +168,9 @@ def test_animation_grows_time_window_while_series_uses_current_slice() -> None:
             for collection in animation._fig.axes[0].collections
             if collection.__class__.__name__ == "LineCollection"
         ]
-        middle_gradient_segments = gradient_collections[-1].get_segments()
+        assert gradient_collections
+        middle_gradient = gradient_collections[-1]
+        middle_gradient_segments = middle_gradient.get_segments()
         middle_line_x = list(line.get_xdata())
         middle_line_y = list(line.get_ydata())
 
@@ -178,9 +180,9 @@ def test_animation_grows_time_window_while_series_uses_current_slice() -> None:
         start_num = mdates.date2num(data_frame["TRADEDATE"].iloc[0])
         assert middle_line_x == data_frame["TRADEDATE"].iloc[:2].tolist()
         assert middle_line_y == [100.0, 140.0]
-        assert line.get_alpha() == 0.96
+        assert 0 < line.get_alpha() < middle_gradient.get_alpha()
+        assert line.get_zorder() < middle_gradient.get_zorder()
         assert abs(middle_gradient_segments[-1][-1][0] - mdates.date2num(data_frame["TRADEDATE"].iloc[1])) < 1e-6
-        assert gradient_collections
         assert first_xlim[0] == start_num
         assert first_xlim[1] < middle_xlim[1] < final_xlim[1]
     finally:
@@ -228,7 +230,12 @@ def test_frame_y_limits_smooth_future_expansion() -> None:
     values = pd.DataFrame({"A": [100.0 + index * 0.1 for index in range(99)] + [1000.0]})
     prefix_min, prefix_max = _prefix_y_limits(values)
 
-    frame_limits = _frame_y_limits(list(range(len(values))), prefix_min, prefix_max, fps=10)
+    frame_indexes = list(range(len(values)))
+    default_limits = _frame_y_limits(frame_indexes, prefix_min, prefix_max, fps=10)
+    before_spike_limits = _frame_y_limits(frame_indexes[:-1], prefix_min, prefix_max, fps=10)
+    assert default_limits[:-2] == before_spike_limits[:-1]
+
+    frame_limits = _frame_y_limits(frame_indexes, prefix_min, prefix_max, fps=10, lookahead_seconds=4.0)
     tops = [limit[1] for limit in frame_limits if limit is not None]
 
     assert tops[0] == _y_limits_with_margin(100.0, 100.0)[1]
@@ -318,16 +325,18 @@ def test_animation_keeps_line_gradient_and_fill_on_same_frame_slice() -> None:
             for collection in animation._fig.axes[0].collections
             if collection.__class__.__name__ == "LineCollection"
         ]
-        gradient_segments = gradient_collections[-1].get_segments()
+        assert fill_collections
+        assert gradient_collections
+        gradient = gradient_collections[-1]
+        gradient_segments = gradient.get_segments()
         fill_right = fill_collections[-1].get_paths()[0].vertices[:, 0].max()
         price_label = next(text for text in ax.texts if text.get_text().startswith("SBER:"))
         expected_label_x = data_frame["TRADEDATE"].iloc[1] + pd.Timedelta(days=31 * 0.025)
 
         assert list(line.get_xdata()) == data_frame["TRADEDATE"].iloc[:2].tolist()
         assert list(line.get_ydata()) == [100.0, 140.0]
-        assert line.get_alpha() == 0.96
-        assert fill_collections
-        assert gradient_collections
+        assert 0 < line.get_alpha() < gradient.get_alpha()
+        assert line.get_zorder() < gradient.get_zorder()
         assert abs(gradient_segments[-1][-1][0] - mdates.date2num(data_frame["TRADEDATE"].iloc[1])) < 1e-6
         assert abs(fill_right - mdates.date2num(data_frame["TRADEDATE"].iloc[1])) < 1e-6
         assert price_label.get_position()[1] == 140.0

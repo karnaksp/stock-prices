@@ -3,36 +3,55 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f5f6f0">
+  <meta name="theme-color" content="#0d1119">
   <title>MarketMotion — видео об активах</title>
-  <link rel="stylesheet" href="./app.css?v=20261127">
+  <link rel="stylesheet" href="./app.css?v=20261127b">
   <script id="telegram-sdk" async src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script defer src="./app.js?v=20261127"></script>
+  <script defer src="./catalog.js?v=20261127b"></script>
+  <script defer src="./app.js?v=20261127b"></script>
 </head>
 <body>
   <main class="app-shell">
-    <header class="intro">
+    <header class="masthead">
       <p class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>MarketMotion</p>
-      <h1>Сравните активы<br class="title-break"> в одном видео</h1>
-      <p class="intro-copy">Выберите тикеры и период. Бот сделает ролик с анимированным графиком.</p>
     </header>
+
+    <section class="intro" aria-labelledby="page-title">
+      <img class="intro-chart" src="../assets/demo-sber-lkoh.png" alt="" width="540" height="960">
+      <h1 id="page-title">Сравните активы<br>в одном видео</h1>
+      <details class="example">
+        <summary><span class="play-icon" aria-hidden="true"></span>Смотреть пример</summary>
+        <div class="example-player">
+          <p>Сбер и Лукойл</p>
+          <template>
+            <video controls playsinline preload="none" poster="../assets/demo-sber-lkoh.png" src="../assets/demo-sber-lkoh.mp4" aria-label="Пример видео со сравнением Сбера и Лукойла"></video>
+          </template>
+        </div>
+      </details>
+    </section>
 
     <form id="video-form" novalidate>
       <section class="composer" aria-label="Параметры сравнения">
-        <label class="field" for="tickers">
-          <span class="field-label">Что сравниваем</span>
-          <input id="tickers" class="text-input ticker-input" value="SBER LKOH" placeholder="Например, SBER LKOH" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="ticker-hint">
-        </label>
-        <p class="field-hint" id="ticker-hint">Введите тикеры через пробел или выберите набор.</p>
-        <div class="chip-row" role="group" aria-label="Готовые наборы">
-          <button type="button" data-tickers="SBER LKOH" data-market="" data-currency="RUB" aria-pressed="true">Сбер и Лукойл</button>
-          <button type="button" data-tickers="AAPL MSFT NVDA" data-market="global" data-currency="USD" aria-pressed="false">Техно США</button>
-          <button type="button" data-tickers="gold silver palladium" data-market="metals" data-currency="RUB" aria-pressed="false">Металлы</button>
-          <button type="button" data-tickers="BTC ETH" data-market="crypto" data-currency="USD" aria-pressed="false">Крипто</button>
+        <div class="asset-field">
+          <label class="section-label" for="tickers">Что сравниваем</label>
+          <div class="asset-search">
+            <span class="search-icon" aria-hidden="true"></span>
+            <input id="tickers" class="text-input ticker-input" type="search" placeholder="Название или тикер" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="ticker-hint">
+          </div>
+          <p id="ticker-hint" class="visually-hidden">Найдите актив по названию или введите точный тикер.</p>
+          <div id="asset-suggestions" class="asset-suggestions" aria-label="Результаты поиска" hidden></div>
+          <div id="selected-assets" class="selected-assets" aria-label="Выбранные активы"></div>
+          <p id="asset-error" class="field-error" role="status" hidden></p>
+          <div class="chip-row" role="group" aria-label="Готовые сравнения">
+            <button type="button" data-tickers="SBER LKOH" data-market="" data-currency="RUB" aria-pressed="false">Сбер и Лукойл</button>
+            <button type="button" data-tickers="AAPL MSFT NVDA" data-market="global" data-currency="USD" aria-pressed="false">Техно США</button>
+            <button type="button" data-tickers="gold silver palladium" data-market="metals" data-currency="RUB" aria-pressed="false">Металлы</button>
+            <button type="button" data-tickers="BTC ETH" data-market="crypto" data-currency="USD" aria-pressed="false">Крипто</button>
+          </div>
         </div>
 
         <div class="period">
-          <p class="field-label" id="period-label">За какой период</p>
+          <p class="section-label" id="period-label">Период</p>
           <div class="period-options" role="group" aria-labelledby="period-label">
             <button type="button" data-period="1" aria-pressed="true">1 год</button>
             <button type="button" data-period="3" aria-pressed="false">3 года</button>
@@ -48,9 +67,21 @@
               <span class="field-label">Конец</span>
               <input id="end-date" class="text-input" type="date">
             </label>
+            <p id="date-error" class="field-error" role="status" hidden></p>
           </div>
         </div>
       </section>
+
+      <footer class="action-bar">
+        <p id="asset-summary" class="visually-hidden" role="status" hidden></p>
+        <button id="send-button" class="primary-button" type="submit">Скопировать запрос</button>
+        <p class="action-hint" id="action-hint">Отправьте запрос в чат с ботом. Там появится видео.</p>
+        <p id="status-text" class="status-text" role="status"></p>
+        <label class="field manual-copy" id="manual-copy" hidden>
+          <span class="field-label">Запрос для копирования</span>
+          <textarea id="request-preview" class="text-input" readonly rows="3"></textarea>
+        </label>
+      </footer>
 
       <details class="disclosure settings">
         <summary>Дополнительные настройки</summary>
@@ -59,9 +90,9 @@
             <h2 id="data-title">Данные графика</h2>
             <div class="field-grid">
               <label class="field">
-                <span class="field-label">Рынок</span>
+                <span class="field-label">Рынок для ручного тикера</span>
                 <select id="market" class="select-input">
-                  <option value="">Авто / MOEX</option>
+                  <option value="">Авто / Мосбиржа</option>
                   <option value="global">Глобальный</option>
                   <option value="metals">Металлы</option>
                   <option value="futures">Фьючерсы</option>
@@ -153,25 +184,7 @@
         </div>
       </details>
 
-      <footer class="action-bar">
-        <button id="send-button" class="primary-button" type="submit">Скопировать запрос</button>
-        <p class="action-hint" id="action-hint">Отправьте запрос в чат с ботом. Там появится видео.</p>
-        <p id="status-text" class="status-text" role="status"></p>
-        <label class="field manual-copy" id="manual-copy" hidden>
-          <span class="field-label">Запрос для копирования</span>
-          <textarea id="request-preview" class="text-input" readonly rows="3"></textarea>
-        </label>
-      </footer>
     </form>
-    <details class="disclosure example">
-      <summary>
-        <span class="play-icon" aria-hidden="true"></span>
-        <span>Пример видео<span class="example-meta">Сбер и Лукойл</span></span>
-      </summary>
-      <template>
-        <video controls playsinline preload="none" poster="../assets/demo-sber-lkoh.png" src="../assets/demo-sber-lkoh.mp4" aria-label="Пример видео со сравнением Сбера и Лукойла"></video>
-      </template>
-    </details>
 
     <noscript><p>Включите JavaScript или отправьте в чат с ботом <code>/shorts SBER LKOH за год</code>.</p></noscript>
   </main>
